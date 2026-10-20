@@ -229,10 +229,13 @@ function queueTypeOf(key) {
   return u.cat === 'infantry' ? 'infantry' : u.cat === 'air' ? 'air' : 'vehicle';
 }
 
+// AI tactics per difficulty: counter = adapt unit mix to what scouts have seen,
+// raid = harvester raiding party size, engineers = how many ride along with attack waves,
+// retreat = pull a wave back once it drops below this share of its starting strength.
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   build: 0.7, income: 0.8, firstAttack: 420, waveBase: 5, waveGrow: 1 },
-  normal: { label: 'Normal', build: 1.0, income: 1.0, firstAttack: 300, waveBase: 7, waveGrow: 2 },
-  hard:   { label: 'Brutal', build: 1.35, income: 1.35, firstAttack: 200, waveBase: 9, waveGrow: 3 },
+  easy:   { label: 'Easy',   build: 0.7, income: 0.8, firstAttack: 420, waveBase: 5, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0 },
+  normal: { label: 'Normal', build: 1.0, income: 1.0, firstAttack: 300, waveBase: 7, waveGrow: 2, counter: true, raid: 3, engineers: 1, retreat: 0.35 },
+  hard:   { label: 'Brutal', build: 1.35, income: 1.35, firstAttack: 200, waveBase: 9, waveGrow: 3, counter: true, raid: 4, engineers: 2, retreat: 0.4 },
 };
 
 const START_CREDITS = 10000;

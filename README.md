@@ -28,6 +28,9 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Defenses: gatling turrets, rail turrets, SAM sites. Superweapons on a five-minute charge.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.
+  It plays by what it has seen: scouts look for enemy bases, the unit mix adapts to your army, waves gather before
+  they strike and wait until the odds look good, losing waves pull back, raiders hunt harvesters, and on Normal and
+  Brutal engineers ride along to capture key structures. Computer allies pick the same target.
 - Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
 - Procedurally generated maps (seeded) in three sizes.
