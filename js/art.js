@@ -424,7 +424,12 @@ const SPRITE_FOR = {
   rifle: 'rifle_vox', rocket: 'rocket_vox', engineer: 'engineer_vox',
   sniper: 'sniper_vox', shock: 'shock_vox', commando: 'commando_vox', flak: 'flak_vox', tos: 'tos_vox', iskander: 'iskander_vox', drone: 'drone_vox', kirov: 'kirov_vox',
   sas: 'sas_vox', hacker: 'hacker_vox', aegis: 'aegis_vox', raijin: 'raijin_vox', demotruck: 'demotruck_vox',
+  patrol: 'patrol_vox', destroyer: 'destroyer_vox', sub: 'sub_vox', hover: 'hover_vox', cruiser: 'cruiser_vox',
+  battleship: 'battleship_vox', carrier: 'carrier_vox', maya: 'maya_vox',
 };
+// extra copies of the turret sprite along the hull (forward offsets in game px), for ships
+// with more than one gun turret; they all train on the same bearing
+const EXTRA_TURRETS = { battleship_vox: [-20.6] };
 if (typeof location !== 'undefined') {
   const q = new URLSearchParams(location.search);
   if (q.get('style') === 'model' || q.get('tank') === 'model') for (const k of ['tank', 'ifv', 'heli']) delete SPRITE_FOR[k];
@@ -449,11 +454,17 @@ function drawUnitArt(ctx, u, team, sx, sy) {
   if (hull) {
     Art.blit(ctx, hull, sx, sy - lift);
     if (meta.parts.turret) {
-      const off = meta.turretOffset || 0;
-      const tx = Math.cos(u.facing) * off - Math.cos(u.turret) * rec, ty = Math.sin(u.facing) * off - Math.sin(u.turret) * rec;
       const tur = modelSprite(sk, 'turret', team, u.turret);
-      if (tur) Art.blit(ctx, tur, sx + isoX(tx, ty), sy - lift + isoY(tx, ty, 0));
+      // draw the turret nearer the viewer last so it overlaps the far one
+      const offs = [meta.turretOffset || 0, ...(EXTRA_TURRETS[sk] || [])]
+        .sort((a, b) => (Math.cos(u.facing) + Math.sin(u.facing)) * (a - b));
+      for (const off of offs) {
+        const tx = Math.cos(u.facing) * off - Math.cos(u.turret) * rec, ty = Math.sin(u.facing) * off - Math.sin(u.turret) * rec;
+        if (tur) Art.blit(ctx, tur, sx + isoX(tx, ty), sy - lift + isoY(tx, ty, 0));
+      }
     }
+  } else if (u.def.cat === 'naval') {
+    return; // ship sheets still loading: nothing sensible to draw in the meantime
   } else {
     Art.blit(ctx, unitSprite(u, team, 'hull'), sx, sy - lift);
     if (m && m.turret) {
@@ -969,6 +980,32 @@ function spriteCanvas(s) {
   return { c, ox: s.ox, oy: s.oy, w: s.w, h: s.h };
 }
 
+// cameo of a unit that only exists as a voxel sheet (ships and the country specials): hull and
+// turrets at a three-quarter angle, or null while the sheets are still loading
+function voxCameo(key, team) {
+  const sk = SPRITE_FOR[key], meta = typeof SPRITE_META !== 'undefined' && SPRITE_META[sk];
+  const f = UNITS[key].cat === 'naval' ? -0.45 : 0.6, hull = meta && modelSprite(sk, 'hull', team, f); // ships show their broadside
+  if (!hull) return null;
+  const parts = [[spriteCanvas(hull), 0, 0]];
+  const tur = meta.parts.turret && modelSprite(sk, 'turret', team, f - 0.2);
+  if (tur) for (const off of [meta.turretOffset || 0, ...(EXTRA_TURRETS[sk] || [])]) parts.push([spriteCanvas(tur), isoX(Math.cos(f) * off, Math.sin(f) * off), isoY(Math.cos(f) * off, Math.sin(f) * off, 0)]);
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const [p, dx, dy] of parts) { x0 = Math.min(x0, dx - p.ox); y0 = Math.min(y0, dy - p.oy); x1 = Math.max(x1, dx - p.ox + p.w); y1 = Math.max(y1, dy - p.oy + p.h); }
+  const c = document.createElement('canvas'); c.width = (x1 - x0) * 2; c.height = (y1 - y0) * 2;
+  const x = c.getContext('2d'); x.scale(2, 2);
+  for (const [p, dx, dy] of parts) x.drawImage(p.c, dx - p.ox - x0, dy - p.oy - y0, p.w, p.h);
+  // trim the empty margin of the sheet cells so the model fills the cameo (not possible when the
+  // page runs from file://, where the sheets taint the canvas)
+  let d;
+  try { d = x.getImageData(0, 0, c.width, c.height).data; } catch (e) { return { c, ox: -x0, oy: -y0, w: x1 - x0, h: y1 - y0 }; }
+  let a0 = c.width, b0 = c.height, a1 = -1, b1 = -1;
+  for (let j = 0; j < c.height; j++) for (let i = 0; i < c.width; i++) if (d[(j * c.width + i) * 4 + 3] > 8) { a0 = Math.min(a0, i); a1 = Math.max(a1, i); b0 = Math.min(b0, j); b1 = Math.max(b1, j); }
+  if (a1 < 0) return null;
+  const t = document.createElement('canvas'); t.width = a1 - a0 + 1; t.height = b1 - b0 + 1;
+  t.getContext('2d').drawImage(c, -a0, -b0);
+  return { c: t, ox: 0, oy: 0, w: t.width / 2, h: t.height / 2 };
+}
+
 function drawIcon(key, team, w, h) {
   const c = document.createElement('canvas');
   c.width = w * 2; c.height = h * 2;
@@ -991,6 +1028,8 @@ function drawIcon(key, team, w, h) {
       bc.drawImage(t.c, (s.ox - t.ox) * 2, (s.oy - t.oy) * 2);
       s = { c: both, ox: s.ox, oy: s.oy, w: s.w, h: s.h };
     }
+  } else if (!UNIT_MODELS[key] && UNITS[key].cat !== 'infantry' && voxCameo(key, fakeTeam)) {
+    s = voxCameo(key, fakeTeam);
   } else {
     const fake = { key, def: UNITS[key], facing: 0.6, turret: 0.4, anim: 0, moving: false, cargo: UNITS[key].capacity ? UNITS[key].capacity * 0.7 : 0 };
     s = unitSprite(fake, fakeTeam, 'hull');

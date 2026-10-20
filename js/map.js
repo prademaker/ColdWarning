@@ -110,11 +110,15 @@ function surfaceTexture(kind, th, rng) {
   return c;
 }
 
+// how a unit gets about: on land, on water (ships) or on both (the hovercraft)
+const MOVE_LAND = 0, MOVE_WATER = 1, MOVE_AMPHIB = 2;
+
 class GameMap {
-  constructor(size, seed, theater = 'temperate', players = 2) {
+  constructor(size, seed, theater = 'temperate', players = 2, water = 'lakes') {
     this.w = size; this.h = size;
     this.players = players;
     this.seed = seed;
+    this.water = MAP_WATER[water] ? water : 'lakes';
     this.theater = THEMES[theater] ? theater : 'temperate';
     this.theme = THEMES[this.theater];
     const n = size * size;
@@ -133,22 +137,27 @@ class GameMap {
     const t = this.terrain[this.idx(x, y)];
     return t !== T_WATER && t !== T_ROCK;
   }
-  passable(x, y) {
-    return this.terrainPassable(x, y) && this.bld[this.idx(x, y)] < 0;
+  passable(x, y, mode = MOVE_LAND) {
+    if (mode === MOVE_LAND) return this.terrainPassable(x, y) && this.bld[this.idx(x, y)] < 0;
+    if (!this.inside(x, y)) return false;
+    const i = this.idx(x, y), t = this.terrain[i];
+    return this.bld[i] < 0 && (mode === MOVE_WATER ? t === T_WATER : t !== T_ROCK);
   }
+  isWater(x, y) { return this.inside(x, y) && this.terrain[this.idx(x, y)] === T_WATER; }
 
   generate() {
     const N = this.w, rng = makeRng(this.seed);
     this.rng = rng;
     const n1 = makeNoise(rng, 16), n2 = makeNoise(rng, 32), n3 = makeNoise(rng, 24), n4 = makeNoise(rng, 40);
     const height = (x, y) => n1(x / N * 6, y / N * 6) * 0.65 + n2(x / N * 14, y / N * 14) * 0.35;
+    const sea = this.seaShape();
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       const h = height(x, y);
       const r = n3(x / N * 10, y / N * 10) * 0.7 + n2(x / N * 25, y / N * 25) * 0.3;
       const d = n4(x / N * 18, y / N * 18);
       let t = T_GRASS;
-      const w0 = this.theme.water0;
-      if (h < w0) t = T_WATER;
+      const w0 = this.theme.water0 - (sea ? 0.08 : 0); // the sea maps keep few lakes inland
+      if (h < w0 || (sea && sea(x, y, h))) t = T_WATER;
       else if (h < w0 + 0.035) t = T_SAND;
       else if (r > 0.7) t = T_ROCK;
       else if (d > 0.62) t = T_DIRT;
@@ -171,10 +180,14 @@ class GameMap {
     }
 
     for (const [sx, sy] of this.starts) this.paint(sx, sy, 9, T_GRASS);
-    // guarantee land connectivity between starts and to the center
+    // guarantee land connectivity between starts and to the center (on the sea maps round the
+    // rim instead: the middle is open water with an island of crystals)
     const c = [N >> 1, N >> 1];
-    for (const s of this.starts) this.carve(s, c);
-    for (let i = 1; i < this.starts.length; i++) this.carve(this.starts[i - 1], this.starts[i]);
+    if (sea) this.carveRim();
+    else {
+      for (const s of this.starts) this.carve(s, c);
+      for (let i = 1; i < this.starts.length; i++) this.carve(this.starts[i - 1], this.starts[i]);
+    }
 
     // ore fields
     for (const [sx, sy] of this.starts) {
@@ -186,6 +199,14 @@ class GameMap {
       }
     }
     this.oreField(c[0], c[1], 3.5, GEM);
+    if (sea) {
+      // a ring of small ore islands out in the sea, worth a hovercraft trip
+      const k = Math.round(4 * N / 88), a0 = rng() * Math.PI * 2;
+      for (let i = 0; i < k; i++) {
+        const a = a0 + i / k * Math.PI * 2, r = this.seaR0 * (0.5 + rng() * 0.2);
+        this.oreField(Math.round(c[0] + Math.cos(a) * r), Math.round(c[1] + Math.sin(a) * r), 2.2 + rng(), rng() < 0.3 ? GEM : ORE);
+      }
+    }
     const extra = Math.round(6 * (N / 88) * (N / 88));
     for (let i = 0; i < extra; i++) {
       for (let tries = 0; tries < 50; tries++) {
@@ -205,11 +226,57 @@ class GameMap {
       }
     }
     this.placeCivilians(rng, c);
+    this.labelWater();
     this.decor = [];
     for (let i = 0; i < N * N * this.theme.density; i++) {
       const x = rng() * N, y = rng() * N;
       const t = this.terrain[this.idx(x | 0, y | 0)];
       if (t === T_GRASS && this.ore[this.idx(x | 0, y | 0)] === 0 && !this.civMask[this.idx(x | 0, y | 0)]) this.decor.push({ x, y, kind: rng() < 0.55 ? 'bush' : 'tree', s: 0.6 + rng() * 0.6 });
+    }
+  }
+
+  // Sea maps: water wherever a point lies inside a rounded star centred on the map, its arms
+  // (bays) reaching toward the corners where bases start, with a ragged coastline from the
+  // height noise. Returns null on the classic land map.
+  seaShape() {
+    const spec = MAP_WATER[this.water], N = this.w;
+    if (!spec.edge) return null;
+    const c = N / 2, corner = (c - 11) * Math.SQRT2;
+    const r0 = c - spec.edge * N;  // toward the middle of each edge
+    const r1 = corner - 10;        // toward the bases
+    this.seaR0 = r0;
+    return (x, y, h) => {
+      const dx = x + 0.5 - c, dy = y + 0.5 - c, a = Math.atan2(dy, dx);
+      const k = Math.pow(Math.abs(Math.sin(2 * a)), 2.5);         // 1 on the diagonals
+      return Math.hypot(dx, dy) < r0 + (r1 - r0) * k + (h - 0.5) * 10;
+    };
+  }
+
+  // a land route along the edges joining the four corners (narrow causeways where the sea cut it)
+  carveRim() {
+    const N = this.w, m = 11, ring = [[m, m], [N - 1 - m, m], [N - 1 - m, N - 1 - m], [m, N - 1 - m]];
+    for (let i = 0; i < 4; i++) this.carve(ring[i], ring[(i + 1) % 4], true);
+  }
+
+  // Number every body of water (4-connected) so ships and the AI know which seas join up.
+  labelWater() {
+    const N = this.w;
+    this.waterId = new Int16Array(N * N).fill(-1);
+    this.waterSize = [];
+    for (let i = 0; i < N * N; i++) {
+      if (this.terrain[i] !== T_WATER || this.waterId[i] >= 0) continue;
+      const id = this.waterSize.length, q = [i];
+      this.waterId[i] = id;
+      for (let k = 0; k < q.length; k++) {
+        const j = q[k], x = j % N, y = (j / N) | 0;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (!this.inside(nx, ny)) continue;
+          const n = ny * N + nx;
+          if (this.terrain[n] === T_WATER && this.waterId[n] < 0) { this.waterId[n] = id; q.push(n); }
+        }
+      }
+      this.waterSize.push(q.length);
     }
   }
 
@@ -260,9 +327,9 @@ class GameMap {
     }
   }
 
-  carve(a, b) {
+  carve(a, b, always) {
     // only carve if not already reachable
-    if (this.reachable(a, b)) return;
+    if (!always && this.reachable(a, b)) return;
     const steps = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]));
     for (let i = 0; i <= steps; i++) {
       const x = Math.round(a[0] + (b[0] - a[0]) * i / steps), y = Math.round(a[1] + (b[1] - a[1]) * i / steps);
@@ -532,8 +599,9 @@ class PathFinder {
     this.heapF = new Float32Array(n * 8);
   }
 
-  // Find a path from (sx,sy) to within `range` tiles of (gx,gy). Returns array of [x,y] tile coords.
-  find(sx, sy, gx, gy, range = 0, maxNodes = 6000) {
+  // Find a path from (sx,sy) to within `range` tiles of (gx,gy) for a unit that moves by `mode`
+  // (MOVE_LAND, MOVE_WATER or MOVE_AMPHIB). Returns array of [x,y] tile coords.
+  find(sx, sy, gx, gy, range = 0, mode = MOVE_LAND, maxNodes = 6000) {
     const m = this.map, W = m.w;
     this.cur++;
     const cur = this.cur;
@@ -585,8 +653,8 @@ class PathFinder {
       for (let d = 0; d < 8; d++) {
         const ox = DIRS[d][0], oy = DIRS[d][1];
         const nx = x + ox, ny = y + oy;
-        if (!m.passable(nx, ny)) continue;
-        if (ox !== 0 && oy !== 0 && (!m.passable(x + ox, y) || !m.passable(x, y + oy))) continue;
+        if (!m.passable(nx, ny, mode)) continue;
+        if (ox !== 0 && oy !== 0 && (!m.passable(x + ox, y, mode) || !m.passable(x, y + oy, mode))) continue;
         const ni = nx + ny * W;
         if (this.closed[ni] === cur) continue;
         const ng = gi + (ox !== 0 && oy !== 0 ? 1.4142 : 1);
@@ -599,10 +667,10 @@ class PathFinder {
     let k = best;
     while (k !== s && k >= 0) { path.push([k % W, (k / W) | 0]); k = this.parent[k]; }
     path.reverse();
-    return this.smooth(sx, sy, path);
+    return this.smooth(sx, sy, path, mode);
   }
 
-  lineClear(x0, y0, x1, y1) {
+  lineClear(x0, y0, x1, y1, mode) {
     const dist = Math.hypot(x1 - x0, y1 - y0);
     const steps = Math.ceil(dist * 3);
     for (let i = 1; i < steps; i++) {
@@ -610,19 +678,19 @@ class PathFinder {
       const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;
       // check a small box around the sample so units don't clip corners
       for (const [ox, oy] of [[0.3, 0.3], [-0.3, 0.3], [0.3, -0.3], [-0.3, -0.3]]) {
-        if (!this.map.passable(Math.floor(x + 0.5 + ox), Math.floor(y + 0.5 + oy))) return false;
+        if (!this.map.passable(Math.floor(x + 0.5 + ox), Math.floor(y + 0.5 + oy), mode)) return false;
       }
     }
     return true;
   }
 
-  smooth(sx, sy, path) {
+  smooth(sx, sy, path, mode) {
     if (path.length < 3) return path;
     const out = [];
     let ax = sx, ay = sy, i = 0;
     while (i < path.length) {
       let j = Math.min(path.length - 1, i + 12);
-      while (j > i && !this.lineClear(ax, ay, path[j][0], path[j][1])) j--;
+      while (j > i && !this.lineClear(ax, ay, path[j][0], path[j][1], mode)) j--;
       out.push(path[j]);
       ax = path[j][0]; ay = path[j][1];
       i = j + 1;

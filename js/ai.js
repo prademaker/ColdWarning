@@ -11,6 +11,8 @@ const AI_TARGET_VALUE = {
   laser: 3, thaad: 4, koksan: 4, railturret: 3, turret: 3, bunker: 3, sam: 2,
 };
 const AI_RAIDERS = ['heli', 'drone'];
+// warships the AI buys, by preference (pick() skips what this nation can't build)
+const AI_FLEET = { patrol: 3, destroyer: 4, sub: 3, cruiser: 3, battleship: 3, carrier: 3, maya: 2 };
 const AI_CAPTURE = ['super_lance', 'super_silo', 'cc', 'factory', 'tech', 'robotics', 'hub', 'gchq', 'refinery', 'airfield', 'radar'];
 
 function aiWorth(e) {
@@ -30,8 +32,11 @@ class AI {
     const sup = team.superKey();
     // the country's edge structure goes in once its requirements are up; defensive ones twice
     const edge = FACTIONS[team.faction].edge, edge2 = BUILDINGS[edge].cat === 'defense' ? edge : null;
+    // a navy only where there is a sea by our base that also reaches the enemy (see seaPlan)
+    this.sea = this.seaPlan();
+    const yard = this.sea ? 'shipyard' : null;
     this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret', 'bunker',
-      edge, 'airfield', 'power', 'tech', 'sam', 'power', 'turret', 'bunker', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
+      edge, 'airfield', 'power', 'tech', yard, 'sam', 'power', 'turret', 'bunker', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
       edge2, 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => k && inRoster(k, team.faction));
     this.nextAttack = this.d.firstAttack;
     this.waves = 0;
@@ -44,6 +49,8 @@ class AI {
     this.startSeen = {};       // team id -> time we last had eyes on its start area
     this.grudge = {};          // team id -> time it last hit us
     this.lastDefend = -10;
+    this.fleet = null;         // the fleet at sea: { ids, state, target, t, start }
+    this.nextFleet = 0;
   }
 
   myUnits() { return G.entities.filter(e => e.kind === 'unit' && e.team === this.team.id && !e.dead); }
@@ -148,8 +155,9 @@ class AI {
     for (const e of foes) {
       if (all && e.kind === 'unit') { this.intel.set(e.id, { e, x: e.x, y: e.y, t: G.time }); continue; }
       const pad = e.kind === 'building' ? Math.max(e.w, e.h) * TILE / 2 : 0;
+      const hidden = e.def.submarine && G.submerged(e); // a submerged submarine only shows up close
       for (const s of src) {
-        const r = s.def.sight * TILE + pad, dx = e.x - s.x, dy = e.y - s.y;
+        const r = (hidden ? e.def.stealth * TILE : s.def.sight * TILE) + pad, dx = e.x - s.x, dy = e.y - s.y;
         if (dx > r || dx < -r || dy > r || dy < -r || dx * dx + dy * dy > r * r) continue;
         this.intel.set(e.id, { e, x: e.x, y: e.y, t: G.time });
         break;
@@ -185,7 +193,7 @@ class AI {
     for (const r of this.intel.values()) {
       if (r.e.team !== foe.id) continue;
       const w = r.e.def.weapon, armed = (w && w.ground) || (r.e.garrison && r.e.garrison.length);
-      if (r.e.kind === 'unit' || (armed && Math.hypot(r.x - sx, r.y - sy) < 16 * TILE)) s += aiWorth(r.e);
+      if ((r.e.kind === 'unit' && !r.e.def.naval) || (armed && Math.hypot(r.x - sx, r.y - sy) < 16 * TILE)) s += aiWorth(r.e);
     }
     return s;
   }
@@ -228,6 +236,7 @@ class AI {
         continue;
       }
       if (t.countOf(key) >= need[key]) continue;
+      if (key === 'shipyard' && !this.shipyardSpot()) continue; // the base has not reached the water yet
       if (t.canBuild(key)) return key;
       if (qtype === 'structure') return null; // wait for prerequisites instead of skipping ahead
     }
@@ -238,6 +247,9 @@ class AI {
     const t = this.team, q = t.queues[qtype], key = q.head, def = BUILDINGS[key];
     const blds = this.myBuildings();
     if (!blds.length) return false;
+    if (def.water) { const s = this.shipyardSpot(true); return !!s && G.tryPlace(t.id, qtype, s[0], s[1]); }
+    // once the air force is up and the shipyard has nowhere to go, the base grows toward the shore
+    const shore = this.sea && t.countOf('airfield') && !t.countOf('shipyard') && !this.shipyardSpot() ? this.sea.shore : null;
     const [hx, hy] = this.home();
     const foe = this.nearestFoe();
     const [ex, ey] = foe ? this.startPx(foe.id) : [G.map.w * TILE / 2, G.map.h * TILE / 2];
@@ -270,6 +282,8 @@ class AI {
         score = Math.abs(dHome - 9) * 1.5 - along * 0.8 + Math.random() * 3;
       } else if (key === 'refinery') {
         score = this.oreDist(tx + 1, ty + 1) * 2 + dHome * 0.3;
+      } else if (shore) {
+        score = dHome * 0.3 + Math.hypot(tx + def.w / 2 - shore[0], ty + def.h / 2 - shore[1]) + Math.random() * 2;
       } else {
         score = dHome + Math.random() * 2;
       }
@@ -303,13 +317,15 @@ class AI {
 
   // what the enemy fields, by credits, from what we have seen
   enemyMix() {
-    const mix = { infantry: 0, light: 0, heavy: 0, air: 0, defense: 0, total: 0 };
+    const mix = { infantry: 0, light: 0, heavy: 0, air: 0, ship: 0, defense: 0, total: 0, naval: 0, subs: 0 };
     for (const r of this.intel.values()) {
       const e = r.e;
       if (e.kind === 'building') { if (aiArmed(e)) mix.defense += e.def.cost + aiWorth(e) / 1.5; continue; }
       if (!e.def.weapon) continue;
       const a = e.def.armor;
       mix[a] += e.def.cost; mix.total += e.def.cost;
+      if (e.def.naval) mix.naval += e.def.cost;
+      if (e.def.submarine) mix.subs += e.def.cost;
     }
     return mix;
   }
@@ -333,7 +349,8 @@ class AI {
     if (sq && t.canBuild(sig) && !sq.items.length && t.credits > 800 + reserve &&
       units.filter(u => u.key === sig).length < 2 + Math.floor(this.waves / 2)) sq.add(sig);
 
-    const army = units.filter(u => u.def.weapon).length;
+    if (this.sea) this.produceFleet(units, this.enemyMix(), reserve);
+    const army = units.filter(u => u.def.weapon && !u.def.naval).length;
     const cap = 18 + this.waves * 4 + Math.floor(t.credits / 2500) * 3; // spend surplus
     if (army > cap) return;
 
@@ -379,6 +396,23 @@ class AI {
     }
   }
 
+  // Warships while we have a shipyard: more of them the longer the war goes on, leaning toward
+  // submarines against an enemy fleet, destroyers against submarines and air defense against aircraft.
+  produceFleet(units, mix, reserve) {
+    const t = this.team, Q = t.queues.naval;
+    if (!this.sea || !t.countOf('shipyard') || Q.items.length || t.credits < 1400 + reserve) return;
+    const fleet = units.filter(u => u.def.naval && u.def.weapon).length;
+    if (fleet >= Math.min(12, 3 + this.waves + Math.floor(t.credits / 4000))) return;
+    const w = Object.assign({}, AI_FLEET);
+    if (this.d.counter) {
+      const navy = mix.naval / Math.max(1, mix.total), subs = mix.subs / Math.max(1, mix.total), air = mix.air / Math.max(1, mix.total);
+      w.sub += navy * 6; w.destroyer += navy * 3 + subs * 10; w.maya += air * 6; w.destroyer += air * 3; w.patrol += air * 2;
+      w.cruiser += (1 - navy) * 2; w.battleship += (1 - navy) * 2; w.carrier += (1 - navy) * 2;
+    }
+    const k = this.pick(w);
+    if (k) Q.add(k);
+  }
+
   // ---------- army ----------
   manageArmy(units) {
     const busy = new Set();
@@ -386,7 +420,8 @@ class AI {
     if (this.raid) for (const id of this.raid.ids) busy.add(id);
     if (this.scout) busy.add(this.scout.id);
 
-    const home = units.filter(u => (u.def.weapon || u.def.engineer) && !u.def.harvester && !busy.has(u.id));
+    // warships keep to the sea and answer to manageFleet instead
+    const home = units.filter(u => (u.def.weapon || u.def.engineer) && !u.def.harvester && !u.def.naval && !busy.has(u.id));
     const fighters = home.filter(u => u.def.weapon);
     const [rx, ry] = this.rallyTile();
     const [hx, hy] = this.home();
@@ -418,6 +453,7 @@ class AI {
       }
     }
     if (this.wave) this.manageWave();
+    if (this.sea) this.manageFleet(units.filter(u => u.def.naval && u.def.weapon));
   }
 
   launch(foe, fighters, engineers) {
@@ -523,6 +559,7 @@ class AI {
     for (const r of this.intel.values()) {
       const e = r.e;
       if (foe && e.team !== foe.id) continue;
+      if (e.kind === 'unit' && e.def.naval) continue; // the land army can't chase ships out to sea
       let s = Math.hypot(r.x - x, r.y - y) / TILE;
       if (e.kind === 'building') s -= (AI_TARGET_VALUE[e.key] || 3) * 2;
       else s += 20; // units come to us anyway; prefer the base
@@ -614,6 +651,194 @@ class AI {
     w.coverT = G.time;
     const pick = inf.sort((a, c) => Math.hypot(a.x - best.x, a.y - best.y) - Math.hypot(c.x - best.x, c.y - best.y)).slice(0, 3);
     G.commandGarrison(pick, best);
+  }
+
+  // ---------- navy ----------
+  // Whether this map is worth a navy: a body of water by our base (within a short walk of the
+  // start) that also comes within gun range of an enemy base, or a big sea to fight over.
+  seaPlan() {
+    const m = G.map, me = this.team.id;
+    if (!inRoster('shipyard', this.team.faction) || !m.waterId) return null;
+    if (G.opts.mission && !(missionDef(G.opts.mission) || {}).water) return null; // campaign maps keep their scripted forces
+    const [hx, hy] = m.starts[me];
+    let body = -1, bd = 1e9, shore = null;
+    for (let y = hy - 14; y <= hy + 14; y++) for (let x = hx - 14; x <= hx + 14; x++) {
+      if (!m.isWater(x, y)) continue;
+      const id = m.waterId[m.idx(x, y)], d = Math.hypot(x - hx, y - hy);
+      if (m.waterSize[id] >= 150 && d < bd) { bd = d; body = id; shore = [x, y]; }
+    }
+    if (body < 0) return null;
+    // the closest the sea gets to any enemy start
+    let reach = 1e9;
+    for (const t of G.teams) {
+      if (!G.hostile(t.id, me) || !m.starts[t.id]) continue;
+      const [ex, ey] = m.starts[t.id];
+      for (let y = ey - 20; y <= ey + 20; y++) for (let x = ex - 20; x <= ex + 20; x++) {
+        if (m.isWater(x, y) && m.waterId[m.idx(x, y)] === body) reach = Math.min(reach, Math.hypot(x - ex, y - ey));
+      }
+    }
+    const sea = !!MAP_WATER[m.water].edge;
+    if (reach > 18 && !(sea && m.waterSize[body] > 600)) return null;
+    if (!sea && m.waterSize[body] < 400) return null; // a lake is only worth it when it is a big one
+    return { body, shore, coast: null };
+  }
+
+  // tiles from every map tile to the nearest water of our sea (how far inland a ship can reach)
+  coastDist() {
+    const sea = this.sea, m = G.map, N = m.w;
+    if (sea.coast) return sea.coast;
+    const d = new Int16Array(N * N).fill(999), q = [];
+    for (let i = 0; i < N * N; i++) if (m.terrain[i] === T_WATER && m.waterId[i] === sea.body) { d[i] = 0; q.push(i); }
+    for (let k = 0; k < q.length; k++) {
+      const i = q[k], x = i % N, y = (i / N) | 0;
+      for (const [dx, dy] of DIRS) {
+        const nx = x + dx, ny = y + dy;
+        if (!m.inside(nx, ny)) continue;
+        const j = ny * N + nx;
+        if (d[j] > d[i] + 1) { d[j] = d[i] + 1; q.push(j); }
+      }
+    }
+    sea.coast = d;
+    return d;
+  }
+  inlandOf(e) { return this.coastDist()[G.map.idx(Math.floor(e.x / TILE), Math.floor(e.y / TILE))]; }
+
+  // nearest open water of our sea to a point (tile coords)
+  waterNear(tx, ty) {
+    const m = G.map;
+    for (let r = 0; r < 30; r++) {
+      let best = null, bd = 1e9;
+      for (let y = ty - r; y <= ty + r; y++) for (let x = tx - r; x <= tx + r; x++) {
+        if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) !== r || !m.passable(x, y, MOVE_WATER) || m.waterId[m.idx(x, y)] !== this.sea.body) continue;
+        const d = Math.hypot(x - tx, y - ty);
+        if (d < bd) { bd = d; best = [x, y]; }
+      }
+      if (best) return best;
+    }
+    return null;
+  }
+
+  // Where a shipyard can go now: open water of our sea within building reach, close to home,
+  // with water around it so ships can get out. Cached for a few seconds.
+  shipyardSpot(fresh) {
+    if (!this.sea) return null;
+    if (!fresh && G.time - (this.yardT ?? -1e9) < 8) return this.yardSpot;
+    this.yardT = G.time;
+    const m = G.map, [hx, hy] = this.home(), cx = Math.floor(hx / TILE), cy = Math.floor(hy / TILE);
+    let best = null, bs = 1e9;
+    for (let ty = cy - 24; ty <= cy + 24; ty++) for (let tx = cx - 24; tx <= cx + 24; tx++) {
+      let ok = true, open = 0;
+      for (let y = ty - 1; y <= ty + 3 && ok; y++) for (let x = tx - 1; x <= tx + 3; x++) {
+        const inner = x >= tx && x < tx + 3 && y >= ty && y < ty + 3;
+        if (inner && (!m.isWater(x, y) || m.bld[m.idx(x, y)] >= 0 || m.waterId[m.idx(x, y)] !== this.sea.body)) { ok = false; break; }
+        if (!inner && m.passable(x, y, MOVE_WATER)) open++;
+      }
+      if (!ok || open < 5) continue;
+      const s = Math.hypot(tx + 1.5 - hx / TILE, ty + 1.5 - hy / TILE) - open * 0.25;
+      if (s >= bs || !G.canPlace('shipyard', this.team.id, tx, ty)) continue;
+      bs = s; best = [tx, ty];
+    }
+    this.yardSpot = best;
+    return best;
+  }
+
+  // the stretch of water off our shipyard where the fleet gathers and gets repaired
+  harbor() {
+    const yard = this.myBuildings().find(b => b.key === 'shipyard');
+    if (yard) {
+      if (this.harborOf !== yard.id) { this.harborOf = yard.id; this.harborAt = G.findFreeTile(yard.tx + 1, yard.ty + 1, MOVE_WATER) || this.sea.shore; }
+      return this.harborAt;
+    }
+    return this.waterNear(this.sea.shore[0], this.sea.shore[1]) || this.sea.shore;
+  }
+
+  // the best ground reach in a group of ships (torpedoes only hit ships)
+  fleetReach(ships) {
+    let r = 0;
+    for (const u of ships) for (const w of G.weaponsOf(u)) if (w.ground && !w.only) r = Math.max(r, w.range);
+    return r;
+  }
+
+  // What the fleet goes after: enemy ships on our sea first, then the most valuable known
+  // structure within reach of the water.
+  fleetTarget(ships, x, y) {
+    const reach = this.fleetReach(ships), m = G.map;
+    let best = null, bs = 1e9;
+    for (const r of this.intel.values()) {
+      const e = r.e;
+      if (e.dead || !G.hostile(e.team, this.team.id)) continue;
+      let s = Math.hypot(r.x - x, r.y - y) / TILE;
+      if (e.kind === 'unit') {
+        if (!e.def.naval || G.time - r.t > 40 || !m.isWater(Math.floor(r.x / TILE), Math.floor(r.y / TILE)) || m.waterId[m.idx(Math.floor(r.x / TILE), Math.floor(r.y / TILE))] !== this.sea.body) continue;
+        s -= 14;
+      } else {
+        if (this.inlandOf(e) > reach - 1) continue;
+        s -= (AI_TARGET_VALUE[e.key] || 3) * 2;
+      }
+      if (s < bs) { bs = s; best = e; }
+    }
+    return best;
+  }
+
+  // Send each ship at the target: those that can reach it attack it, the rest escort them to
+  // the nearest water and fight whatever they meet there.
+  sendFleet(f, ships) {
+    const t = f.target, reachTo = this.inlandOf(t);
+    const spot = this.waterNear(Math.floor(t.x / TILE), Math.floor(t.y / TILE));
+    for (const u of ships) {
+      const w = G.weaponFor(u, t);
+      if (w && (t.kind === 'unit' || w.range >= reachTo + 1)) G.commandAttack([u], t);
+      else if (spot) G.commandMove([u], spot[0], spot[1], true, true);
+    }
+  }
+
+  manageFleet(ships) {
+    const f = this.fleet, harbor = this.harbor();
+    if (f) {
+      const live = this.units(f.ids);
+      if (!live.length) { this.fleet = null; this.nextFleet = G.time + 45; }
+      else {
+        const cx = live.reduce((s, u) => s + u.x, 0) / live.length, cy = live.reduce((s, u) => s + u.y, 0) / live.length;
+        const strength = live.reduce((s, u) => s + aiWorth(u), 0);
+        if (f.state === 'retreat') {
+          if (Math.hypot(cx / TILE - harbor[0], cy / TILE - harbor[1]) < 7 || G.time - f.t > 45) this.fleet = null;
+        } else if (f.state === 'patrol' && !this.fleetTarget(live, cx, cy)) {
+          // keep going until the coast comes into view, then turn for home if it is empty
+          if (G.time - f.t > 50 || live.every(u => !u.order && !u.target)) { G.commandMove(live, harbor[0], harbor[1], true, true); this.fleet = null; this.nextFleet = G.time + 40; }
+        } else if (this.d.retreat && strength < f.start * this.d.retreat) {
+          // badly mauled: back to the shipyard for repairs
+          G.commandMove(live, harbor[0], harbor[1], false, true);
+          f.state = 'retreat'; f.t = G.time;
+          this.nextFleet = G.time + 50;
+        } else {
+          if (!f.target || f.target.dead || !G.hostile(f.target.team, this.team.id)) {
+            f.target = this.fleetTarget(live, cx, cy);
+            if (!f.target) { G.commandMove(live, harbor[0], harbor[1], true, true); this.fleet = null; this.nextFleet = G.time + 25; }
+            else this.sendFleet(f, live);
+          } else {
+            const idle = live.filter(u => !u.order && !u.target);
+            if (idle.length) this.sendFleet(f, idle);
+          }
+        }
+      }
+    }
+    const busy = this.fleet ? this.fleet.ids : new Set();
+    const free = ships.filter(u => !busy.has(u.id));
+    for (const u of free) if (!u.order && !u.target && Math.hypot(u.x / TILE - harbor[0], u.y / TILE - harbor[1]) > 6) G.commandMove([u], harbor[0], harbor[1], true, true);
+    if (this.fleet || G.time < this.nextFleet || free.length < (this.d.counter ? 3 : 2)) return;
+    const cx = free.reduce((s, u) => s + u.x, 0) / free.length, cy = free.reduce((s, u) => s + u.y, 0) / free.length;
+    const target = this.fleetTarget(free, cx, cy), start = free.reduce((s, u) => s + aiWorth(u), 0);
+    if (target) {
+      this.fleet = { ids: new Set(free.map(u => u.id)), target, state: 'sail', t: G.time, start };
+      this.sendFleet(this.fleet, free);
+      return;
+    }
+    // nothing known within reach: sail along the enemy's coast and see what is there
+    const foe = this.chooseFoe(), [ex, ey] = foe ? G.map.starts[foe.id] : [0, 0];
+    const spot = foe && this.waterNear(ex, ey);
+    if (!spot || this.coastDist()[G.map.idx(ex, ey)] > 22) { this.nextFleet = G.time + 30; return; }
+    this.fleet = { ids: new Set(free.map(u => u.id)), target: null, state: 'patrol', t: G.time, start };
+    G.commandMove(free, spot[0], spot[1], true, true);
   }
 
   // An early scout looks at every enemy start; later ones refresh whichever is stalest.
@@ -712,10 +937,12 @@ class AI {
       if (refs[0]) G.commandDock(target, refs[0]);
     }
     if (G.time - this.lastDefend < 3) return;
-    if (target.kind !== 'building' && !target.def.harvester) return;
+    if (target.kind !== 'building' && !target.def.harvester && !target.def.naval) return;
     this.lastDefend = G.time;
     const busy = new Set([...(this.wave ? this.wave.ids : []), ...(this.raid ? this.raid.ids : [])]);
-    const mine = this.myUnits().filter(u => u.def.weapon && !busy.has(u.id) && G.canHit(u, attacker) && !(u.order && u.order.type === 'garrison'));
+    // ships only come about for raiders that are themselves at sea
+    const mine = this.myUnits().filter(u => u.def.weapon && !busy.has(u.id) && G.canHit(u, attacker) && !(u.order && u.order.type === 'garrison') &&
+      (!u.def.naval || G.map.isWater(attacker.tx, attacker.ty)));
     const defenders = mine.filter(u => Math.hypot(u.x - target.x, u.y - target.y) < 30 * TILE);
     // attack-move rather than all chasing the one attacker, so defenders engage whatever is closest
     const idle = defenders.filter(u => !u.target);

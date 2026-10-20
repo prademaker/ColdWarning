@@ -237,7 +237,7 @@ const UI = {
           if (i >= 0) this.selection.splice(i, 1); else this.select([ent], true);
         } else this.select([ent], false);
         if (ent.kind === 'building' && ent.team === G.player) {
-          const q = { cc: 'structure', barracks: 'infantry', factory: 'vehicle', airfield: 'air' }[ent.key];
+          const q = { cc: 'structure', barracks: 'infantry', factory: 'vehicle', airfield: 'air', shipyard: 'naval' }[ent.key];
           if (q) this.setTab(q);
         }
       } else if (!d.shift) this.selection = [];
@@ -286,6 +286,14 @@ const UI = {
       const prods = this.ownSelected().filter(b => b.kind === 'building' && b.def.produces && b.def.produces !== 'structure');
       if (prods.length) { for (const b of prods) b.rally = [tx, ty]; this.mark(w.x, w.y, '#7f7'); Sfx.play('ack'); }
       else this.selection = [];
+      return;
+    }
+    // troops onto one of our own transports: climb aboard
+    if (ent && ent.kind === 'unit' && ent.def.transport && ent.team === G.player && units.some(u => G.canBoard(u, ent))) {
+      const sent = G.commandBoard(units, ent);
+      const rest = units.filter(u => !sent.includes(u) && u !== ent);
+      if (rest.length) G.commandMove(rest, tx, ty, false, true);
+      this.mark(ent.x, ent.y, '#7f7');
       return;
     }
     // infantry onto a free civilian building or one of our own bunkers: move in
@@ -377,6 +385,7 @@ const UI = {
       for (const u of diggers) if (dig) G.digIn(u); else G.digOut(u);
       if (diggers.length) Sfx.play('ack');
       for (const b of this.ownSelected()) if (b.kind === 'building' && b.garrison && b.garrison.length) { G.evacuate(b); Sfx.play('ack'); }
+      for (const u of units) if (u.passengers && u.passengers.length) { if (G.unload(u)) Sfx.play('ack'); else Sfx.play('error'); }
       return;
     }
     if (lower === 'h') { const cc = G.entities.find(b => b.key === 'cc' && b.team === G.player); if (cc) this.centerOn(cc.x, cc.y); return; }
@@ -721,6 +730,8 @@ const UI = {
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';
         else if (e.def.engineer) extra += 'Right-click enemy structure to capture';
         else if (e.def.demo) extra += `${G.stealthRange(e) < 1e9 ? 'Hidden' : 'Spotted'} · Kills: ${e.kills} · Right-click a structure for C4`;
+        else if (e.def.transport) extra += `Carrying ${cargoUsed(e)}/${e.def.transport}` + (e.team === G.player ? (e.passengers.length ? ' · D to unload' : ' · Right-click it with troops to board') : '');
+        else if (e.def.submarine) extra += `${G.submerged(e) ? 'Submerged' : 'Surfaced'} · Kills: ${e.kills}`;
         else extra += `Kills: ${e.kills}`;
         if (e.def.dig && e.team === G.player) extra += e.dug ? ' · Dug in, D to get up' : ' · D to dig in';
       } else if (e.def.garrison) {
