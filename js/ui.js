@@ -168,6 +168,7 @@ const UI = {
     else if (this.mode === 'amove' || this.superTargeting) cur = 'crosshair';
     else if (this.hover && G.hostile(this.hover.team, G.player) && this.ownUnits().length) cur = 'crosshair';
     else if (this.hover && this.hover.team === G.player) cur = 'pointer';
+    else if (this.hover && this.hover.def.garrison && this.ownUnits().some(u => G.canGarrison(u, this.hover))) cur = 'pointer';
     this.canvas.style.cursor = cur;
   },
 
@@ -287,6 +288,14 @@ const UI = {
       else this.selection = [];
       return;
     }
+    // infantry onto a free civilian building or one of our own bunkers: move in
+    if (ent && ent.kind === 'building' && ent.def.garrison && units.some(u => G.canGarrison(u, ent))) {
+      const sent = G.commandGarrison(units, ent);
+      const rest = units.filter(u => !sent.includes(u));
+      if (rest.length) G.commandMove(rest, tx, ty, false, true);
+      this.mark(ent.x, ent.y, '#7f7');
+      return;
+    }
     if (ent && G.hostile(ent.team, G.player)) {
       G.commandAttack(units, ent);
       this.mark(ent.x, ent.y, '#f44');
@@ -357,7 +366,16 @@ const UI = {
     const lower = k.toLowerCase();
     if (lower === 'a' && this.ownUnits().length) { this.mode = 'amove'; this.placing = null; this.updateCursor(); return; }
     if (lower === 's' && !e.ctrlKey) { G.commandStop(this.ownUnits()); return; }
-    if (lower === 'd') { for (const u of this.ownUnits()) if (u.def.mcv) G.deploy(u); return; }
+    if (lower === 'd') {
+      // deploy MCVs, dig riflemen in (or get them all up if they already are), empty garrisons
+      const units = this.ownUnits(), diggers = units.filter(u => u.def.dig);
+      for (const u of units) if (u.def.mcv) G.deploy(u);
+      const dig = diggers.some(u => !u.dug && u.digging <= 0);
+      for (const u of diggers) if (dig) G.digIn(u); else G.digOut(u);
+      if (diggers.length) Sfx.play('ack');
+      for (const b of this.ownSelected()) if (b.kind === 'building' && b.garrison && b.garrison.length) { G.evacuate(b); Sfx.play('ack'); }
+      return;
+    }
     if (lower === 'h') { const cc = G.entities.find(b => b.key === 'cc' && b.team === G.player); if (cc) this.centerOn(cc.x, cc.y); return; }
     if (k === ' ') { e.preventDefault(); if (G.alertPos) this.centerOn(G.alertPos.x, G.alertPos.y); return; }
     if (k === 'Tab') {
@@ -442,7 +460,7 @@ const UI = {
     }
     for (const e of G.entities) {
       if (e.dead || !G.isVisibleTo(e, G.player)) continue;
-      ctx.fillStyle = G.teams[e.team].color;
+      ctx.fillStyle = G.teamOf(e.team).color;
       if (e.kind === 'building') ctx.fillRect(e.tx * sx, e.ty * sy, e.w * sx, e.h * sy);
       else ctx.fillRect(e.x / TILE * sx - 1, e.y / TILE * sy - 1, 2.5, 2.5);
     }
@@ -657,10 +675,10 @@ const UI = {
   updateSelInfo() {
     const el = document.getElementById('sel-info');
     const sel = this.selection.filter(e => !e.dead);
-    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy · Ctrl+# group</div>'; return; }
+    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy / dig in · Ctrl+# group</div>'; return; }
     if (sel.length === 1) {
       const e = sel[0];
-      const tm = G.teams[e.team];
+      const tm = G.teamOf(e.team);
       let extra = '';
       if (e.kind === 'unit') {
         if (e.rank) extra += `<span class="rank">${e.rank === 2 ? 'ELITE' : 'VETERAN'}</span> `;
@@ -668,6 +686,12 @@ const UI = {
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';
         else if (e.def.engineer) extra += 'Right-click enemy structure to capture';
         else extra += `Kills: ${e.kills}`;
+        if (e.def.dig && e.team === G.player) extra += e.dug ? ' · Dug in, D to get up' : ' · D to dig in';
+      } else if (e.def.garrison) {
+        const n = e.garrison ? e.garrison.length : 0;
+        extra = `Garrison ${n}/${e.def.garrison}`;
+        if (e.team === G.player && n) extra += ' · D to evacuate';
+        else if (e.team === NEUTRAL || e.team === G.player) extra += ' · Right-click with infantry to garrison';
       } else {
         extra = `Power ${e.def.power > 0 ? '+' : ''}${e.def.power}`;
         if (e.def.produces && e.def.produces !== 'structure' && e.team === G.player) extra += ' · Right-click map to set rally';
@@ -685,7 +709,7 @@ const UI = {
     }
     this.selKey = null;
     const counts = {};
-    for (const e of sel) { const n = nameOf(e.key, G.teams[e.team].faction); counts[n] = (counts[n] || 0) + 1; }
+    for (const e of sel) { const n = nameOf(e.key, G.teamOf(e.team).faction); counts[n] = (counts[n] || 0) + 1; }
     el.innerHTML = `<div class="sname">${sel.length} selected</div><div class="sextra">` +
       Object.entries(counts).map(([n, c]) => `${c}× ${n}`).join('<br>') + '</div>';
   },

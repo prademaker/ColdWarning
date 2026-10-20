@@ -31,12 +31,18 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Economy: harvesters mine gold ore and lithium crystals; fields slowly regrow.
 - Power grid: low power slows production, disables the radar minimap and shuts off powered defenses.
 - 18 unit types: infantry, engineers (capture buildings), bloc-specific infantry, scouts and artillery, main battle tanks, super-tanks, nation signature units, attack helicopters and fighter jets.
-- Defenses: gatling turrets, rail turrets, SAM sites. Superweapons on a five-minute charge.
+- Defenses: gatling turrets, rail turrets, SAM sites, battle bunkers. Superweapons on a five-minute charge.
+- Garrisons, Red Alert 2 style: villages of civilian buildings dot the map, and infantry can move into them (or into your own
+  Battle Bunker) to fire out of the windows with extra range and punch, untouchable until the building falls. A held building
+  changes hands with its occupants; flamethrowers, thermobaric rockets and bombs burn the occupants out.
+- Riflemen dig in behind sandbags: half the damage taken and a longer-ranged gun, but they can't move until they get up again.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.
   It plays by what it has seen: scouts look for enemy bases, the unit mix adapts to your army, waves gather before
   they strike and wait until the odds look good, losing waves pull back, raiders hunt harvesters, and on Normal and
-  Brutal engineers ride along to capture key structures. Computer allies pick the same target.
+  Brutal engineers ride along to capture key structures. Computer allies pick the same target. Riflemen waiting at the
+  rally point dig in, bunkers get manned, a civilian building on its side of the map becomes an outpost, and attack waves
+  send a few troopers into cover when they fight next to one.
 - Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
 - Procedurally generated maps (seeded) in three sizes.
@@ -51,9 +57,10 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | --- | --- |
 | Select / box select | Left click / drag (Shift adds) |
 | Select all of a type on screen | Double-click |
-| Move / attack / harvest / capture | Right click |
+| Move / attack / harvest / capture / garrison | Right click |
 | Attack-move | `A` then click, or Ctrl + right click |
 | Stop / deploy MCV | `S` / `D` (or click a selected MCV) |
+| Dig riflemen in or out / empty a garrison | `D` with them (or the building) selected |
 | Control groups | Ctrl+`1-9` to assign, `1-9` to recall (twice to jump) |
 | Build tabs / hotkeys | `Tab`, `Q` `W` `E` `R` `T` `Y` `U` `I` |
 | Sell / repair / superweapon | `Z` / `X` / `F` |

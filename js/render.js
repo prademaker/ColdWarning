@@ -132,7 +132,7 @@ const Render = {
     const theme = m.theme;
     for (const it of list) {
       if (it.p) Art.blit(ctx, it.p.kind === 'rock' ? rockSprite(theme, it.p.v) : treeSprite(theme, it.p.v), it.sx, it.sy);
-      else if (it.e.kind === 'building') this.drawBuilding(ctx, it.e, G.teams[it.e.team], t);
+      else if (it.e.kind === 'building') this.drawBuilding(ctx, it.e, G.teamOf(it.e.team), t);
       else this.drawUnit(ctx, it.e, it.sx, it.sy);
     }
     for (const p of G.projectiles) this.drawProjectile(ctx, p);
@@ -225,6 +225,7 @@ const Render = {
     if (BLD_TURRETS[b.key]) Art.blit(ctx, buildingTurretSprite(b, team), sx, sy);
     const live = BLD_LIVE[b.key];
     if (live) live(ctx, (lx, ly, lz) => this.P(b.tx * TILE + lx, b.ty * TILE + ly, lz), b, team, t, team.lowPower);
+    if (b.garrison && b.garrison.length) this.drawGarrison(ctx, b, team);
     if (b.hp < b.maxHp * 0.5 && Math.random() < 0.15) {
       const x = b.tx * TILE + Math.random() * b.w * TILE, y = b.ty * TILE + Math.random() * b.h * TILE;
       G.effects.push({ type: 'smoke', x, y, z: b.def.height * 0.8, t: 0, life: 1.4, size: 5 });
@@ -232,16 +233,48 @@ const Render = {
     }
   },
 
+  // occupancy pips over a held structure, in the holder's colour
+  drawGarrison(ctx, b, team) {
+    const [cx, cy] = this.P(b.x, b.y, b.def.height + 4), n = b.def.garrison, w = 5;
+    const x0 = cx - (n * w + (n - 1)) / 2;
+    for (let i = 0; i < n; i++) {
+      ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x0 + i * (w + 1) - 1, cy - 1, w + 2, w + 2);
+      ctx.fillStyle = i < b.garrison.length ? team.color : '#333';
+      ctx.fillRect(x0 + i * (w + 1), cy, w, w);
+    }
+  },
+
   // ---------- units ----------
   drawUnit(ctx, u, sx, sy) {
-    const team = G.teams[u.team];
+    const team = G.teamOf(u.team);
     if (!u.air) {
       const r = u.def.radius * 1.15;
       ctx.fillStyle = 'rgba(0,0,0,0.32)';
       ctx.beginPath(); ctx.ellipse(sx + 2, sy + 1, r * 1.25, r * 0.65, 0, 0, Math.PI * 2); ctx.fill();
     }
+    // a dug-in soldier sits in a ring of sandbags: the far half behind them, the near half in front
+    const bags = u.dug ? 1 : u.digging ? Math.max(0, Math.min(1, u.digging > 0 ? 1 - u.digT / u.def.dig.time : u.digT / u.def.dig.pack)) : 0;
+    if (bags) this.drawSandbags(ctx, u, bags, false);
     const bob = u.air && !u.def.jet ? Math.sin(u.anim * 3) * 2 : 0;
     drawUnitArt(ctx, u, team, sx, sy - bob);
+    if (bags) this.drawSandbags(ctx, u, bags, true);
+  },
+
+  drawSandbags(ctx, u, k, front) {
+    const n = 9, R = 9;
+    for (let i = 0; i < n; i++) {
+      const a = i / n * Math.PI * 2, bx = Math.cos(a) * R, by = Math.sin(a) * R;
+      if ((bx + by > 0) !== front) continue;
+      for (let layer = 0; layer < 2; layer++) {
+        if (layer && k < 0.6) continue;
+        const [x, y] = this.P(u.x + bx, u.y + by, 1.6 + layer * 2.6);
+        ctx.fillStyle = layer ? '#b7a473' : '#9c8a5c'; ctx.strokeStyle = 'rgba(40,30,15,0.7)'; ctx.lineWidth = 0.8;
+        ctx.globalAlpha = Math.min(1, k * 1.5);
+        const rot = Math.atan2(isoY(-Math.sin(a), Math.cos(a), 0), isoX(-Math.sin(a), Math.cos(a)));
+        ctx.beginPath(); ctx.ellipse(x, y, 4.2, 2.2, rot, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
   },
 
   drawProjectile(ctx, p) {

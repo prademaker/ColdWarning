@@ -204,12 +204,54 @@ class GameMap {
         if (this.inside(x + dx, y + dy) && this.terrain[this.idx(x + dx, y + dy)] === T_WATER) { this.terrain[i] = T_SAND; break; }
       }
     }
+    this.placeCivilians(rng, c);
     this.decor = [];
     for (let i = 0; i < N * N * this.theme.density; i++) {
       const x = rng() * N, y = rng() * N;
       const t = this.terrain[this.idx(x | 0, y | 0)];
-      if (t === T_GRASS && this.ore[this.idx(x | 0, y | 0)] === 0) this.decor.push({ x, y, kind: rng() < 0.55 ? 'bush' : 'tree', s: 0.6 + rng() * 0.6 });
+      if (t === T_GRASS && this.ore[this.idx(x | 0, y | 0)] === 0 && !this.civMask[this.idx(x | 0, y | 0)]) this.decor.push({ x, y, kind: rng() < 0.55 ? 'bush' : 'tree', s: 0.6 + rng() * 0.6 });
     }
+  }
+
+  // Small villages of civilian buildings between the bases and around the map, for infantry to
+  // garrison. A building that would cut a base off from the centre is left out.
+  placeCivilians(rng, c) {
+    const N = this.w;
+    this.civ = [];
+    this.civMask = new Uint8Array(N * N);
+    const centres = [];
+    for (const s of this.starts) centres.push([Math.round(s[0] + (c[0] - s[0]) * 0.55), Math.round(s[1] + (c[1] - s[1]) * 0.55)]);
+    const extra = Math.max(1, Math.round(2 * (N / 88) * (N / 88)));
+    for (let i = 0; i < extra; i++) centres.push([10 + Math.floor(rng() * (N - 20)), 10 + Math.floor(rng() * (N - 20))]);
+    const keys = ['civ_house', 'civ_house', 'civ_flats', 'civ_office'];
+    for (const [vx, vy] of centres) {
+      const want = 2 + Math.floor(rng() * 3);
+      for (let k = 0, tries = 0; k < want && tries < 40; tries++) {
+        const key = keys[Math.floor(rng() * keys.length)], def = BUILDINGS[key];
+        const tx = vx + Math.round((rng() - 0.5) * 10), ty = vy + Math.round((rng() - 0.5) * 10);
+        if (!this.civFits(tx, ty, def.w, def.h)) continue;
+        this.markCiv(tx, ty, def.w, def.h, 1);
+        if (this.starts.some(s => !this.reachable(s, c, this.civMask))) { this.markCiv(tx, ty, def.w, def.h, 0); continue; }
+        this.civ.push({ key, tx, ty });
+        k++;
+      }
+    }
+  }
+
+  // footprint plus a one-tile walkway on open ground, clear of ore and away from the bases
+  civFits(tx, ty, w, h) {
+    if (tx < 3 || ty < 3 || tx + w > this.w - 3 || ty + h > this.h - 3) return false;
+    if (this.starts.some(([sx, sy]) => Math.hypot(sx - tx, sy - ty) < 14)) return false;
+    for (let y = ty - 1; y <= ty + h; y++) for (let x = tx - 1; x <= tx + w; x++) {
+      const i = this.idx(x, y);
+      if (this.civMask[i] || this.ore[i] > 0) return false;
+      if (!this.terrainPassable(x, y)) return false;
+    }
+    return true;
+  }
+
+  markCiv(tx, ty, w, h, v) {
+    for (let y = ty; y < ty + h; y++) for (let x = tx; x < tx + w; x++) this.civMask[this.idx(x, y)] = v;
   }
 
   paint(cx, cy, r, t) {
@@ -232,7 +274,7 @@ class GameMap {
     }
   }
 
-  reachable(a, b) {
+  reachable(a, b, blocked) {
     const seen = new Uint8Array(this.w * this.h);
     const q = [a[0], a[1]]; seen[this.idx(a[0], a[1])] = 1;
     while (q.length) {
@@ -242,7 +284,7 @@ class GameMap {
         const nx = x + dx, ny = y + dy;
         if (!this.terrainPassable(nx, ny)) continue;
         const k = this.idx(nx, ny);
-        if (seen[k]) continue;
+        if (seen[k] || (blocked && blocked[k])) continue;
         seen[k] = 1; q.push(nx, ny);
       }
     }

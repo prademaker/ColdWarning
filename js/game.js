@@ -198,6 +198,8 @@ class Unit {
     this.scanT = Math.random() * 0.5;
     this.moving = false; this.anim = Math.random() * 10;
     this.stuckT = 0; this.lastX = x; this.lastY = y;
+    this.dug = false; this.digging = 0; this.digT = 0; // digging: 1 setting up, -1 packing
+    this.inside = null; // the structure this soldier is garrisoning
   }
   get tx() { return Math.floor(this.x / TILE); }
   get ty() { return Math.floor(this.y / TILE); }
@@ -276,6 +278,7 @@ class Game {
     this.pendingStrikes = [];
     this.shake = 0;
     this.teams = Game.makeTeams(opts, lineup);
+    this.neutral = Game.makeNeutral();
     this.player = 0;
     this.ai = {};
     this.over = null;
@@ -289,6 +292,8 @@ class Game {
     this.evaLast = {};
     this.listeners = { eva: [], sound: [], voice: [] };
     this.heat = 0;
+
+    for (const c of this.map.civ) this.placeBuilding(c.key, NEUTRAL, c.tx, c.ty).built = 1;
 
     // starting forces
     this.teams.forEach((t, i) => {
@@ -336,9 +341,20 @@ class Game {
     });
   }
 
-  // teams at war with each other (allies and a team itself are not)
-  hostile(a, b) { return a !== b && this.teams[a].ally !== this.teams[b].ally; }
-  allied(a, b) { return !this.hostile(a, b); }
+  // Stand-in team for civilian buildings nobody holds: never anyone's ally or enemy.
+  static makeNeutral() {
+    return {
+      id: NEUTRAL, name: 'Civilian', faction: 'usa', color: '#a59f90', dark: '#5f5a50', light: '#d8d2c4', camo: ['#8d877a', '#6b665c', '#a9a395'],
+      isAI: true, lowPower: false, credits: 0, counts: {},
+      stats: { built: 0, lost: 0, kills: 0, structuresBuilt: 0, structuresLost: 0, structuresKilled: 0, harvested: 0 },
+      bonus() { return 1; }, costOf() { return 0; }, countOf() { return 0; }, recount() {},
+    };
+  }
+  teamOf(id) { return id === NEUTRAL ? this.neutral : this.teams[id]; }
+
+  // teams at war with each other (allies and a team itself are not; civilians are neither)
+  hostile(a, b) { return a !== b && a !== NEUTRAL && b !== NEUTRAL && this.teams[a].ally !== this.teams[b].ally; }
+  allied(a, b) { return a === b || (a !== NEUTRAL && b !== NEUTRAL && this.teams[a].ally === this.teams[b].ally); }
 
   on(ev, fn) { this.listeners[ev].push(fn); }
   eva(msg, team) {
@@ -366,7 +382,7 @@ class Game {
 
   placeBuilding(key, team, tx, ty) {
     const b = new Building(key, team, tx, ty);
-    b.hp = b.maxHp = Math.round(b.def.hp * this.teams[team].bonus('hp', categoryOf(key)));
+    b.hp = b.maxHp = Math.round(b.def.hp * this.teamOf(team).bonus('hp', categoryOf(key)));
     this.entities.push(b); this.byId.set(b.id, b);
     for (let y = ty; y < ty + b.h; y++) for (let x = tx; x < tx + b.w; x++) {
       const i = this.map.idx(x, y);
@@ -383,7 +399,7 @@ class Game {
     }
     // re-path anyone whose route crosses the new footprint
     for (const e of this.entities) if (e.kind === 'unit' && e.path) e.repath = true;
-    const t = this.teams[team];
+    const t = this.teamOf(team);
     t.stats.structuresBuilt++;
     t.recount();
     if (key === 'refinery') {
@@ -429,7 +445,7 @@ class Game {
     }
     // must be near an existing friendly structure
     for (const e of this.entities) {
-      if (e.kind !== 'building' || e.team !== team || e.dead) continue;
+      if (e.kind !== 'building' || e.team !== team || e.dead || e.def.cat === 'civilian') continue;
       const dx = Math.max(e.tx - (tx + def.w - 1), 0, tx - (e.tx + e.w - 1));
       const dy = Math.max(e.ty - (ty + def.h - 1), 0, ty - (e.ty + e.h - 1));
       if (Math.max(dx, dy) <= BUILD_RADIUS) {
@@ -457,7 +473,7 @@ class Game {
   }
 
   sell(b) {
-    if (b.dead || b.kind !== 'building') return;
+    if (b.dead || b.kind !== 'building' || b.def.cat === 'civilian') return;
     const t = this.teams[b.team];
     t.credits += Math.round(t.costOf(b.key) * 0.5 * b.hp / b.maxHp);
     this.spawnSurvivors(b, 2);
@@ -491,9 +507,127 @@ class Game {
   }
 
   removeEntity(e) {
+    if (e.garrison && e.garrison.length) this.evacuate(e, e.hp <= 0 ? 0.5 : 1);
     e.dead = true;
     if (e.kind === 'building') this.removeBuildingTiles(e);
   }
+
+  // ---------- garrisons ----------
+  // Infantry that can hold a structure: armed foot soldiers, entering one that is free or their own.
+  canGarrison(u, b) {
+    if (!b || b.dead || !b.def.garrison || b.built < 1 || !u || u.dead) return false;
+    if (u.def.cat !== 'infantry' || !u.def.weapon) return false;
+    if (b.team !== NEUTRAL && b.team !== u.team) return false;
+    return (b.garrison ? b.garrison.length : 0) < b.def.garrison;
+  }
+
+  // sends as many as there is room for (counting others already on their way); returns those sent
+  commandGarrison(units, b) {
+    const coming = this.entities.filter(o => !o.dead && o.order && o.order.type === 'garrison' && o.order.target === b && !units.includes(o)).length;
+    let free = b.def.garrison - (b.garrison ? b.garrison.length : 0) - coming;
+    const sent = [];
+    for (const u of units) {
+      if (free <= 0 || !this.canGarrison(u, b)) continue;
+      if (u.dug || u.digging) this.digOut(u);
+      u.order = { type: 'garrison', target: b };
+      u.target = null; u.path = null; u.repathT = 0;
+      sent.push(u); free--;
+    }
+    if (sent.length && sent[0].team === this.player) { this.sound('ack'); this.voice(sent[0], 'move'); }
+    return sent;
+  }
+
+  // The soldier leaves the field (flagged dead so nothing targets or selects it) and fires from
+  // the structure, which flips to their side if it was a civilian one nobody held.
+  enterGarrison(u, b) {
+    if (!b.garrison) b.garrison = [];
+    if (b.team === NEUTRAL) {
+      b.team = u.team; b.target = null;
+      this.teams[u.team].recount();
+      this.eva('Structure garrisoned', u.team);
+    }
+    b.garrison.push(u);
+    u.inside = b; u.dead = true;
+    u.order = null; u.target = null; u.path = null; u.burst = 0;
+    u.x = b.tx * TILE + (0.25 + Math.random() * 0.5) * b.w * TILE;
+    u.y = b.ty * TILE + (0.25 + Math.random() * 0.5) * b.h * TILE;
+    u.alt = b.def.height * 0.6;
+    this.sound('capture', b.x, b.y);
+  }
+
+  // Everyone out, by the door. hpMult wounds them when the structure collapses around them.
+  evacuate(b, hpMult = 1) {
+    const g = b.garrison || [];
+    b.garrison = [];
+    for (const u of g) {
+      const s = this.findFreeTile(b.tx + Math.floor(b.w / 2), b.ty + b.h);
+      u.inside = null; u.dead = false; u.alt = 0;
+      u.hp = Math.max(1, u.hp * hpMult);
+      if (s) { u.x = s[0] * TILE + 6 + Math.random() * 20; u.y = s[1] * TILE + 6 + Math.random() * 20; }
+      u.order = null; u.target = null; u.path = null;
+      if (!this.entities.includes(u)) this.entities.push(u);
+      this.byId.set(u.id, u);
+    }
+    this.releaseGarrison(b);
+    if (g.length) this.fogDirty = true;
+  }
+
+  // an emptied civilian building goes back to nobody
+  releaseGarrison(b) {
+    if (b.garrison.length || b.def.cat !== 'civilian' || b.team === NEUTRAL) return;
+    const old = b.team;
+    b.team = NEUTRAL; b.target = null; b.repairing = false;
+    this.teams[old].recount();
+  }
+
+  // one occupant burnt out by flame or blast
+  killOccupant(b, attacker) {
+    const u = b.garrison.splice(Math.floor(Math.random() * b.garrison.length), 1)[0];
+    u.inside = null; u.dead = false; u.alt = 0;
+    this.kill(u, attacker);
+    this.releaseGarrison(b);
+  }
+
+  // Occupants pick a common target and each fire their own weapon at it from the windows.
+  updateGarrison(b, dt) {
+    const g = b.garrison;
+    for (const u of g) { u.cool -= dt; u.cool2 -= dt; }
+    const reach = (this.maxRange(b) + GARRISON.range) * TILE + Math.min(b.w, b.h) * TILE / 2;
+    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || !this.canHit(b, b.target) || distTo(b.x, b.y, b.target) > reach + 8)) b.target = null;
+    b.scanT -= dt;
+    if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, reach / TILE); }
+    const t = b.target;
+    if (!t) return;
+    const d = distTo(b.x, b.y, t);
+    for (const u of g) {
+      const w = this.weaponFor(u, t);
+      if (!w || d > (w.range + GARRISON.range) * TILE + Math.min(b.w, b.h) * TILE / 2 + 8) continue;
+      const isW2 = w === u.def.weapon2;
+      if ((isW2 ? u.cool2 : u.cool) > 0) continue;
+      u.facing = Math.atan2(t.y - u.y, t.x - u.x);
+      this.fire(u, w, t);
+      const cd = w.cooldown * (u.rank === 2 ? 0.8 : 1) * (0.9 + Math.random() * 0.2);
+      if (isW2) u.cool2 = cd; else u.cool = cd;
+    }
+  }
+
+  // ---------- digging in ----------
+  // Riflemen deploy behind sandbags: tougher and longer-ranged, but rooted to the spot.
+  digIn(u) {
+    if (!u.def.dig || u.dead || u.dug || u.digging > 0 || u.inside) return false;
+    u.order = null; u.path = null;
+    u.digging = 1; u.digT = u.def.dig.time;
+    return true;
+  }
+
+  digOut(u) {
+    if (!u.dug && u.digging <= 0) return false;
+    u.dug = false;
+    u.digging = -1; u.digT = u.def.dig.pack;
+    return true;
+  }
+
+  toggleDig(u) { return u.dug || u.digging > 0 ? this.digOut(u) : this.digIn(u); }
 
   // ---------- damage ----------
   damage(target, amount, warhead, attacker) {
@@ -502,6 +636,8 @@ class Game {
     if (!mult) return;
     let dmg = amount * mult;
     if (target.kind === 'unit') dmg *= RANK_ARMOR[target.rank];
+    if (target.dug) dmg *= target.def.dig.armor;
+    if (target.garrison && target.garrison.length && Math.random() < (GARRISON.clear[warhead] || 0)) this.killOccupant(target, attacker);
     target.hp -= dmg;
     target.hitT = this.time;
     if (attacker && !attacker.dead && this.hostile(attacker.team, target.team)) {
@@ -525,8 +661,8 @@ class Game {
   kill(e, attacker) {
     if (e.dead) return;
     this.removeEntity(e);
-    const t = this.teams[e.team];
-    if (attacker && this.hostile(attacker.team, e.team)) {
+    const t = this.teamOf(e.team), civ = e.def.cat === 'civilian';
+    if (attacker && this.hostile(attacker.team, e.team) && !civ) {
       const at = this.teams[attacker.team];
       if (e.kind === 'building') at.stats.structuresKilled++; else at.stats.kills++;
       if (attacker.kind === 'unit' && !attacker.dead) {
@@ -545,7 +681,7 @@ class Game {
         this.explosion(e.tx * TILE + Math.random() * e.w * TILE, e.ty * TILE + Math.random() * e.h * TILE, 18, false, Math.random() * 0.6);
       }
       this.decal(e.x, e.y, e.w * TILE * 0.7);
-      if (Math.random() < 0.6) this.spawnSurvivors(e, 1);
+      if (Math.random() < 0.6 && !civ) this.spawnSurvivors(e, 1);
       if (e.team === this.player) this.eva('Structure lost', e.team);
       t.recount();
     } else {
@@ -600,6 +736,8 @@ class Game {
   }
 
   weaponsOf(e) {
+    if (e.garrison && e.garrison.length) { const w = []; for (const u of e.garrison) w.push(...this.weaponsOf(u)); return w; }
+    if (e.dug) return [e.def.dig.weapon];
     const d = e.def, w = [];
     if (d.weapon) w.push(d.weapon);
     if (d.weapon2) w.push(d.weapon2);
@@ -642,7 +780,7 @@ class Game {
       if (!this.canHit(e, o)) continue;
       const d = distTo(e.x, e.y, o);
       if (d > R) continue;
-      let s = d + (o.def.weapon ? -64 : 96);
+      let s = d + (o.def.weapon || (o.garrison && o.garrison.length) ? -64 : 96);
       if (s < bs) { bs = s; best = o; }
     }
     return best;
@@ -678,6 +816,7 @@ class Game {
   }
 
   setMove(u, tx, ty, attackMove) {
+    if (u.dug || u.digging > 0) this.digOut(u);
     u.order = { type: attackMove ? 'amove' : 'move', tx, ty };
     u.target = null; u.path = null; u.pathI = 0;
     if (u.def.harvester) u.hstate = null;
@@ -686,7 +825,7 @@ class Game {
 
   commandAttack(units, target) {
     for (const u of units) {
-      if (u.def.engineer && target.kind === 'building') { this.commandCapture(u, target); continue; }
+      if (u.def.engineer && target.kind === 'building') { if (target.def.cat !== 'civilian') this.commandCapture(u, target); continue; }
       if (!this.canHit(u, target)) continue;
       u.order = { type: 'attack', target };
       u.target = target; u.path = null; u.repathT = 0;
@@ -695,6 +834,7 @@ class Game {
   }
 
   commandCapture(u, b) {
+    if (u.dug || u.digging) this.digOut(u);
     u.order = { type: 'capture', target: b };
     u.path = null; u.repathT = 0;
   }
@@ -769,11 +909,15 @@ class Game {
   checkVictory() {
     for (const t of this.teams) {
       if (t.defeated || t.waves) continue;
-      const alive = this.entities.some(e => e.team === t.id && !e.dead && (e.kind === 'building' || e.def.mcv));
+      const alive = this.entities.some(e => e.team === t.id && !e.dead && (e.kind === 'building' ? e.def.cat !== 'civilian' : e.def.mcv));
       if (!alive) {
         t.defeated = true;
-        // remaining units self-destruct
-        for (const e of this.entities) if (e.team === t.id && !e.dead) this.kill(e, null);
+        // remaining units self-destruct; civilian buildings they held go back to nobody
+        for (const e of this.entities) {
+          if (e.team !== t.id || e.dead) continue;
+          if (e.def.cat === 'civilian') { while (e.garrison.length) this.killOccupant(e, null); continue; }
+          this.kill(e, null);
+        }
       }
     }
     const p = this.playerTeam;
@@ -835,11 +979,29 @@ class Game {
 
     if (u.def.harvester) { this.updateHarvester(u, dt); return; }
     if (u.def.jet) { this.updateJet(u, dt); return; }
+    // setting up or packing the sandbags: no moving or shooting meanwhile
+    if (u.digging) {
+      u.digT -= dt;
+      if (u.digT > 0) return;
+      u.dug = u.digging > 0; u.digging = 0;
+      if (u.dug) { u.path = null; u.cool = Math.max(u.cool, 0.2); }
+    }
     const o = u.order;
+
+    if (o && o.type === 'garrison') {
+      const b = o.target;
+      if (!this.canGarrison(u, b)) { u.order = null; return; }
+      if (distTo(u.x, u.y, b) < TILE * 0.8) { this.enterGarrison(u, b); return; }
+      u.repathT = (u.repathT || 0) - dt;
+      if (!u.path || u.repathT <= 0 || u.repath) { this.pathToEntity(u, b, 1); u.repathT = 1.5; }
+      this.moveAlong(u, dt);
+      return;
+    }
 
     if (o && o.type === 'capture') {
       const b = o.target;
       if (b.dead) { u.order = null; return; }
+      if (b.def.cat === 'civilian' || (this.hostile(b.team, u.team) && b.garrison && b.garrison.length)) { u.order = null; return; }
       if (distTo(u.x, u.y, b) < 14) {
         if (!this.hostile(b.team, u.team)) { b.hp = b.maxHp; this.eva('Structure repaired', u.team); }
         else {
@@ -900,6 +1062,11 @@ class Game {
           if (isW2) u.cool2 = cd; else u.cool = cd;
           if (w.burst > 1) { u.burst = w.burst - 1; u.burstT = 0.18; u.burstW = w; u.burstTarget = t; }
         }
+        return;
+      }
+      if (u.dug) {
+        // dug in: an explicit attack order gets them up and moving, otherwise let it go
+        if (u.order && u.order.type === 'attack') this.digOut(u); else u.target = null;
         return;
       }
       if (d < minR) {
@@ -1058,6 +1225,7 @@ class Game {
   }
 
   nudge(u, dx, dy) {
+    if (u.dug) return;
     const nx = u.x + dx, ny = u.y + dy;
     if (u.air || this.map.passable(Math.floor(nx / TILE), Math.floor(ny / TILE))) { u.x = nx; u.y = ny; }
   }
@@ -1173,7 +1341,8 @@ class Game {
   updateBuilding(b, dt) {
     b.anim += dt;
     if (b.built < 1) { b.built = Math.min(1, b.built + dt / 1.2); return; }
-    const t = this.teams[b.team];
+    const t = this.teamOf(b.team);
+    if (b.def.cat === 'civilian') b.repairing = false;
     if (b.repairing) {
       if (b.hp >= b.maxHp) b.repairing = false;
       else {
@@ -1183,6 +1352,7 @@ class Game {
       }
     }
     if (b.def.heal) this.healAround(b, t, dt);
+    if (b.garrison && b.garrison.length) { this.updateGarrison(b, dt); return; }
     const w = b.def.weapon;
     if (!w) return;
     if (b.def.needsPower && t.lowPower) { b.target = null; return; }
@@ -1219,8 +1389,11 @@ class Game {
   }
 
   // ---------- weapons ----------
+  // s is the shooter; a soldier firing from a garrison shoots from where they sit, but the
+  // structure takes the credit and the return fire
   fire(s, w, t) {
-    const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * this.teams[s.team].bonus('dmg', s.kind === 'unit' ? s.def.cat : categoryOf(s.key));
+    const by = s.inside || s;
+    const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * this.teams[s.team].bonus('dmg', s.kind === 'unit' ? s.def.cat : categoryOf(s.key)) * (s.inside ? GARRISON.dmg : 1);
     s.recoil = 1;
     const ang = s.def.cat === 'vehicle' || s.kind === 'building' ? s.turret : s.facing;
     const len = s.kind === 'building' ? 12 : (s.def.radius || 6) + 2;
@@ -1232,15 +1405,15 @@ class Game {
         const jx = (Math.random() - 0.5) * 8, jy = (Math.random() - 0.5) * 8;
         this.effects.push({ type: 'tracer', x: sx, y: sy, z: sz, x2: tx + jx, y2: ty + jy, z2: tz, t: 0, life: 0.08 });
         this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.06, size: 5 });
-        this.damage(t, dmg, w.warhead, s);
+        this.damage(t, dmg, w.warhead, by);
         if (vis) this.sound(w.warhead === 'flak' ? 'flak' : 'gun', sx, sy);
         break;
       }
       case 'flame': {
         // a gout of burning fuel: hits at once and splashes a little around the target
         this.effects.push({ type: 'flame', x: sx, y: sy, z: sz, x2: tx, y2: ty, z2: tz, t: 0, life: 0.25 });
-        this.damage(t, dmg, w.warhead, s);
-        for (const o of this.unitsNear(tx, ty, TILE * 0.8)) if (o !== t && !o.air && this.hostile(o.team, s.team)) this.damage(o, dmg * 0.4, w.warhead, s);
+        this.damage(t, dmg, w.warhead, by);
+        for (const o of this.unitsNear(tx, ty, TILE * 0.8)) if (o !== t && !o.air && this.hostile(o.team, s.team)) this.damage(o, dmg * 0.4, w.warhead, by);
         if (Math.random() < 0.5) this.effects.push({ type: 'fire', x: tx + (Math.random() - 0.5) * 12, y: ty + (Math.random() - 0.5) * 12, z: 2, t: 0, life: 0.8 });
         if (vis && Math.random() < 0.3) this.sound('flame', sx, sy);
         break;
@@ -1248,7 +1421,7 @@ class Game {
       case 'laser': {
         this.effects.push({ type: 'laser', x: sx, y: sy, z: sz, x2: tx, y2: ty, z2: tz, t: 0, life: 0.3 });
         this.effects.push({ type: 'flash', x: tx, y: ty, z: tz, t: 0, life: 0.12, size: 7, color: '#ff8a7a' });
-        this.damage(t, dmg, w.warhead, s);
+        this.damage(t, dmg, w.warhead, by);
         if (vis) this.sound('laser', sx, sy);
         break;
       }
@@ -1264,17 +1437,17 @@ class Game {
             const px = o.x - sx, py = o.y - sy;
             const along = px * Math.cos(a) + py * Math.sin(a);
             const perp = Math.abs(-px * Math.sin(a) + py * Math.cos(a));
-            if (along > 0 && along < L && perp < o.def.radius + 6) this.damage(o, dmg, w.warhead, s);
+            if (along > 0 && along < L && perp < o.def.radius + 6) this.damage(o, dmg, w.warhead, by);
           }
-          if (t.kind === 'building') this.damage(t, dmg, w.warhead, s);
-        } else this.damage(t, dmg, w.warhead, s);
+          if (t.kind === 'building') this.damage(t, dmg, w.warhead, by);
+        } else this.damage(t, dmg, w.warhead, by);
         this.effects.push({ type: 'flash', x: tx, y: ty, z: tz, t: 0, life: 0.15, size: 10, color: '#8ff' });
         if (vis) this.sound('rail', sx, sy);
         break;
       }
       case 'shell': case 'rocket': case 'arty': case 'bomb': {
         const p = {
-          type: w.proj === 'bomb' ? 'arty' : w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: s,
+          type: w.proj === 'bomb' ? 'arty' : w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: by,
           dmg, warhead: w.warhead, splash: w.splash || 0, speed: (w.speed || 12) * TILE, t: 0,
           ang: Math.atan2(ty - sy, tx - sx),
         };

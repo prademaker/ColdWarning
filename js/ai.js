@@ -7,15 +7,19 @@
 // how much the AI wants a known enemy structure gone (or captured)
 const AI_TARGET_VALUE = {
   super_lance: 14, super_silo: 14, factory: 10, refinery: 9, tech: 8, power: 7, cc: 7,
-  airfield: 6, hub: 6, barracks: 5, radar: 5, laser: 3, railturret: 3, turret: 3, sam: 2,
+  airfield: 6, hub: 6, barracks: 5, radar: 5, laser: 3, railturret: 3, turret: 3, bunker: 3, sam: 2,
 };
 const AI_RAIDERS = ['heli', 'drone'];
 const AI_CAPTURE = ['super_lance', 'super_silo', 'cc', 'factory', 'tech', 'hub', 'refinery', 'airfield', 'radar'];
 
 function aiWorth(e) {
   const base = e.def.cost * Math.max(0.2, e.hp / e.maxHp);
-  return e.kind === 'building' ? (e.def.weapon ? base * 1.5 : 0) : (e.def.weapon ? base : 0);
+  if (e.kind !== 'building') return e.def.weapon ? base : 0;
+  let w = e.def.weapon ? base * 1.5 : 0;
+  if (e.garrison) for (const u of e.garrison) w += u.def.cost * 1.5; // soldiers behind walls count extra
+  return w;
 }
+function aiArmed(e) { return !!(e.def.weapon || (e.garrison && e.garrison.length)); }
 
 class AI {
   constructor(team, difficulty) {
@@ -24,8 +28,8 @@ class AI {
     this.thinkT = 1 + team.id * 0.35;
     const sup = team.superKey();
     // nation-only structures (Support Hub, Laser Tower) drop out for everyone else
-    this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret',
-      'hub', 'airfield', 'power', 'tech', 'laser', 'sam', 'power', 'turret', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
+    this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret', 'bunker',
+      'hub', 'airfield', 'power', 'tech', 'laser', 'sam', 'power', 'turret', 'bunker', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
       'laser', 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => inRoster(k, team.faction));
     this.nextAttack = this.d.firstAttack;
     this.waves = 0;
@@ -136,7 +140,7 @@ class AI {
     const me = this.team.id, src = [], foes = [];
     for (const e of G.entities) {
       if (e.dead) continue;
-      if (G.allied(e.team, me)) src.push(e); else foes.push(e);
+      if (G.allied(e.team, me)) src.push(e); else if (e.team !== NEUTRAL) foes.push(e);
     }
     for (const e of foes) {
       const pad = e.kind === 'building' ? Math.max(e.w, e.h) * TILE / 2 : 0;
@@ -160,10 +164,11 @@ class AI {
   known(filter) { const out = []; for (const r of this.intel.values()) if (filter(r)) out.push(r); return out; }
 
   // known enemy firepower (units seen lately and armed structures) within r tiles of a point
-  threatNear(x, y, r) {
+  threatNear(x, y, r, unitsOnly) {
     let s = 0;
     for (const rec of this.intel.values()) {
       if (rec.e.kind === 'unit' && G.time - rec.t > 30) continue;
+      if (unitsOnly && rec.e.kind !== 'unit') continue;
       if (Math.hypot(rec.x - x, rec.y - y) < r * TILE) s += aiWorth(rec.e);
     }
     return s;
@@ -175,8 +180,8 @@ class AI {
     let s = 0;
     for (const r of this.intel.values()) {
       if (r.e.team !== foe.id) continue;
-      const w = r.e.def.weapon;
-      if (r.e.kind === 'unit' || (w && w.ground && Math.hypot(r.x - sx, r.y - sy) < 16 * TILE)) s += aiWorth(r.e);
+      const w = r.e.def.weapon, armed = (w && w.ground) || (r.e.garrison && r.e.garrison.length);
+      if (r.e.kind === 'unit' || (armed && Math.hypot(r.x - sx, r.y - sy) < 16 * TILE)) s += aiWorth(r.e);
     }
     return s;
   }
@@ -297,7 +302,7 @@ class AI {
     const mix = { infantry: 0, light: 0, heavy: 0, air: 0, defense: 0, total: 0 };
     for (const r of this.intel.values()) {
       const e = r.e;
-      if (e.kind === 'building') { if (e.def.weapon) mix.defense += e.def.cost; continue; }
+      if (e.kind === 'building') { if (aiArmed(e)) mix.defense += e.def.cost + aiWorth(e) / 1.5; continue; }
       if (!e.def.weapon) continue;
       const a = e.def.armor;
       mix[a] += e.def.cost; mix.total += e.def.cost;
@@ -350,7 +355,12 @@ class AI {
     const infShare = armyUnits.filter(u => u.def.cat === 'infantry').length / Math.max(1, armyUnits.length);
     const heavy = d.counter && t.countOf('factory') && infShare > 0.45;
     if (heavy) { veh.tank *= 2; veh.railtank *= 2; veh.titan *= 2; }
-    if (!(heavy && t.credits < 2500) && Q.infantry.items.length < 2 && t.credits > 500 + reserve && t.canBuild('rifle')) {
+    // empty bunker slots get riflemen first
+    let slots = 0;
+    for (const b of G.entities) if (b.team === t.id && !b.dead && b.key === 'bunker') slots += b.def.garrison - (b.garrison ? b.garrison.length : 0);
+    slots -= units.filter(u => u.def.cat === 'infantry' && u.def.weapon && (!u.order || u.order.type === 'garrison')).length;
+    if (slots > 0 && !heavy && Q.infantry.items.length < 2 && t.credits > 300 + reserve && t.canBuild('rifle')) Q.infantry.add('rifle');
+    else if (!(heavy && t.credits < 2500) && Q.infantry.items.length < 2 && t.credits > 500 + reserve && t.canBuild('rifle')) {
       const k = this.pick(inf);
       if (k) Q.infantry.add(k);
     }
@@ -378,16 +388,20 @@ class AI {
     for (const u of home) {
       if (u.order || u.target || u.def.engineer) continue;
       if (Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, true, true);
+      else if (u.def.dig && !u.dug && !u.digging) G.digIn(u); // riflemen waiting at the rally point dig in
     }
     for (const u of home) if (u.def.engineer && !u.order && Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, false, true);
 
     this.manageScout(fighters);
     this.manageRaid(fighters);
+    this.manageGarrisons(fighters);
 
     const waveSize = Math.min(24, this.d.waveBase + this.waves * this.d.waveGrow);
-    const pool = fighters.filter(u => !(this.scout && u.id === this.scout.id) && !(this.raid && this.raid.ids.has(u.id)));
+    const pool = fighters.filter(u => !(this.scout && u.id === this.scout.id) && !(this.raid && this.raid.ids.has(u.id)) &&
+      !(u.order && u.order.type === 'garrison'));
     // hold the army at home while enemies are known to be near the base
-    if (G.time >= this.nextAttack && pool.length >= waveSize && this.threatNear(hx, hy, 22) < 1500) {
+    // (a garrisoned building nearby doesn't count: it isn't going anywhere)
+    if (G.time >= this.nextAttack && pool.length >= waveSize && this.threatNear(hx, hy, 22, true) < 1500) {
       if (this.wave && this.wave.state !== 'retreat') this.reinforce(pool);
       else if (!this.wave) {
         // only attack with the odds in our favour, unless the army is as big as it gets
@@ -465,6 +479,7 @@ class AI {
       if (!w.target || w.target.dead || !G.hostile(w.target.team, this.team.id)) this.retarget(w, fighters, cx, cy, true);
       else this.retarget(w, fighters.filter(u => !u.order && !u.target), cx, cy, false);
       this.useEngineers(engineers, cx, cy);
+      this.seizeCover(w, fighters, cx, cy);
       return;
     }
 
@@ -532,6 +547,68 @@ class AI {
       if (this.threatNear(best.x, best.y, 6) < 800) G.commandCapture(eng, best);
       else if (!eng.order) G.commandMove([eng], Math.floor(cx / TILE), Math.floor(cy / TILE), false, true);
     }
+  }
+
+  // ---------- garrisons ----------
+  // Keep our bunkers manned, hold a civilian building or two on our side of the map as
+  // outposts, and get out of any that are about to come down.
+  manageGarrisons(fighters) {
+    const me = this.team.id, [hx, hy] = this.home(), [rx, ry] = this.rallyTile();
+    const held = [], free = [];
+    for (const b of G.entities) {
+      if (b.dead || !b.def.garrison) continue;
+      if (b.team === me) held.push(b); else if (b.team === NEUTRAL) free.push(b);
+    }
+    for (const b of held) {
+      if (b.def.cat === 'civilian' && b.garrison.length && b.hp < b.maxHp * 0.2) G.evacuate(b);
+    }
+    // too many outposts (waves leave some behind): give up the quietest one far from home
+    const outposts = held.filter(b => b.def.cat === 'civilian' && b.garrison.length);
+    const maxOutposts = this.d.counter && this.waves ? 2 : 1;
+    if (outposts.length > maxOutposts) {
+      const quiet = outposts.filter(b => this.threatNear(b.x, b.y, 12) === 0)
+        .sort((a, b) => Math.hypot(b.x - hx, b.y - hy) - Math.hypot(a.x - hx, a.y - hy));
+      if (quiet[0]) G.evacuate(quiet[0]);
+    }
+    // the field army comes first: only spare troops go behind walls
+    if (fighters.length < 8) return;
+    const idle = fighters.filter(u => u.def.cat === 'infantry' && !u.order && !u.target && Math.hypot(u.x / TILE - rx, u.y / TILE - ry) < 10);
+    const fill = (b, n) => {
+      const pick = idle.filter(u => G.canGarrison(u, b))
+        .sort((a, c) => Math.hypot(a.x - b.x, a.y - b.y) - Math.hypot(c.x - b.x, c.y - b.y)).slice(0, n);
+      for (const u of G.commandGarrison(pick, b)) idle.splice(idle.indexOf(u), 1);
+    };
+    for (const b of held) if (b.def.cat !== 'civilian' && (b.garrison ? b.garrison.length : 0) < b.def.garrison) fill(b, b.def.garrison);
+    if (idle.length < 4 || fighters.length < 12 || outposts.length >= maxOutposts) return;
+    // a free building on our side of the map, near the rally point
+    const foe = this.nearestFoe();
+    const [ex, ey] = foe ? this.startPx(foe.id) : [G.map.w * TILE / 2, G.map.h * TILE / 2];
+    let best = null, bs = 1e9;
+    for (const b of free.concat(held.filter(b => b.def.cat === 'civilian'))) {
+      const dHome = Math.hypot(b.x - hx, b.y - hy);
+      if (dHome > 22 * TILE || dHome > Math.hypot(b.x - ex, b.y - ey)) continue;
+      if (this.threatNear(b.x, b.y, 10) > 1500) continue;
+      const s = Math.hypot(b.x / TILE - rx, b.y / TILE - ry) - b.def.garrison;
+      if (s < bs) { bs = s; best = b; }
+    }
+    if (best) fill(best, Math.min(4, best.def.garrison));
+  }
+
+  // An attack wave fighting next to an empty building sends a few riflemen in to hold it.
+  seizeCover(w, fighters, cx, cy) {
+    if (G.time - (w.coverT || -1e9) < 20) return;
+    const inf = fighters.filter(u => u.def.cat === 'infantry' && !u.air);
+    if (inf.length < 4 || this.threatNear(cx, cy, 10) === 0) return;
+    let best = null, bd = 8 * TILE;
+    for (const b of G.entities) {
+      if (b.dead || b.team !== NEUTRAL || !b.def.garrison) continue;
+      const d = Math.hypot(b.x - cx, b.y - cy);
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (!best) return;
+    w.coverT = G.time;
+    const pick = inf.sort((a, c) => Math.hypot(a.x - best.x, a.y - best.y) - Math.hypot(c.x - best.x, c.y - best.y)).slice(0, 3);
+    G.commandGarrison(pick, best);
   }
 
   // An early scout looks at every enemy start; later ones refresh whichever is stalest.
@@ -633,13 +710,13 @@ class AI {
     if (target.kind !== 'building' && !target.def.harvester) return;
     this.lastDefend = G.time;
     const busy = new Set([...(this.wave ? this.wave.ids : []), ...(this.raid ? this.raid.ids : [])]);
-    const mine = this.myUnits().filter(u => u.def.weapon && !busy.has(u.id) && G.canHit(u, attacker));
+    const mine = this.myUnits().filter(u => u.def.weapon && !busy.has(u.id) && G.canHit(u, attacker) && !(u.order && u.order.type === 'garrison'));
     const defenders = mine.filter(u => Math.hypot(u.x - target.x, u.y - target.y) < 30 * TILE);
     // attack-move rather than all chasing the one attacker, so defenders engage whatever is closest
     const idle = defenders.filter(u => !u.target);
     if (idle.length) G.commandMove(idle, Math.floor(attacker.x / TILE), Math.floor(attacker.y / TILE), true, true);
     // a big assault on the base calls the attack wave home
-    if (target.kind === 'building' && this.wave && this.wave.state !== 'retreat') {
+    if (target.kind === 'building' && target.def.cat !== 'civilian' && this.wave && this.wave.state !== 'retreat') {
       const threat = G.entities.filter(e => !e.dead && e.kind === 'unit' && G.hostile(e.team, this.team.id) &&
         Math.hypot(e.x - target.x, e.y - target.y) < 10 * TILE).reduce((s, e) => s + aiWorth(e), 0);
       const guard = defenders.reduce((s, u) => s + aiWorth(u), 0) +
