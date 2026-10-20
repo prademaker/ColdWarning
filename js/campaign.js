@@ -8,15 +8,22 @@
 
 // who talks over the radio, and in which colour
 const CAST = {
-  hale: { name: 'Col. Mara Hale', role: 'JTF Northwind', color: '#9cc6ff' },
+  hale: { name: 'Col. Mara Hale', role: 'Allied JTF Northwind', color: '#9cc6ff' },
   raven: { name: 'Raven', role: 'Commando', color: '#ffd27a' },
+  harker: { name: 'Maj. Ellen Harker', role: '22 SAS', color: '#c8d0ff' },
   lund: { name: 'Brig. Anders Lund', role: 'EU Northern Brigade', color: '#b8c8ff' },
+  okabe: { name: 'Col. Ren Okabe', role: 'JGSDF Northern Army', color: '#a3d6f7' },
   volkov: { name: 'Gen. Arkady Volkov', role: 'Soviet Union', color: '#ff8a80' },
+  pak: { name: 'Gen. Pak Chol-su', role: "Korean People's Army", color: '#f59a95' },
+  zhao: { name: 'Gen. Zhao Lin', role: 'PLA Northern Theatre', color: '#ffb199' },
 };
 
 // minutes on the silo clock in Countdown, by difficulty
 const SILO_MINUTES = { easy: 20, normal: 16, hard: 13 };
 
+// The story runs through every country: the Allies (USA, EU, UK, Japan) against the Axis
+// (Soviet Union, Russia, North Korea, China), and each mission shows off a few countries'
+// signature units and edge structures.
 const CAMPAIGN = {
   name: 'Operation Northwind',
   missions: [
@@ -25,14 +32,14 @@ const CAMPAIGN = {
       id: 'thin_ice', title: 'Thin Ice', place: 'Svalbard approaches', date: 'February 2030',
       theater: 'arctic', map: 'small', seed: 30211, starts: 2, radar: true,
       teams: [
-        { faction: 'usa', ally: 0, credits: 0, noBase: true },
+        { faction: 'uk', ally: 0, credits: 0, noBase: true },
         { faction: 'soviet', ally: 1, ai: null, noBase: true, name: 'Soviet listening post' },
       ],
-      features: 'Introduces Raven: hidden until she fires, long-range rifle, C4 charges.',
+      features: 'Play the United Kingdom. Raven and an SAS Operative stay hidden until they open fire, and both plant C4.',
       briefing: [
-        'Six weeks ago General Arkady Volkov declared the Soviet Union reborn and took the Arctic garrisons that answered to him. Since then our supply convoys have been ambushed with uncanny precision.',
-        'Satellites found the reason: a listening post on the ice shelf, feeding Volkov radar tracks of every ship we move. A battalion would start the war we are trying to prevent, so we are sending Raven.',
-        'Slip past the patrols, put C4 on the Radar Station and get her to the extraction point. A small Marine team covers the landing.',
+        "The Axis is real. Moscow, Beijing and Pyongyang have signed the Polar Pact with General Arkady Volkov, who declared the Soviet Union reborn and took the Arctic garrisons that answered to him. Since then Allied supply convoys have been ambushed with uncanny precision.",
+        'Satellites found the reason: a listening post on the ice shelf, feeding Volkov radar tracks of every ship we move. A battalion would start the war we are trying to prevent, so London is lending us Raven and a team from 22 SAS.',
+        "Slip past the patrols, put C4 on the Radar Station and get Raven to the extraction point. The post's Propaganda Tower makes nearby troops fire faster, and it runs off the same power plants as the rail turret.",
       ],
       goals: ['Destroy the Radar Station', 'Get Raven to the extraction point', 'Raven must survive'],
       win: 'The listening post is dark. The convoy ambushes stop overnight, and Raven is home before the storm.',
@@ -40,6 +47,7 @@ const CAMPAIGN = {
         const [px, py] = M.start(0), [ex, ey] = M.start(1), c = M.centre();
         M.focusOn(px, py);
         M.hero(0, px, py);
+        M.spawn('sas', 0, px + 1, py - 1);
         M.spawn('rifle', 0, px + 2, py + 1, 3);
         M.spawn('sniper', 0, px - 1, py + 2);
         // the outpost: radar at the heart, guns facing the shelf, the rail turret's power plants
@@ -48,6 +56,7 @@ const CAMPAIGN = {
         M.vars.radar = M.build(1, 'radar', ix, iy);
         M.vars.power = [M.build(1, 'power', ...M.rel(1, -4, 4)), M.build(1, 'power', ...M.rel(1, -4, -4))];
         M.build(1, 'barracks', ...M.rel(1, -5, 0));
+        M.build(1, 'propaganda', ...M.rel(1, 3, 2));
         M.defenses(1, ['turret', 'railturret'], 5);
         M.squad('rifle', 1, ...M.rel(1, 7, 0), 3);
         M.squad('rifle', 1, ...M.rel(1, 3, 3), 2);
@@ -64,15 +73,15 @@ const CAMPAIGN = {
         M.survive();
         M.say('hale', "Raven, you're on the ice. The listening post is on the far side of the shelf. The Radar Station is the target.", 1);
         M.say('raven', 'Copy. Nobody sees me until I want them to.');
-        M.say('hale', "They can't pick you out unless you're right on top of them or shooting. Right-click a structure to plant C4.");
-        M.say('hale', 'Their rail turret runs on power. Take out the power plants and it goes dark.');
+        M.say('harker', "Your SAS lad is the same, Raven. Either of you can plant C4: right-click a structure.");
+        M.say('hale', 'Their rail turret and that Propaganda Tower both run on power. Take out the power plants and they go dark.');
       },
       objectives: {
         radar: {
           check: M => M.vars.radar.dead,
           done(M) {
             M.say('hale', "Radar's down! Volkov is blind. Get to the extraction point, Raven.");
-            M.say('volkov', 'An American ghost on my ice? Find her. Bring me that beret.');
+            M.say('volkov', 'An Allied ghost on my ice? Find her. Bring me that beret.');
             M.marker('lz', ...M.vars.lz, 'EXTRACTION');
             M.objective('lz', 'Get Raven to the extraction point');
             // a reaction force drives out of the village to cut off the extraction
@@ -82,7 +91,7 @@ const CAMPAIGN = {
           },
         },
         lz: { check: M => M.heroNear(...M.vars.lz, 2.5) },
-        power: { check: M => M.vars.power.every(b => b.dead) },
+        power: { check: M => M.vars.power.every(b => b.dead), done: M => M.say('harker', 'Lights out. Their tower has gone quiet too.') },
       },
       tick(M) {
         // the patrol walks its beat
@@ -108,26 +117,27 @@ const CAMPAIGN = {
         { faction: 'soviet', ally: 1, waves: true, name: '3rd Guards Army' },
       ],
       waves: { team: 1, total: 8, first: 240, interval: 80 },
-      features: 'Base building and defense as the EU: Laser Towers, garrisoned houses, a Kirov to finish.',
+      features: 'Base building and defense as the EU: Laser Towers, an Aegis Shield Carrier, garrisoned houses and a Kirov to finish.',
       briefing: [
         "Volkov has stopped hiding. His 3rd Guards Army is rolling west along the coast road, and the town of Vardholm stands in the way.",
-        "Brigadier Anders Lund's EU Northern Brigade has one MCV and a few platoons to stop them. Deploy, dig in and hold until the NATO relief force arrives.",
-        "The columns will come from three directions. The town's houses make good strongpoints: put infantry in them. Laser Defense Towers burn down armour and aircraft alike.",
+        "Brigadier Anders Lund's EU Northern Brigade has one MCV, a few platoons and an Aegis Shield Carrier to stop them. Deploy, dig in and hold until the Allied relief force arrives.",
+        "The columns will come from three directions. The town's houses make good strongpoints: put infantry in them. Laser Defense Towers burn down armour and aircraft alike, and anything under the Aegis shield takes less damage.",
       ],
       goals: ['Deploy your base', 'Hold out against all 8 attack waves'],
-      win: "Vardholm holds. Volkov's spring offensive stalls on the coast road, and NATO finally has a front line.",
+      win: "Vardholm holds. Volkov's spring offensive stalls on the coast road, and the Allies finally have a front line.",
       lose: 'Vardholm has fallen and the coast road lies open.',
       setup(M) {
         const [px, py] = M.start(0);
         M.focusOn(px, py);
         M.startingForces(0);
         M.spawn('engineer', 0, px + 2, py - 2);
+        M.spawn('aegis', 0, px - 2, py + 2);
         M.objective('deploy', 'Deploy the MCV to set up a base');
         M.objective('hold', `Hold out against all ${G.waves.total} attack waves`);
         M.objective('town', 'Garrison two houses in the village', { optional: true });
         M.say('lund', 'Commander, Lund here. Deploy that MCV and get power up. Scouts give us about four minutes.', 1);
         M.say('lund', 'The village toward the crossroads is empty. Riflemen in those houses will hold anything on foot.');
-        M.say('lund', 'Once you have a Radar Station, build Laser Towers. Nothing in Volkov\'s army likes them.');
+        M.say('lund', "Keep the Aegis with your tanks. Once you have a Radar Station, build Laser Towers. Nothing in Volkov's army likes them.");
       },
       objectives: {
         deploy: { check: () => G.playerTeam.countOf('cc') > 0 },
@@ -143,7 +153,7 @@ const CAMPAIGN = {
           const [x, y] = M.edgeNear(...M.start(0));
           const u = M.hero(0, x, y);
           M.focusOn(u.tx, u.ty);
-          M.say('hale', "Northwind to Lund: we're lending you Raven. Try to give her back in one piece.");
+          M.say('hale', "Northwind to Lund: London is lending you Raven. Try to give her back in one piece.");
           M.say('raven', 'Where do you want me?');
         }
         if (n === 5) M.say('volkov', 'Europe sends a brigade to stop an army. Admirable. Pointless.');
@@ -169,11 +179,11 @@ const CAMPAIGN = {
         { faction: 'usa', ally: 0, credits: 10000 },
         { faction: 'russia', ally: 1, ai: -1, credits: 3000, name: 'Russian Expeditionary Force' },
       ],
-      features: 'A race against a Hypersonic Silo. Cut its power to stall the clock, or send an Engineer to steal it.',
+      features: 'Play the USA against Russia: a race against a Hypersonic Silo, with a Reaper drone, THAAD and an enemy Krasukha jammer. Cut the power to stall the clock, or send an Engineer to steal the silo.',
       briefing: [
-        "We were wrong about Moscow staying out of this. A Russian 'expeditionary force' has crossed into Volkov's territory and brought him a gift: a Hypersonic Silo, fuelled and aimed at Northwind headquarters.",
-        'Intelligence gives us minutes, not hours. Build up, punch through and destroy the silo, or get an Engineer inside and capture it.',
-        'The launch sequence draws heavy power. If their grid goes down, the countdown stalls. Raven goes in with you.',
+        "We hoped Moscow would keep the Polar Pact on paper. It hasn't. A Russian 'expeditionary force' has crossed into Volkov's territory and brought him a gift: a Hypersonic Silo, fuelled and aimed at Northwind headquarters.",
+        'Intelligence gives us minutes, not hours. Build up, punch through and destroy the silo, or get an Engineer inside and capture it. A Krasukha jamming station covers the approach: anything near it moves and fires slower.',
+        'The launch sequence draws heavy power. If their grid goes down, the countdown stalls. Raven goes in with you, and an MQ-9 Reaper flies cover. Iskander missiles will come for your base: a THAAD Battery shoots them down.',
       ],
       goals: ['Destroy or capture the Hypersonic Silo before it launches', 'Raven must survive'],
       win: "The silo is out of the fight. With Moscow's gift gone, Volkov is left with what he can hold, and we are coming for it.",
@@ -184,8 +194,10 @@ const CAMPAIGN = {
         M.startingForces(0);
         M.hero(0, px - 2, py + 2);
         M.spawn('engineer', 0, px + 2, py - 2, 2);
-        M.base(1, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'power', 'tech', 'super_silo', 'power']);
+        M.spawn('drone', 0, px, py + 3);
+        M.base(1, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'power', 'tech', 'super_silo', 'power', 'power']);
         M.defenses(1, ['turret', 'railturret', 'turret', 'railturret', 'sam', 'bunker', 'turret'], 9);
+        M.vars.ew = M.build(1, 'krasukha', ...M.rel(1, 6, 0));
         for (const b of G.entities) if (b.key === 'bunker' && b.team === 1) M.garrison(b, 1, 'rifle', 3);
         M.squad('tank', 1, ...M.toward([ex, ey], M.centre(), 7), 3);
         M.squad('rifle', 1, ...M.toward([ex, ey], M.centre(), 5), 4);
@@ -194,10 +206,12 @@ const CAMPAIGN = {
         const mins = SILO_MINUTES[M.opts.difficulty] || SILO_MINUTES.normal;
         M.countdown('Silo launch', mins * 60);
         M.objective('silo', 'Destroy or capture the Hypersonic Silo before it launches');
+        M.objective('ew', 'Destroy the Krasukha jamming station', { optional: true });
         M.survive();
         M.say('hale', 'The clock is running, Commander. Every minute counts.', 1);
         M.say('raven', 'That silo eats power. Cut their power plants and the countdown freezes.');
-        M.say('hale', 'Russian Iskander launchers are in the area. Keep your base spread out.');
+        M.say('hale', 'Russian Iskander launchers are in the area. Get a THAAD Battery up once you have radar, and keep your base spread out.');
+        M.say('hale', "Your Reaper marks whatever it hits. Everything else hits that target harder.");
       },
       objectives: {
         silo: {
@@ -207,6 +221,10 @@ const CAMPAIGN = {
             if (M.vars.silo.dead) M.say('hale', 'Silo destroyed! Northwind HQ breathes again.');
             else M.say('hale', 'We own their silo? Volkov is going to hate this.');
           },
+        },
+        ew: {
+          check: M => !M.vars.ew || M.vars.ew.dead || M.vars.ew.team === 0,
+          done: M => M.say('raven', 'Jammer is down. My scope just cleared up.'),
         },
       },
       events: { launched: M => M.lose() },
@@ -238,22 +256,90 @@ const CAMPAIGN = {
 
     // ------------------------------------------------------------------ 4
     {
+      id: 'iron_rain', title: 'Iron Rain', place: 'Wakkanai, Hokkaido', date: 'September 2030',
+      theater: 'temperate', map: 'medium', seed: 63419, starts: 2,
+      teams: [
+        { faction: 'japan', ally: 0, credits: 10000 },
+        { faction: 'northkorea', ally: 1, ai: -1, credits: 3000, name: 'KPA Northern Landing Corps' },
+      ],
+      features: 'Play Japan: Raijin EMP Walkers and the Robotics Plant against North Korean Koksan guns and Demolition Trucks.',
+      briefing: [
+        'The Axis has opened a second front. While the Allies fight for the Kola Peninsula, a North Korean landing corps has come ashore at the northern tip of Hokkaido and dug in a line of Koksan guns that can shell anything within fifteen tiles.',
+        "Colonel Ren Okabe of the Japan Ground Self-Defense Force has an MCV, a few platoons and two Raijin EMP Walkers. Their bolts shut down vehicles and gun emplacements for a few seconds, long enough for your tanks to close in.",
+        "Pyongyang loves its Demolition Trucks. Kill them before they reach your base, and not next to anything you want to keep: they go off when destroyed. A Robotics Plant builds your vehicles and aircraft 50% faster.",
+      ],
+      goals: ['Silence the Koksan gun line', 'Destroy the KPA landing base'],
+      win: "The guns on the cape fall silent and the landing corps surrenders on the beach. Japan holds the north, and Pyongyang's second front collapses before it opened.",
+      lose: 'Wakkanai is burning and the landing corps is moving inland.',
+      setup(M) {
+        const [px, py] = M.start(0), [ex, ey] = M.start(1);
+        M.focusOn(px, py);
+        M.startingForces(0);
+        M.spawn('raijin', 0, px - 2, py + 2, 2);
+        M.base(1, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'power']);
+        M.defenses(1, ['bunker', 'turret', 'sam', 'turret', 'bunker'], 8);
+        for (const b of G.entities) if (b.key === 'bunker' && b.team === 1) M.garrison(b, 1, 'rifle', 3);
+        // the gun line, dug in well forward of the base where it covers the middle of the map
+        M.vars.guns = [-7, 0, 7].map(s => M.build(1, 'koksan', ...M.rel(1, 14, s))).filter(Boolean);
+        M.squad('rifle', 1, ...M.rel(1, 17, 0), 4);
+        M.squad('tank', 1, ...M.toward([ex, ey], M.centre(), 10), 2);
+        M.squad('flak', 1, ...M.rel(1, 12, 3), 1);
+        M.objective('guns', 'Silence the Koksan gun line');
+        M.objective('base', 'Destroy the KPA landing base');
+        M.objective('robotics', 'Build a Robotics Plant', { optional: true });
+        M.say('okabe', 'Commander, Okabe. Deploy and build fast. Those Koksan guns outrange anything we have on the ground.', 1);
+        M.say('okabe', 'Walk the Raijins in with your tanks. One EMP bolt and a gun stops firing long enough for us to reach it.');
+        M.say('pak', 'Japan will hear our guns all the way to Tokyo.');
+        M.after(200, 'trucks');
+      },
+      objectives: {
+        guns: {
+          check: M => M.vars.guns.every(b => b.dead || b.team === 0),
+          done: M => M.say('okabe', "The gun line is silent! Now push them back into the sea."),
+        },
+        base: {
+          check: () => G.teams[1].defeated,
+          done: M => M.say('pak', 'The Corps... will withdraw. For now.'),
+        },
+        robotics: {
+          check: () => G.playerTeam.countOf('robotics') > 0,
+          done: M => M.say('okabe', 'Robotics Plant online. Our factory lines will run at full speed now.'),
+        },
+      },
+      events: {
+        // a few Demolition Trucks race for the player's base every couple of minutes
+        trucks(M) {
+          if (G.teams[1].defeated) return;
+          const hq = M.playerHQ();
+          if (hq) {
+            const n = M.vars.truckWave = (M.vars.truckWave || 0) + 1;
+            const trucks = M.spawn('demotruck', 1, ...M.rel(1, 4, 0), Math.min(3, 1 + (n >> 1)));
+            G.commandMove(trucks, hq.tx, hq.ty, true, true);
+            if (n === 1) M.say('okabe', 'Demolition Trucks coming in fast! Stop them short of the base!');
+          }
+          M.after(150, 'trucks');
+        },
+      },
+    },
+
+    // ------------------------------------------------------------------ 5
+    {
       id: 'red_storm', title: 'Red Storm', place: 'Polyarny, Kola Bay', date: 'November 2030',
       theater: 'arctic', map: 'large', seed: 77530, starts: 4,
       teams: [
         { faction: 'usa', ally: 0, credits: 12000 },
         { faction: 'eu', ally: 0, ai: 0, name: 'EU Northern Brigade' },
         { faction: 'soviet', ally: 1, ai: -1, credits: 3000, name: "Volkov's Red Guard" },
-        { faction: 'russia', ally: 1, ai: -1, credits: 2500, name: 'Russian Expeditionary Force' },
+        { faction: 'china', ally: 1, ai: -1, credits: 2500, name: 'PLA Northern Theatre' },
       ],
-      features: 'The final battle: with an EU ally against two enemy bases and a Kirov fleet.',
+      features: 'The final battle: the USA with an EU ally and SAS reinforcements against the Soviet Union, a Kirov fleet and China.',
       briefing: [
-        'This ends here. Volkov has pulled everything back to his headquarters at Polyarny, behind the Russian Expeditionary Force and a fleet of Kirov airships.',
-        'Our beachhead went up overnight and the EU Northern Brigade lands alongside you. Destroy Volkov\'s base and drive the Russians out. Expect Kirovs: build SAM sites and fighters early.',
-        'Raven has one last job: make sure Volkov has nowhere left to run.',
+        "This ends here. After the silo, Moscow quietly called its expeditionary force home and Beijing took its place: General Zhao Lin's PLA Northern Theatre now guards Volkov's headquarters at Polyarny, under a fleet of Kirov airships.",
+        "Our beachhead went up overnight and the EU Northern Brigade lands alongside you. Destroy Volkov's base and drive the Chinese out. Expect Kirovs: build SAM sites and fighters early. Chinese Cyber Warfare Units hack vehicles, so escort your armour with infantry, and their Support Hub patches up anything parked near it.",
+        'Raven has one last job: make sure Volkov has nowhere left to run. London has promised more SAS once the fight starts.',
       ],
-      goals: ["Destroy Volkov's base", 'Drive out the Russian Expeditionary Force', 'Raven must survive'],
-      win: "Polyarny falls at dawn. The restored Union lasted nine months. Raven files her last report from Volkov's empty office: 'Area secure. Requesting leave.'",
+      goals: ["Destroy Volkov's base", 'Drive out the PLA Northern Theatre', 'Raven must survive'],
+      win: "Polyarny falls at dawn. The restored Union lasted nine months and the Polar Pact did not outlive it. Raven files her last report from Volkov's empty office: 'Area secure. Requesting leave.'",
       setup(M) {
         const [px, py] = M.start(0);
         M.focusOn(px, py);
@@ -262,12 +348,12 @@ const CAMPAIGN = {
         M.startingForces(0, true);
         M.hero(0, ...M.rel(0, 4, 0));
         M.base(1, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory']);
-        // Volkov sits tight behind his defenses at first; the Russians even longer
+        // Volkov sits tight behind his defenses at first; the Chinese even longer
         G.ai[2].nextAttack = 420; G.ai[3].nextAttack = 540;
         M.startingForces(1, true);
-        M.base(2, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'power', 'airfield', 'tech', 'power', 'refinery']);
+        M.base(2, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'power', 'airfield', 'tech', 'power', 'refinery', 'propaganda']);
         M.defenses(2, ['turret', 'railturret', 'sam', 'bunker', 'turret', 'railturret', 'sam', 'turret'], 9);
-        M.base(3, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'tech']);
+        M.base(3, ['cc', 'power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'hub', 'tech']);
         M.defenses(3, ['turret', 'railturret', 'bunker', 'sam'], 8);
         for (const b of G.entities) if (b.key === 'bunker' && b.team > 1) M.garrison(b, b.team, 'rifle', 3);
         for (const id of [2, 3]) {
@@ -276,23 +362,25 @@ const CAMPAIGN = {
           M.squad('rifle', id, ...M.toward([sx, sy], M.centre(), 5), 4);
         }
         M.squad('kirov', 2, ...M.start(2), 1);
-        M.squad('iskander', 3, ...M.start(3), 1);
+        M.squad('hacker', 3, ...M.toward(M.start(3), M.centre(), 6), 2);
         M.objective('volkov', "Destroy Volkov's base");
-        M.objective('russia', 'Drive out the Russian Expeditionary Force');
+        M.objective('china', 'Drive out the PLA Northern Theatre');
         M.survive();
         M.say('hale', 'All units, Operation Northwind is go.', 1);
         M.say('lund', 'Northern Brigade landing on your flank. Good hunting, Commander.');
         M.say('volkov', 'You bring Europe to my door? I have an airship for every one of you.');
+        M.say('zhao', 'Beijing keeps its promises, Colonel. Polyarny stays with the Pact.');
         M.after(240, 'vanguard');
+        M.after(330, 'sas');
       },
       objectives: {
         volkov: {
           check: () => G.teams[2].defeated,
           done: M => { M.say('volkov', 'This is not... the end of the Union.'); M.say('hale', "Volkov's headquarters is rubble!"); },
         },
-        russia: {
+        china: {
           check: () => G.teams[3].defeated,
-          done: M => M.say('hale', 'The Russians are pulling out!'),
+          done: M => { M.say('zhao', 'The PLA is withdrawing. This was never our war.'); M.say('hale', 'The Chinese are pulling out!'); },
         },
         kirov: { check: M => M.vars.vanguard.every(u => u.dead) },
       },
@@ -304,6 +392,13 @@ const CAMPAIGN = {
           if (hq) G.commandMove(M.vars.vanguard, hq.tx + 1, hq.ty + 1, true, true);
           M.say('hale', 'Kirov vanguard inbound! Get your anti-air up!');
           M.objective('kirov', 'Shoot down the Kirov vanguard', { optional: true });
+        },
+        // the promised SAS team drops in at the map edge nearest the player
+        sas(M) {
+          const [x, y] = M.edgeNear(...M.start(0));
+          M.spawn('sas', 0, x, y, 3);
+          M.focusOn(x, y);
+          M.say('harker', 'Harker here, three of mine on the ground. Point them at a structure and stand back.');
         },
       },
     },
@@ -319,10 +414,11 @@ const CampaignProgress = {
   load() { try { return JSON.parse(localStorage.getItem(this.key)) || {}; } catch (e) { return {}; } },
   save(p) { try { localStorage.setItem(this.key, JSON.stringify(p)); } catch (e) { /* not remembered */ } },
   record(id) { return (this.load().done || {})[id] || null; },
-  // a mission opens once the one before it is won ('?unlock' in the URL opens them all)
+  // a mission opens once the one before it is won ('?unlock' in the URL opens them all); one
+  // already won stays open even if a mission is added before it
   unlocked(i) {
     if (i === 0 || /[?&]unlock\b/.test(location.search)) return true;
-    return !!this.record(CAMPAIGN.missions[i - 1].id);
+    return !!this.record(CAMPAIGN.missions[i - 1].id) || !!this.record(CAMPAIGN.missions[i].id);
   },
   complete(id, time, difficulty) {
     const p = this.load();
