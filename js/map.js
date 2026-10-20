@@ -111,8 +111,9 @@ function surfaceTexture(kind, th, rng) {
 }
 
 class GameMap {
-  constructor(size, seed, theater = 'temperate') {
+  constructor(size, seed, theater = 'temperate', players = 2) {
     this.w = size; this.h = size;
+    this.players = players;
     this.seed = seed;
     this.theater = THEMES[theater] ? theater : 'temperate';
     this.theme = THEMES[this.theater];
@@ -154,18 +155,26 @@ class GameMap {
       this.terrain[this.idx(x, y)] = t;
     }
     // edges are water-free so armies can always flank
-    // starting positions: opposite corners
+    // starting positions: opposite corners for two players; with more, corners in order around
+    // the map, so neighbours in the list share a side
     const m = 11;
-    const corners = [[m, N - 1 - m], [N - 1 - m, m], [m, m], [N - 1 - m, N - 1 - m]];
-    const pick = rng() < 0.5 ? 0 : 2;
-    this.starts = [corners[pick], corners[pick + 1]];
-    if (rng() < 0.5) this.starts.reverse();
+    if (this.players <= 2) {
+      const corners = [[m, N - 1 - m], [N - 1 - m, m], [m, m], [N - 1 - m, N - 1 - m]];
+      const pick = rng() < 0.5 ? 0 : 2;
+      this.starts = [corners[pick], corners[pick + 1]];
+      if (rng() < 0.5) this.starts.reverse();
+    } else {
+      const ring = [[m, m], [N - 1 - m, m], [N - 1 - m, N - 1 - m], [m, N - 1 - m]];
+      const off = Math.floor(rng() * 4);
+      this.starts = [];
+      for (let i = 0; i < this.players; i++) this.starts.push(ring[(off + i) % 4]);
+    }
 
     for (const [sx, sy] of this.starts) this.paint(sx, sy, 9, T_GRASS);
     // guarantee land connectivity between starts and to the center
     const c = [N >> 1, N >> 1];
-    this.carve(this.starts[0], c); this.carve(this.starts[1], c);
-    this.carve(this.starts[0], this.starts[1]);
+    for (const s of this.starts) this.carve(s, c);
+    for (let i = 1; i < this.starts.length; i++) this.carve(this.starts[i - 1], this.starts[i]);
 
     // ore fields
     for (const [sx, sy] of this.starts) {
@@ -177,7 +186,7 @@ class GameMap {
       }
     }
     this.oreField(c[0], c[1], 3.5, GEM);
-    const extra = 6;
+    const extra = Math.round(6 * (N / 88) * (N / 88));
     for (let i = 0; i < extra; i++) {
       for (let tries = 0; tries < 50; tries++) {
         const x = 8 + Math.floor(rng() * (N - 16)), y = 8 + Math.floor(rng() * (N - 16));

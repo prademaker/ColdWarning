@@ -18,6 +18,7 @@ const Main = {
     const params = new URLSearchParams(location.search);
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
+      mode: 'skirmish', lineup: '1v1', mapSize: 'medium',
       seed: Math.floor(Math.random() * 1e6), speed: 1,
     };
     this.buildMenu();
@@ -26,6 +27,7 @@ const Main = {
       this.start(Object.assign({}, this.settings, {
         autoplay: params.has('autoplay'),
         faction: p('faction'), enemy: p('enemy'), theater: p('theater'),
+        mode: p('mode'), lineup: p('lineup'), mapSize: p('map'), difficulty: p('difficulty'),
         seed: params.has('seed') ? +params.get('seed') : this.settings.seed,
         speed: params.has('speed') ? +params.get('speed') : 1,
       }));
@@ -48,6 +50,22 @@ const Main = {
       card.addEventListener('click', () => { s.faction = id; if (s.enemy === id) s.enemy = 'random'; this.buildMenu(); });
       fbox.appendChild(card);
     }
+    const opts = (id, entries, key) => {
+      const box = document.getElementById(id);
+      box.innerHTML = '';
+      for (const [v, label] of entries) {
+        const b = document.createElement('button');
+        b.className = 'opt' + (s[key] === v ? ' sel' : '');
+        b.textContent = label;
+        b.addEventListener('click', () => { s[key] = v; this.buildMenu(); });
+        box.appendChild(b);
+      }
+    };
+    opts('mode', [['skirmish', 'Skirmish'], ['defense', 'Defense']], 'mode');
+    opts('lineup', Object.entries(LINEUPS).map(([id, l]) => [id, l.label]), 'lineup');
+    opts('mapsize', Object.entries(MAP_SIZES).map(([id, m]) => [id, m.label]), 'mapSize');
+    document.getElementById('lineup-box').hidden = s.mode === 'defense';
+    document.getElementById('enemy-title').textContent = s.mode === 'defense' ? 'Attacker' : 'Opponent';
     const ebox = document.getElementById('enemy');
     ebox.innerHTML = '';
     for (const id of ['random', ...Object.keys(FACTIONS).filter(k => k !== s.faction)]) {
@@ -159,20 +177,22 @@ const Main = {
     this.endShown = true;
     Music.mode = 'end';
     const el = document.getElementById('end');
-    const p = G.playerTeam, e = G.teams.find(t => t.id !== G.player);
+    const teams = G.teams, W = G.waves;
     const mins = Math.floor(G.over.time / 60), secs = Math.floor(G.over.time % 60);
-    const row = (label, a, b) => `<tr><td>${label}</td><td>${Math.round(a)}</td><td>${Math.round(b)}</td></tr>`;
+    const row = (label, k) => `<tr><td>${label}</td>${teams.map(t => `<td>${Math.round(t.stats[k])}</td>`).join('')}</tr>`;
+    const text = W ? (G.over.win ? `All ${W.total} waves repelled. The base holds.` : `The base fell during wave ${W.wave} of ${W.total}.`) :
+      G.over.win ? 'The enemy has been eliminated. The region is secure.' : 'Our forces have been wiped out. Command has been lost.';
     el.innerHTML = `<div class="endbox ${G.over.win ? 'win' : 'lose'}">
       <h1>${G.over.win ? 'VICTORY' : 'DEFEAT'}</h1>
-      <p>${G.over.win ? 'The enemy has been eliminated. The region is secure.' : 'Our forces have been wiped out. Command has been lost.'}</p>
+      <p>${text}</p>
       <p class="time">Mission time ${mins}:${String(secs).padStart(2, '0')}</p>
-      <table><tr><th></th><th style="color:${p.color}">${p.name}</th><th style="color:${e.color}">${e.name}</th></tr>
-      ${row('Units built', p.stats.built, e.stats.built)}
-      ${row('Units lost', p.stats.lost, e.stats.lost)}
-      ${row('Kills', p.stats.kills, e.stats.kills)}
-      ${row('Structures built', p.stats.structuresBuilt, e.stats.structuresBuilt)}
-      ${row('Structures destroyed', p.stats.structuresKilled, e.stats.structuresKilled)}
-      ${row('Credits harvested', p.stats.harvested, e.stats.harvested)}
+      <table><tr><th></th>${teams.map(t => `<th style="color:${t.color}">${t.name}${t.id !== G.player && G.allied(t.id, G.player) ? ' (ally)' : ''}</th>`).join('')}</tr>
+      ${row('Units built', 'built')}
+      ${row('Units lost', 'lost')}
+      ${row('Kills', 'kills')}
+      ${row('Structures built', 'structuresBuilt')}
+      ${row('Structures destroyed', 'structuresKilled')}
+      ${row('Credits harvested', 'harvested')}
       </table>
       <div class="endbtns"><button id="again">Play again</button><button id="tomenu">Main menu</button></div></div>`;
     el.hidden = false;

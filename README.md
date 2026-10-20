@@ -28,7 +28,9 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Defenses: gatling turrets, rail turrets, SAM sites. Superweapons on a five-minute charge.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.
-- Procedurally generated maps (seeded).
+- Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
+- Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
+- Procedurally generated maps (seeded) in three sizes.
 - Audio is all synthesized in the browser, with no sound files:
   - Layered weapon and explosion effects, panned to where they happen on screen, with reverb and theater wind ambience.
   - Spoken announcer and unit replies (via the browser's speech engine).
@@ -60,6 +62,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/map.js` | Seeded terrain and ore generation, A* pathfinding |
 | `js/game.js` | Simulation: units, combat, harvesting, production, power, fog |
 | `js/ai.js` | Computer opponent |
+| `js/waves.js` | Defense mode waves |
 | `js/art.js` | 3D prism models for units, structures and scenery; sprite caches; sidebar cameos |
 | `js/render.js` | Isometric draw loop: terrain chunks, depth-sorted sprites, effects, fog, overlays |
 | `js/flags.js` | Faction flags as SVG |
@@ -69,7 +72,8 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/main.js` | Menu and main loop |
 
 `index.html?autoplay` runs an AI-vs-AI match, which is handy for testing balance
-(add `&faction=russia&enemy=eu&theater=arctic&seed=42` to pick the setup).
+(add `&faction=russia&enemy=eu&theater=arctic&seed=42` to pick the setup, `&lineup=2v2` or `ffa4` for more players,
+`&map=small|medium|large`, `&mode=defense`, `&difficulty=easy|normal|hard`).
 
 ## Art
 

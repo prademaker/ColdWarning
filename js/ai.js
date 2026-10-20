@@ -18,7 +18,18 @@ class AI {
 
   myUnits() { return G.entities.filter(e => e.kind === 'unit' && e.team === this.team.id && !e.dead); }
   myBuildings() { return G.entities.filter(e => e.kind === 'building' && e.team === this.team.id && !e.dead); }
-  enemyOf() { return G.teams.find(t => t.id !== this.team.id && !t.defeated); }
+  // the nearest opponent still in the game
+  enemyOf() {
+    const [hx, hy] = G.map.starts[this.team.id];
+    let best = null, bd = 1e9;
+    for (const t of G.teams) {
+      if (t.defeated || !G.hostile(t.id, this.team.id)) continue;
+      const [sx, sy] = G.map.starts[t.id];
+      const d = Math.hypot(sx - hx, sy - hy);
+      if (d < bd) { bd = d; best = t; }
+    }
+    return best;
+  }
 
   home() {
     const cc = this.myBuildings().find(b => b.key === 'cc');
@@ -228,7 +239,7 @@ class AI {
   pickTarget(x, y) {
     let best = null, bd = 1e9;
     for (const e of G.entities) {
-      if (e.dead || e.team === this.team.id) continue;
+      if (e.dead || !G.hostile(e.team, this.team.id)) continue;
       const d = Math.hypot(e.x - x, e.y - y) + (e.kind === 'unit' ? 600 : 0);
       if (d < bd) { bd = d; best = e; }
     }
@@ -237,7 +248,7 @@ class AI {
 
   useSuper() {
     let best = null, bv = 0;
-    const foes = G.entities.filter(e => e.team !== this.team.id && !e.dead);
+    const foes = G.entities.filter(e => G.hostile(e.team, this.team.id) && !e.dead);
     for (const e of foes) {
       if (e.kind !== 'building') continue;
       let v = 0;
