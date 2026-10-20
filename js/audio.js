@@ -317,7 +317,7 @@ const Sfx = {
     const now = performance.now();
     if (now - (this.lastUnitVoice || 0) < 1400 || speechSynthesis.speaking || speechSynthesis.pending) return;
     this.lastUnitVoice = now;
-    const team = G.teams[u.team], east = FACTIONS[team.faction].side === 'east';
+    const team = G.teams[u.team], east = FACTIONS[team.faction].side === 'axis';
     const role = u.def.hero ? 'hero' : u.def.harvester ? 'harvester' : u.def.engineer ? 'engineer' : u.def.cat === 'infantry' ? 'infantry' : u.air ? 'air' : 'vehicle';
     const lines = UNIT_LINES[role][kind] || UNIT_LINES[role].select;
     const extra = east && role !== 'hero' ? (UNIT_LINES_EAST[kind] || []) : [];

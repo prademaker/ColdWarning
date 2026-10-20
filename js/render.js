@@ -262,11 +262,37 @@ const Render = {
     drawUnitArt(ctx, u, team, sx, sy - bob);
     ctx.globalAlpha = 1;
     if (bags) this.drawSandbags(ctx, u, bags, true);
+    this.drawStatus(ctx, u, sx, sy - bob);
     if (u.def.hero) {
       // a gold marker so the hero is easy to find in a crowd
       const y = sy - 30 + Math.sin(u.anim * 3) * 1.5;
       ctx.fillStyle = '#ffd27a'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(sx, y + 5); ctx.lineTo(sx - 4, y); ctx.lineTo(sx, y - 5); ctx.lineTo(sx + 4, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  },
+
+  // shield shimmer, EMP sparks, laser designation and hack progress on a unit
+  drawStatus(ctx, u, sx, sy) {
+    const t = G.time, top = sy - (u.alt || 0) - (u.def.cat === 'infantry' ? 14 : 18), r = u.def.radius * 1.5;
+    if (u.armorMul < 1) {
+      ctx.strokeStyle = `rgba(120,200,255,${0.35 + 0.15 * Math.sin(t * 6 + u.id)})`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(sx, sy - (u.alt || 0) - r * 0.35, r, r * 0.75, 0, Math.PI, Math.PI * 2); ctx.stroke();
+    }
+    if (u.stunT > t) {
+      ctx.strokeStyle = 'rgba(150,210,255,0.9)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < 3; i++) { const a = Math.random() * 6.3, x = sx + Math.cos(a) * r * 0.7, y = top + 6 + Math.sin(a) * r * 0.35; ctx.moveTo(x, y); ctx.lineTo(x + 3, y - 3); ctx.lineTo(x + 1, y - 5); }
+      ctx.stroke();
+    }
+    if (u.markT > t) {
+      ctx.strokeStyle = 'rgba(255,60,60,0.9)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(sx, top + 4, 5, 0, Math.PI * 2);
+      ctx.moveTo(sx - 8, top + 4); ctx.lineTo(sx - 3, top + 4); ctx.moveTo(sx + 3, top + 4); ctx.lineTo(sx + 8, top + 4); ctx.stroke();
+    }
+    if (u.hackP && t - u.hackT < 6) {
+      const k = Math.min(1, u.hackP / hackPulses(u)), w = 18;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(sx - w / 2 - 1, top - 6, w + 2, 4);
+      ctx.fillStyle = '#78ff96'; ctx.fillRect(sx - w / 2, top - 5, w * k, 2);
     }
   },
 
@@ -388,6 +414,17 @@ const Render = {
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
         ctx.strokeStyle = `rgba(255,230,220,${1 - p})`; ctx.lineWidth = 1.2;
         ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case 'beam': { // EMP bolts (jagged), hacker uplinks (dashed), THAAD intercepts
+        const [x2, y2] = this.P(f.x2, f.y2, f.z2 || 0);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(${f.color},${0.85 * (1 - p)})`; ctx.lineWidth = f.zig ? 2.2 : 1.6;
+        if (f.dash) { ctx.setLineDash([3, 3]); ctx.lineDashOffset = -f.t * 40; }
+        ctx.beginPath(); ctx.moveTo(x, y);
+        if (f.zig) for (let i = 1; i < 6; i++) ctx.lineTo(x + (x2 - x) * i / 6 + (Math.random() - 0.5) * 7, y + (y2 - y) * i / 6 + (Math.random() - 0.5) * 7);
+        ctx.lineTo(x2, y2); ctx.stroke();
         ctx.restore();
         break;
       }

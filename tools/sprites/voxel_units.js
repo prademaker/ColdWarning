@@ -213,6 +213,18 @@ function soldier(kind, frame) {
     for (const y of [Y - 2, Y + 2]) { g.box(0, 0, y, y, 5, 11, C.hazard); g.set(0, y, 12, C.steelDark); }                            // fuel tanks either side of the pack
     g.box(4, 8, Y + 2, Y + 2, 7, 7, C.steelDark); g.set(9, Y + 2, 7, C.flame);                                                       // flame lance
   }
+  if (kind === 'sas') {
+    // black kit, gas mask, suppressed carbine, C4 pouches
+    for (const [, e] of g.v) if (e[2] >= 6 && e[2] <= 10 && e[3] !== TEAM) e[3] = e[2] === 9 ? C.steelDark : C.rubber;
+    g.box(1, 4, Y - 1, Y + 1, 12, 13, C.rubber); g.set(4, Y, 11, C.steelDark); g.set(4, Y, 12, C.glassDark);                          // balaclava + mask
+    g.box(5, 5, Y - 2, Y - 1, 7, 8, C.hazard);                                                                                     // C4
+    g.box(4, 11, Y + 2, Y + 2, 8, 8, C.gunDark); g.box(9, 11, Y + 2, Y + 2, 8, 8, C.rubber);                                       // suppressed carbine
+  }
+  if (kind === 'hacker') {
+    // backpack uplink with a mast and dish, glowing tablet in hand
+    g.box(0, 0, Y - 1, Y + 1, 6, 11, C.steelDark); g.box(0, 0, Y, Y, 12, 16, C.steel); g.box(0, 0, Y - 2, Y + 2, 17, 17, C.white);
+    g.box(4, 5, Y + 1, Y + 2, 7, 8, C.rail);
+  }
   if (kind === 'commando') {
     // campaign hero: dark fatigues, team-coloured beret instead of a helmet, suppressed rifle, C4 on the chest
     for (const [, e] of g.v) if (e[2] >= 6 && e[2] <= 10 && e[3] !== TEAM) e[3] = e[2] === 8 ? C.steel : C.steelDark;
@@ -224,7 +236,7 @@ function soldier(kind, frame) {
   }
   return g;
 }
-for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
+for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando', 'sas', 'hacker']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
 
 // ======== bloc and nation specials ========
 
@@ -315,4 +327,65 @@ for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando'
   h.box(16, 30, Y - 2, Y + 2, 3, 3, C.light);
   for (const y of [Y - 6, Y + 6]) h.box(18, 22, y, y, 6, 7, C.gunDark);                        // engine pods
   writeVox('kirov.vox', h);
+}
+
+// ======== country specials added with the Axis and Allies ========
+
+// ---------- Aegis Shield Carrier (EU): 8x8 hull, shield emitter dome with a pintle gun ----------
+{
+  const h = grid();
+  for (const x of [4, 9, 17, 22]) { wheel(h, x, 0, 1); wheel(h, x, 14, 15); }
+  h.camo(1, 26, 2, 13, 2, 8, 81);
+  slopeFront(h, 22, 26, 2, 13, 8);
+  for (let x = 2; x <= 25; x++) { h.set(x, 2, 6, TEAM_DARK); h.set(x, 13, 6, TEAM_DARK); }
+  for (const [x, y] of [[3, 3], [3, 12], [20, 3], [20, 12]]) h.box(x, x + 1, y, y, 9, 10, C.rail); // emitter prongs
+  h.set(26, 4, 4, C.light); h.set(26, 11, 4, C.light);
+  writeVox('aegis_hull.vox', h);
+  const t = grid(), O = 6;
+  for (let x = -5; x <= 5; x++) for (let y = -5; y <= 5; y++) for (let z = 0; z <= 5; z++) {
+    if (x * x + y * y + (z * 1.6) ** 2 > 30) continue;
+    t.set(O + x, O + y, z, z >= 3 ? C.rail : z === 1 ? TEAM : C.steel);
+  }
+  t.box(O + 4, O + 10, O + 3, O + 3, 3, 3, C.gunDark);
+  writeVox('aegis_turret.vox', t);
+}
+
+// ---------- Raijin EMP Walker (Japan): two legs; the torso with EMP projectors turns ----------
+{
+  const h = grid(), Y = 7;
+  for (const y of [Y - 5, Y + 5]) {
+    h.box(4, 9, y - 1, y + 1, 0, 0, C.steelDark);       // feet
+    h.box(6, 7, y - 1, y + 1, 1, 5, C.steel);            // shins
+    h.box(5, 8, y - 1, y + 1, 6, 6, C.steelDark);        // knees
+    h.box(5, 6, y - 1, y + 1, 7, 10, C.camo);            // thighs
+    h.set(9, y, 1, C.gunDark);
+  }
+  h.camo(3, 10, Y - 4, Y + 4, 10, 12, 83);               // hips
+  h.band(11, TEAM_DARK);
+  writeVox('raijin_hull.vox', h);
+  const t = grid(), O = 7;
+  t.camo(O - 5, O + 5, O - 5, O + 5, 0, 6, 87);          // torso
+  t.band(3, TEAM);
+  t.box(O + 4, O + 6, O - 2, O + 2, 4, 6, C.glassDark);  // cockpit
+  for (const y of [O - 7, O + 7]) {                      // EMP projector arms
+    t.box(O - 2, O + 2, y - 1, y + 1, 2, 5, C.steel);
+    t.box(O + 3, O + 11, y, y, 3, 4, C.gunDark);
+    t.box(O + 11, O + 12, y, y, 3, 4, C.rail);
+  }
+  writeVox('raijin_turret.vox', t);
+}
+
+// ---------- Demolition Truck (North Korea): old cab-over truck loaded with explosives ----------
+{
+  const h = grid();
+  for (const x of [4, 9, 22]) { wheel(h, x, 0, 1); wheel(h, x, 12, 13); }
+  h.box(1, 26, 2, 11, 2, 3, C.steelDark);
+  h.camo(20, 26, 1, 12, 4, 11, 91);                     // cab
+  h.box(26, 26, 3, 10, 7, 9, C.glassDark);
+  for (let x = 20; x <= 26; x++) { h.set(x, 1, 6, TEAM_DARK); h.set(x, 12, 6, TEAM_DARK); }
+  h.camo(1, 18, 1, 12, 4, 5, 93);                       // flatbed
+  for (const x of [3, 8, 13]) for (const y of [3, 8]) h.box(x, x + 3, y, y + 2, 6, 10, (x + y) % 2 ? C.olive : C.red); // drums of explosive
+  h.box(2, 17, 6, 7, 11, 11, C.hazard);                 // warning tape
+  h.set(26, 3, 5, C.light); h.set(26, 10, 5, C.light);
+  writeVox('demotruck.vox', h);
 }
