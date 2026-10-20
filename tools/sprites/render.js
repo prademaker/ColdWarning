@@ -31,6 +31,18 @@ const MODELS = {
   jet_vox: { vox: { hull: 'jet.vox' }, pivot: [16, 12.5], k: 1.0, cell: 72 },
   ...Object.fromEntries(['rifle', 'rocket', 'engineer'].flatMap(kind => [0, 1, 2].map(f =>
     [`${kind}_vox_${f}`, { vox: { hull: `${kind}_${f}.vox` }, pivot: [2.5, 3.5], k: 1.25, cell: 40, anchor: 0.75 }]))),
+  // structures (tools/sprites/voxel_buildings.js): 1 voxel = 2 game px, one facing, pivot at the footprint centre
+  ...Object.fromEntries(Object.entries({
+    cc: [3, 3], power: [2, 2], refinery: [3, 3], barracks: [2, 2], factory: [3, 3], radar: [2, 2], airfield: [3, 2],
+    tech: [2, 2], super_lance: [3, 3], super_silo: [3, 3], super_silo_open: [3, 3], turret: [1, 1], railturret: [1, 1], sam: [1, 1],
+  }).map(([key, [w, h]]) => {
+    const W = w * 16, H = h * 16, span = (W + H) * 2, cell = span + 24;
+    return [`b_${key}`, { vox: { hull: `b_${key}.vox` }, pivot: [W / 2, H / 2], k: 2, cell, anchor: (cell - 12 - span / 4) / cell, facings: 1 }];
+  })),
+  // rotating weapons of defences (pivot at the gun's centre, lifted onto the base)
+  b_turret_gun: { vox: { hull: 'b_turret_gun.vox' }, pivot: [4.5, 4.5], lift: 3.5, k: 2, cell: 64, anchor: 0.62 },
+  b_railturret_gun: { vox: { hull: 'b_railturret_gun.vox' }, pivot: [5.5, 5.5], lift: 5, k: 2, cell: 80, anchor: 0.62 },
+  b_sam_gun: { vox: { hull: 'b_sam_gun.vox' }, pivot: [5.5, 5.5], lift: 3, k: 2, cell: 64, anchor: 0.62 },
   heli: { file: 'Helicopter_001.glb', k: 2.8, cell: 120, anchor: 0.7, hide: ['Blade_001'], rotor: 'Blade_001', mask: { Color: 'dark' } },
 };
 

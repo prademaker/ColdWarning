@@ -205,7 +205,8 @@ const Render = {
     if (k < 1) {
       // rises out of the ground while under construction
       const cut = s.h * (1 - k);
-      ctx.drawImage(s.c, 0, cut * 2, s.c.width, s.c.height - cut * 2, sx - s.ox, sy - s.oy + cut, s.w, s.h - cut);
+      const src = s.sw ? [s.sx, s.sy, s.sw, s.sh] : [0, 0, s.c.width, s.c.height], r = src[3] / s.h;
+      ctx.drawImage(s.c, src[0], src[1] + cut * r, src[2], src[3] - cut * r, sx - s.ox, sy - s.oy + cut, s.w, s.h - cut);
       return;
     }
     Art.blit(ctx, s, sx, sy);
@@ -471,10 +472,8 @@ const Render = {
   drawHealth(ctx, e, sel) {
     let x, y, w;
     if (e.kind === 'building') {
-      const s = buildingSprite(e, G.teams[e.team]);
-      const [sx, sy] = this.P(e.tx * TILE, e.ty * TILE);
-      const [cx] = this.P(e.x, e.y);
-      w = Math.min(90, e.w * TILE * 1.1); x = cx - w / 2; y = Math.max(sy - s.oy + 2, sy - 90);
+      const [cx, cy] = this.P(e.x, e.y, e.def.height + 10);
+      w = Math.min(90, e.w * TILE * 1.1); x = cx - w / 2; y = cy;
     } else {
       const [sx, sy] = this.P(e.x, e.y, (e.alt || 0) + (e.def.cat === 'infantry' ? 20 : 26));
       w = Math.max(18, e.def.radius * 2.4); x = sx - w / 2; y = sy;

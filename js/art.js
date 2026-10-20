@@ -150,6 +150,7 @@ function bake(prisms, extra) {
 
 const Art = {
   cache: new Map(),
+  version: 0, // bumped whenever a sprite sheet finishes loading
   get(id, fn) {
     let s = this.cache.get(id);
     if (!s) { s = fn(); this.cache.set(id, s); }
@@ -172,6 +173,7 @@ if (typeof SPRITE_META !== 'undefined') {
       base.src = `assets/sprites/${key}_${part}.png`; mask.src = `assets/sprites/${key}_${part}_mask.png`;
       let camo = null;
       if (m.camo) { camo = new Image(); camo.src = `assets/sprites/${key}_${part}_camo.png`; }
+      for (const img of [base, mask, camo]) if (img) img.onload = () => { Art.version++; };
       SHEETS[key + '_' + part] = { base, mask, camo };
     }
   }
@@ -200,10 +202,12 @@ function teamSheet(key, part, team) {
       // voxel units: faction-tinted camouflage on the armour, solid team colour on the accent
       // parts (fender edges, turret band, rear plate), keeping the voxels' shading
       if (sh.camo) { x.globalCompositeOperation = 'multiply'; x.drawImage(layer(VOX_CAMO[team.faction] || '#c8b48c', sh.camo), 0, 0); }
+      // structures wear a slightly muted team colour so roofs don't overpower the scene
+      const tc = key.startsWith('b_') ? tone(team.color, -0.15) : team.color;
       x.globalCompositeOperation = 'color'; x.globalAlpha = 0.85;
-      x.drawImage(layer(team.color), 0, 0);
+      x.drawImage(layer(tc), 0, 0);
       x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.2;
-      x.drawImage(layer(team.color), 0, 0);
+      x.drawImage(layer(tc), 0, 0);
     } else {
       x.globalCompositeOperation = 'multiply';
       x.drawImage(layer(CAMO_TINT[team.faction] || '#ffffff'), 0, 0);
@@ -218,7 +222,7 @@ function teamSheet(key, part, team) {
 function modelSprite(key, part, team, ang) {
   const m = SPRITE_META[key], c = teamSheet(key, part, team);
   if (!c) return null;
-  const f = facingIndex(ang), C = m.cell * m.res;
+  const f = (m.facings || FACINGS) === 1 ? 0 : facingIndex(ang), C = m.cell * m.res;
   return { c, sx: (f % m.cols) * C, sy: Math.floor(f / m.cols) * C, sw: C, sh: C, ox: m.ax, oy: m.ay, w: m.cell, h: m.cell };
 }
 
@@ -605,8 +609,20 @@ function buildingState(b, team) {
   return 0;
 }
 
+// Voxel structure sprites (tools/sprites/voxel_buildings.js). They are anchored at the footprint
+// centre; shift them so callers can blit them at the footprint corner like the prism versions.
+function voxBuilding(key, team, ang, b) {
+  if (typeof SPRITE_META === 'undefined' || !SPRITE_META[key]) return null;
+  const s = modelSprite(key, 'hull', team, ang);
+  if (!s) return null;
+  const W = b.w * TILE, H = b.h * TILE;
+  return Object.assign({}, s, { ox: s.ox - (W - H) / 2, oy: s.oy - (W + H) / 4 });
+}
+
 function buildingSprite(b, team) {
   const st = buildingState(b, team);
+  const v = voxBuilding('b_' + b.key + (b.key === 'super_silo' && st ? '_open' : ''), team, 0, b);
+  if (v) return v;
   return Art.get(`B|${b.key}|${team.faction}|${team.color}|${st}`, () => {
     // structures wear a slightly muted team colour so roofs don't overpower the scene
     const m = BLD_MODELS[b.key](Object.assign({}, team, { color: tone(team.color, -0.18) }), st);
@@ -618,6 +634,8 @@ function buildingSprite(b, team) {
 }
 
 function buildingTurretSprite(b, team) {
+  const v = voxBuilding('b_' + b.key + '_gun', team, b.turret, b);
+  if (v) return v;
   const spec = BLD_TURRETS[b.key];
   const f = facingIndex(b.turret);
   return Art.get(`BT|${b.key}|${team.color}|${f}`, () =>
@@ -766,6 +784,15 @@ function treeSprite(theme, v) {
 const CAMEO_ART = { tank: 1, ifv: 1, heli: 1, jet: 1, rifle: 1, sam: 1, cc: 1, barracks: 1, factory: 1, power: 1, radar: 1, airfield: 1 };
 function cameoUrl(key, faction) { return CAMEO_ART[key] ? `assets/cameos/${faction}/${key}.webp` : null; }
 
+// a sprite as a standalone canvas (sheet sprites reference a cell of a larger image)
+function spriteCanvas(s) {
+  if (!s.sw) return s;
+  const c = document.createElement('canvas');
+  c.width = s.sw; c.height = s.sh;
+  c.getContext('2d').drawImage(s.c, s.sx, s.sy, s.sw, s.sh, 0, 0, s.sw, s.sh);
+  return { c, ox: s.ox, oy: s.oy, w: s.w, h: s.h };
+}
+
 function drawIcon(key, team, w, h) {
   const c = document.createElement('canvas');
   c.width = w * 2; c.height = h * 2;
@@ -778,9 +805,9 @@ function drawIcon(key, team, w, h) {
   let s;
   if (BUILDINGS[key]) {
     const def = BUILDINGS[key];
-    s = buildingSprite({ key, w: def.w, h: def.h }, fakeTeam);
+    s = spriteCanvas(buildingSprite({ key, w: def.w, h: def.h }, fakeTeam));
     if (BLD_TURRETS[key]) {
-      const t = buildingTurretSprite({ key, w: def.w, h: def.h, turret: 0.6 }, fakeTeam);
+      const t = spriteCanvas(buildingTurretSprite({ key, w: def.w, h: def.h, turret: 0.6 }, fakeTeam));
       const both = document.createElement('canvas');
       both.width = s.c.width; both.height = s.c.height;
       const bc = both.getContext('2d');

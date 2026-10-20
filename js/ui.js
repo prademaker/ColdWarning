@@ -466,7 +466,7 @@ const UI = {
   setTab(id) { this.tab = id; this.buildGridKey = null; this.updateSidebar(); },
 
   icon(key, team = G.playerTeam) {
-    const k = key + team.faction + team.color;
+    const k = key + team.faction + team.color + '|' + Art.version;
     if (!this.iconCache[k]) this.iconCache[k] = drawIcon(key, team, 92, 81);
     return this.iconCache[k];
   },
@@ -579,7 +579,7 @@ const UI = {
       el.classList.toggle('disabled', !t.countOf(prod));
       el.classList.toggle('ready', t.queues[id].ready);
     }
-    const gridKey = this.tab + '|' + t.faction;
+    const gridKey = this.tab + '|' + t.faction + '|' + Art.version;
     if (this.buildGridKey !== gridKey) { this.buildGridKey = gridKey; this.buildGrid(); }
     const q = t.queues[this.tab];
     for (const key in this.buttons) {

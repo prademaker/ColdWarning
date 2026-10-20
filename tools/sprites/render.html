@@ -108,7 +108,7 @@ function voxMesh(vox, pivot, lift) {
 async function loadVoxModel(cfg) {
   const fetchVox = async f => parseVox(await (await fetch('/vox/' + f)).arrayBuffer());
   const root = new THREE.Group();
-  const hull = voxMesh(await fetchVox(cfg.vox.hull), cfg.pivot, 0);
+  const hull = voxMesh(await fetchVox(cfg.vox.hull), cfg.pivot, cfg.lift || 0);
   hull.name = 'hull'; root.add(hull);
   if (cfg.vox.turret) {
     const t = new THREE.Group(); t.name = 'turret';
@@ -150,7 +150,8 @@ async function renderSheet(cfg) {
 
   root.updateMatrixWorld(true);
   for (const name of cfg.hide || []) root.getObjectByName(name).visible = false;
-  const meta = { cell: cfg.cell, cols: COLS, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {}, style: cfg.vox ? 'voxel' : 'model' };
+  const NF = cfg.facings || FACINGS, NC = Math.min(COLS, NF), NR = Math.ceil(NF / NC);
+  const meta = { cell: cfg.cell, cols: NC, facings: NF, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {}, style: cfg.vox ? 'voxel' : 'model' };
   const turretNode = cfg.turret ? root.getObjectByName(cfg.turret) : null;
   if (cfg.rotor && typeof cfg.rotor === 'object') meta.rotor = { z: cfg.rotor.z * cfg.k, r: cfg.rotor.r * cfg.k };
   else if (cfg.rotor) {
@@ -180,14 +181,14 @@ async function renderSheet(cfg) {
     for (const pass of cfg.vox ? ['base', 'mask', 'camo'] : ['base', 'mask']) {
       const restore = pass !== 'base' ? maskMaterials(obj, cfg.mask || {}, pass) : () => {};
       const sheet = document.createElement('canvas');
-      sheet.width = C * COLS; sheet.height = C * ROWS;
+      sheet.width = C * NC; sheet.height = C * NR;
       const sx = sheet.getContext('2d');
-      for (let f = 0; f < FACINGS; f++) {
-        // game facing a (0 = +x, towards +y) -> rotate the model's +Z forward onto it
-        // .glb models face +Z; voxel models face +X
-        holder.rotation.y = (cfg.vox ? 0 : Math.PI / 2) - f / FACINGS * Math.PI * 2;
+      for (let f = 0; f < NF; f++) {
+        // game facing a (0 = +x, towards +y) -> rotate the model's forward axis onto it
+        // (.glb models face +Z; voxel models face +X)
+        holder.rotation.y = (cfg.vox ? 0 : Math.PI / 2) - f / NF * Math.PI * 2;
         renderer.render(scene, cam);
-        sx.drawImage(renderer.domElement, (f % COLS) * C, Math.floor(f / COLS) * C);
+        sx.drawImage(renderer.domElement, (f % NC) * C, Math.floor(f / NC) * C);
       }
       restore();
       if (pass !== 'base') {
