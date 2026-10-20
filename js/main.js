@@ -19,10 +19,14 @@ const Main = {
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
       mode: 'skirmish', lineup: '1v1', mapSize: 'medium',
-      seed: Math.floor(Math.random() * 1e6), speed: 1,
+      seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null,
     };
     this.buildMenu();
-    if (params.has('autoplay') || params.has('quick')) {
+    if (params.has('mission') && missionDef(params.get('mission'))) {
+      // straight into a campaign mission (handy for testing)
+      this.settings.difficulty = DIFFICULTY[params.get('difficulty')] ? params.get('difficulty') : 'normal';
+      this.startMission(params.get('mission'));
+    } else if (params.has('autoplay') || params.has('quick')) {
       const p = k => params.get(k) || this.settings[k];
       this.start(Object.assign({}, this.settings, {
         autoplay: params.has('autoplay'),
@@ -63,10 +67,14 @@ const Main = {
         box.appendChild(b);
       }
     };
-    opts('mode', [['skirmish', 'Skirmish'], ['defense', 'Defense']], 'mode');
+    opts('mode', [['skirmish', 'Skirmish'], ['defense', 'Defense'], ['campaign', 'Campaign']], 'mode');
+    const camp = s.mode === 'campaign';
+    for (const id of ['faction-box', 'mapsize-box', 'skirmish-row', 'seed-box']) document.getElementById(id).hidden = camp;
+    document.getElementById('campaign').hidden = !camp;
+    if (camp) this.buildCampaign();
     opts('lineup', Object.entries(LINEUPS).map(([id, l]) => [id, l.label]), 'lineup');
     opts('mapsize', Object.entries(MAP_SIZES).map(([id, m]) => [id, m.label]), 'mapSize');
-    document.getElementById('lineup-box').hidden = s.mode === 'defense';
+    document.getElementById('lineup-box').hidden = s.mode !== 'skirmish';
     document.getElementById('enemy-title').textContent = s.mode === 'defense' ? 'Attacker' : 'Opponent';
     const ebox = document.getElementById('enemy');
     ebox.innerHTML = '';
@@ -120,7 +128,50 @@ const Main = {
     seed.value = s.seed;
     seed.onchange = () => { s.seed = parseInt(seed.value, 10) || 1; };
     document.getElementById('reroll').onclick = () => { s.seed = Math.floor(Math.random() * 1e6); seed.value = s.seed; };
-    document.getElementById('start').onclick = () => { Sfx.resume(); this.start(Object.assign({}, s)); };
+    document.getElementById('start').onclick = () => {
+      Sfx.resume();
+      if (camp) this.startMission(s.mission); else this.start(Object.assign({}, s));
+    };
+  },
+
+  // mission list on the left, the selected mission's briefing on the right
+  buildCampaign() {
+    const s = this.settings, list = CAMPAIGN.missions;
+    if (!s.mission || !list.some((m, i) => m.id === s.mission && CampaignProgress.unlocked(i))) {
+      // default to the first mission not yet won
+      const i = list.findIndex((m, k) => CampaignProgress.unlocked(k) && !CampaignProgress.record(m.id));
+      s.mission = list[i >= 0 ? i : 0].id;
+    }
+    const box = document.getElementById('c-missions');
+    box.innerHTML = '';
+    list.forEach((m, i) => {
+      const open = CampaignProgress.unlocked(i), rec = CampaignProgress.record(m.id);
+      const b = document.createElement('button');
+      b.className = 'cm' + (s.mission === m.id ? ' sel' : '') + (open ? '' : ' locked');
+      b.innerHTML = `<div class="cm-pic" style="background-image:url(assets/terrain/${THEATERS[m.theater].art}.webp)"><span>${i + 1}</span></div>
+        <div class="cm-text"><div class="cm-title">${m.title}</div><div class="cm-place">${m.place} · ${m.date}</div>
+        <div class="cm-status">${rec ? '✓ Completed · ' + this.clock(rec.time) : open ? 'Ready' : '🔒 Win the previous mission'}</div></div>`;
+      if (open) b.addEventListener('click', () => { s.mission = m.id; this.buildMenu(); });
+      box.appendChild(b);
+    });
+    const m = missionDef(s.mission), you = m.teams[0];
+    const side = (pred) => m.teams.filter(pred).map(t => `<span class="c-side"><img src="${FLAGS[t.faction]}" alt="">${t.name || FACTIONS[t.faction].name}</span>`).join('');
+    const allies = side((t, i) => i > 0 && t.ally === you.ally), foes = side(t => t.ally !== you.ally);
+    document.getElementById('c-brief').innerHTML = `<div class="cb-head"><div class="cb-title">${m.title}</div><div class="cb-place">${m.place} · ${m.date} · ${THEATERS[m.theater].name}, ${MAP_SIZES[m.map].label.toLowerCase()} map</div></div>
+      <div class="cb-sides"><span class="c-lbl">You</span><span class="c-side"><img src="${FLAGS[you.faction]}" alt="">${FACTIONS[you.faction].name}</span>
+        ${allies ? '<span class="c-lbl">With</span>' + allies : ''}<span class="c-lbl">Against</span>${foes}</div>
+      ${m.briefing.map(p => `<p>${p}</p>`).join('')}
+      <h4>Objectives</h4><ul class="cb-goals">${m.goals.map(g => `<li>${g}</li>`).join('')}</ul>
+      <div class="cb-feat">◆ ${m.features}</div>`;
+  },
+
+  clock(t) { return Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0'); },
+
+  startMission(id) {
+    const m = missionDef(id), s = this.settings;
+    if (!m) return;
+    s.mode = 'campaign'; s.mission = id;
+    this.start({ mission: id, faction: m.teams[0].faction, theater: m.theater, mapSize: m.map, seed: m.seed, difficulty: s.difficulty, speed: s.speed });
   },
 
   start(opts) {
@@ -139,6 +190,7 @@ const Main = {
     this.speed = opts.speed || 1;
     this.paused = false;
     UI.init(document.getElementById('view'));
+    if (G.mission && G.mission.focus) UI.centerOn(...G.mission.focus);
     G.eva('Battle control online', G.player);
     Sfx.ambience(opts.theater);
     Music.play('game');
@@ -182,11 +234,17 @@ const Main = {
     const teams = G.teams, W = G.waves;
     const mins = Math.floor(G.over.time / 60), secs = Math.floor(G.over.time % 60);
     const row = (label, k) => `<tr><td>${label}</td>${teams.map(t => `<td>${Math.round(t.stats[k])}</td>`).join('')}</tr>`;
-    const text = W ? (G.over.win ? `All ${W.total} waves repelled. The base holds.` : `The base fell during wave ${W.wave} of ${W.total}.`) :
+    const M = G.mission;
+    const text = M ? G.over.text : W ? (G.over.win ? `All ${W.total} waves repelled. The base holds.` : `The base fell during wave ${W.wave} of ${W.total}.`) :
       G.over.win ? 'The enemy has been eliminated. The region is secure.' : 'Our forces have been wiped out. Command has been lost.';
+    const goals = M ? `<ul class="end-goals">${M.objectives.map(o => `<li class="${o.state}${o.optional ? ' bonus' : ''}">${o.text}${o.optional ? ' <i>(bonus)</i>' : ''}</li>`).join('')}</ul>` : '';
+    const next = M && G.over.win ? CAMPAIGN.missions[CAMPAIGN.missions.findIndex(m => m.id === M.def.id) + 1] : null;
+    const buttons = !M ? '<button id="again">Play again</button><button id="tomenu">Main menu</button>' :
+      (next ? '<button id="next">Next mission</button>' : '') + `<button id="again">${G.over.win ? 'Play again' : 'Retry'}</button><button id="tomenu">Campaign</button>`;
     el.innerHTML = `<div class="endbox ${G.over.win ? 'win' : 'lose'}">
-      <h1>${G.over.win ? 'VICTORY' : 'DEFEAT'}</h1>
-      <p>${text}</p>
+      <h1>${M ? (G.over.win ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED') : G.over.win ? 'VICTORY' : 'DEFEAT'}</h1>
+      ${M ? `<div class="end-mission">${M.def.title}</div>` : ''}
+      <p>${text}</p>${M && G.over.win && !next ? '<p class="end-fin">Operation Northwind complete. Thank you for playing the campaign.</p>' : ''}${goals}
       <p class="time">Mission time ${mins}:${String(secs).padStart(2, '0')}</p>
       <table><tr><th></th>${teams.map(t => `<th style="color:${t.color}">${t.name}${t.id !== G.player && G.allied(t.id, G.player) ? ' (ally)' : ''}</th>`).join('')}</tr>
       ${row('Units built', 'built')}
@@ -196,9 +254,10 @@ const Main = {
       ${row('Structures destroyed', 'structuresKilled')}
       ${row('Credits harvested', 'harvested')}
       </table>
-      <div class="endbtns"><button id="again">Play again</button><button id="tomenu">Main menu</button></div></div>`;
+      <div class="endbtns">${buttons}</div></div>`;
     el.hidden = false;
-    document.getElementById('again').onclick = () => this.start(Object.assign({}, this.opts, { seed: Math.floor(Math.random() * 1e6) }));
+    document.getElementById('again').onclick = () => this.start(M ? Object.assign({}, this.opts) : Object.assign({}, this.opts, { seed: Math.floor(Math.random() * 1e6) }));
+    if (next) document.getElementById('next').onclick = () => { this.settings.mission = next.id; this.toMenu(); };
     document.getElementById('tomenu').onclick = () => this.toMenu();
   },
 

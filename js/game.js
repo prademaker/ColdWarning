@@ -266,16 +266,19 @@ class Game {
     NEXT_ID = 1;
     this.opts = opts;
     this.time = 0;
-    this.mode = opts.mode === 'defense' ? 'defense' : 'skirmish';
+    // a campaign mission brings its own teams, starting forces and objectives (campaign.js)
+    const md = opts.mission ? missionDef(opts.mission) : null;
+    this.mode = md ? 'campaign' : opts.mode === 'defense' ? 'defense' : 'skirmish';
     // alliance number per team, the human first; defense is the player against the waves
-    const lineup = this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
+    const lineup = md ? md.teams.map(t => t.ally) : this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
     const size = typeof opts.mapSize === 'number' ? opts.mapSize : (MAP_SIZES[opts.mapSize] || MAP_SIZES.medium).tiles;
-    this.map = new GameMap(size, opts.seed, opts.theater || 'temperate', this.mode === 'defense' ? 4 : lineup.length);
+    this.map = new GameMap(size, opts.seed, opts.theater || 'temperate', md ? md.starts || lineup.length : this.mode === 'defense' ? 4 : lineup.length);
     this.pf = new PathFinder(this.map);
     this.entities = []; this.byId = new Map();
     this.projectiles = []; this.effects = []; this.decals = [];
     this.messages = [];
     this.pendingStrikes = [];
+    this.charges = [];
     this.shake = 0;
     this.teams = Game.makeTeams(opts, lineup);
     this.neutral = Game.makeNeutral();
@@ -297,7 +300,7 @@ class Game {
 
     // starting forces
     this.teams.forEach((t, i) => {
-      if (t.waves) return;
+      if (t.waves || md) return;
       const [sx, sy] = this.map.starts[i];
       const c = (v) => v * TILE + TILE / 2;
       const mcv = this.spawnUnit('mcv', i, c(sx), c(sy));
@@ -310,10 +313,13 @@ class Game {
     });
     for (const t of this.teams) t.recount();
     for (const t of this.teams) {
-      if (t.waves || (t.id === this.player && !opts.autoplay)) continue;
-      this.ai[t.id] = new AI(t, opts.difficulty);
+      if (t.waves || (t.id === this.player && !opts.autoplay) || (md && !t.aiLevel)) continue;
+      this.ai[t.id] = new AI(t, t.aiLevel || opts.difficulty);
     }
-    this.waves = this.mode === 'defense' ? new WaveDirector(this.teams[1], opts.difficulty) : null;
+    this.waves = this.mode === 'defense' ? new WaveDirector(this.teams[1], opts.difficulty) :
+      md && md.waves ? new WaveDirector(this.teams[md.waves.team], opts.difficulty, md.waves) : null;
+    this.mission = md ? new Mission(md, opts) : null;
+    if (this.mission) this.mission.setup();
     this.updateFog();
   }
 
@@ -321,6 +327,8 @@ class Game {
   // chosen enemy and everyone else a random faction, distinct while there are enough to go round.
   // Each team then takes its faction colour, or the alternate, or a spare, so no two look alike.
   static makeTeams(opts, lineup) {
+    const md = opts.mission ? missionDef(opts.mission) : null;
+    if (md) return Game.makeMissionTeams(md, opts);
     const factions = [opts.faction];
     const pickFrom = list => list[Math.floor(Math.random() * list.length)];
     lineup.forEach((ally, i) => {
@@ -337,6 +345,27 @@ class Game {
       used.add(fam);
       const t = new Team(i, factions[i], i !== 0 || !!opts.autoplay, opts.difficulty, pal, ally);
       if (opts.mode === 'defense' && i === 1) { t.waves = true; t.name = f.name + ' strike force'; }
+      return t;
+    });
+  }
+
+  // Mission teams: the player first; others are computer players at a difficulty set relative to
+  // the chosen one (ai: 0 = as chosen, -1 = a step easier...), scripted (ai: null) or attack waves.
+  static makeMissionTeams(md, opts) {
+    const levels = Object.keys(DIFFICULTY), base = Math.max(0, levels.indexOf(opts.difficulty));
+    const used = new Set();
+    return md.teams.map((spec, i) => {
+      const f = FACTIONS[spec.faction];
+      const options = [[f.side, f], [f.side + '-alt', f.alt], ...EXTRA_COLORS.map((c, k) => ['x' + k, c])];
+      const [fam, pal] = options.find(([fam]) => !used.has(fam)) || options[0];
+      used.add(fam);
+      const level = i > 0 && spec.ai !== null && spec.ai !== undefined ? levels[Math.max(0, Math.min(levels.length - 1, base + spec.ai))] : null;
+      const t = new Team(i, spec.faction, i !== 0, level || opts.difficulty, pal, spec.ally);
+      t.aiLevel = spec.waves ? null : level;
+      if (spec.waves) t.waves = true;
+      if (spec.name) t.name = spec.name;
+      if (spec.noBase) t.noBase = true;
+      if (spec.credits !== undefined) t.credits = spec.credits;
       return t;
     });
   }
@@ -516,7 +545,7 @@ class Game {
   // Infantry that can hold a structure: armed foot soldiers, entering one that is free or their own.
   canGarrison(u, b) {
     if (!b || b.dead || !b.def.garrison || b.built < 1 || !u || u.dead) return false;
-    if (u.def.cat !== 'infantry' || !u.def.weapon) return false;
+    if (u.def.cat !== 'infantry' || !u.def.weapon || u.def.hero) return false;
     if (b.team !== NEUTRAL && b.team !== u.team) return false;
     return (b.garrison ? b.garrison.length : 0) < b.def.garrison;
   }
@@ -593,7 +622,7 @@ class Game {
     const g = b.garrison;
     for (const u of g) { u.cool -= dt; u.cool2 -= dt; }
     const reach = (this.maxRange(b) + GARRISON.range) * TILE + Math.min(b.w, b.h) * TILE / 2;
-    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || !this.canHit(b, b.target) || distTo(b.x, b.y, b.target) > reach + 8)) b.target = null;
+    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || !this.canHit(b, b.target) || distTo(b.x, b.y, b.target) > Math.min(reach + 8, this.stealthRange(b.target)))) b.target = null;
     b.scanT -= dt;
     if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, reach / TILE); }
     const t = b.target;
@@ -642,6 +671,7 @@ class Game {
     target.hitT = this.time;
     if (attacker && !attacker.dead && this.hostile(attacker.team, target.team)) {
       target.lastAttacker = attacker;
+      if (this.mission) this.mission.onDamage(target, attacker);
       if (target.team === this.player || attacker.team === this.player) this.heat += 1; // drives the music
       if (target.team === this.player) {
         this.eva(target.kind === 'building' ? 'Our base is under attack' : 'Unit under attack', target.team);
@@ -661,6 +691,7 @@ class Game {
   kill(e, attacker) {
     if (e.dead) return;
     this.removeEntity(e);
+    if (this.mission) this.mission.onKill(e, attacker);
     const t = this.teamOf(e.team), civ = e.def.cat === 'civilian';
     if (attacker && this.hostile(attacker.team, e.team) && !civ) {
       const at = this.teams[attacker.team];
@@ -769,7 +800,7 @@ class Game {
       if (!this.hostile(o.team, e.team) || o.dead) continue;
       if (!this.canHit(e, o)) continue;
       const d = Math.hypot(o.x - e.x, o.y - e.y);
-      if (d > R) continue;
+      if (d > R || d > this.stealthRange(o)) continue;
       let s = d;
       if (o.def.weapon) s -= 64;
       if (s < bs) { bs = s; best = o; }
@@ -784,6 +815,11 @@ class Game {
       if (s < bs) { bs = s; best = o; }
     }
     return best;
+  }
+
+  // how close a unit has to be before enemies can pick it out (commandos stay hidden until they shoot)
+  stealthRange(o) {
+    return o.def.stealth && this.time - (o.firedT || -99) > 3 ? o.def.stealth * TILE : 1e9;
   }
 
   // ---------- commands ----------
@@ -826,11 +862,18 @@ class Game {
   commandAttack(units, target) {
     for (const u of units) {
       if (u.def.engineer && target.kind === 'building') { if (target.def.cat !== 'civilian') this.commandCapture(u, target); continue; }
+      if (u.def.demo && target.kind === 'building') { this.commandDemolish(u, target); continue; }
       if (!this.canHit(u, target)) continue;
       u.order = { type: 'attack', target };
       u.target = target; u.path = null; u.repathT = 0;
     }
     if (units.length && units[0].team === this.player) { this.sound('ack'); this.voice(units[0], 'attack'); }
+  }
+
+  // commando walks up to a structure and plants C4 on it
+  commandDemolish(u, b) {
+    u.order = { type: 'demo', target: b };
+    u.target = null; u.path = null; u.repathT = 0; u.plantT = 0;
   }
 
   commandCapture(u, b) {
@@ -881,6 +924,8 @@ class Game {
     for (const t of this.teams) t.update(dt);
     for (const id in this.ai) this.ai[id].update(dt);
     if (this.waves) this.waves.update(dt);
+    if (this.mission) this.mission.update(dt);
+    this.updateCharges(dt);
     const ents = this.entities;
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i];
@@ -908,7 +953,7 @@ class Game {
 
   checkVictory() {
     for (const t of this.teams) {
-      if (t.defeated || t.waves) continue;
+      if (t.defeated || t.waves || t.noBase) continue;
       const alive = this.entities.some(e => e.team === t.id && !e.dead && (e.kind === 'building' ? e.def.cat !== 'civilian' : e.def.mcv));
       if (!alive) {
         t.defeated = true;
@@ -921,7 +966,8 @@ class Game {
       }
     }
     const p = this.playerTeam;
-    if (p.defeated) this.over = { win: false, time: this.time };
+    if (this.mission) this.mission.check();
+    else if (p.defeated) this.over = { win: false, time: this.time };
     else if (this.waves) { if (this.waves.won) this.over = { win: true, time: this.time }; }
     else if (this.teams.every(t => !this.hostile(t.id, this.player) || t.defeated)) this.over = { win: true, time: this.time };
     if (this.over) this.eva(this.over.win ? 'Mission accomplished' : 'Mission failed', this.player);
@@ -968,7 +1014,7 @@ class Game {
   updateUnit(u, dt) {
     u.cool -= dt; u.cool2 -= dt; u.anim += dt;
     u.moving = false;
-    if (u.def.selfHeal && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.def.selfHeal * dt);
+    if (u.def.selfHeal && u.hp < u.maxHp && !(u.def.hero && this.time - (u.hitT || -99) < 4)) u.hp = Math.min(u.maxHp, u.hp + u.def.selfHeal * dt);
     if (u.rank === 2 && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.01 * dt);
     if (u.burst > 0) {
       u.burstT -= dt;
@@ -998,11 +1044,26 @@ class Game {
       return;
     }
 
+    if (o && o.type === 'demo') {
+      const b = o.target;
+      if (b.dead || !this.hostile(b.team, u.team)) { u.order = null; return; }
+      if (distTo(u.x, u.y, b) < TILE * 0.8) {
+        u.facing = Math.atan2(b.y - u.y, b.x - u.x);
+        u.plantT = (u.plantT || 0) + dt;
+        if (u.plantT >= u.def.demo.plant) { this.plantCharge(b, u); u.order = null; }
+        return;
+      }
+      u.repathT = (u.repathT || 0) - dt;
+      if (!u.path || u.repathT <= 0 || u.repath) { this.pathToEntity(u, b, 1); u.repathT = 1.5; }
+      this.moveAlong(u, dt);
+      return;
+    }
+
     if (o && o.type === 'capture') {
       const b = o.target;
       if (b.dead) { u.order = null; return; }
       if (b.def.cat === 'civilian' || (this.hostile(b.team, u.team) && b.garrison && b.garrison.length)) { u.order = null; return; }
-      if (distTo(u.x, u.y, b) < 14) {
+      if (distTo(u.x, u.y, b) < TILE * 0.8) { // the path ends on the next tile, half a tile from the wall
         if (!this.hostile(b.team, u.team)) { b.hp = b.maxHp; this.eva('Structure repaired', u.team); }
         else {
           const old = b.team;
@@ -1025,7 +1086,7 @@ class Game {
 
     // engage current target
     if (u.target && (u.target.dead || !this.hostile(u.target.team, u.team))) u.target = null;
-    if (u.target && !this.canHit(u, u.target)) u.target = null;
+    if (u.target && (!this.canHit(u, u.target) || distTo(u.x, u.y, u.target) > this.stealthRange(u.target))) u.target = null;
     if (u.target && u.order && u.order.type === 'move') u.target = null;
 
     // auto-acquire when idle / attack-moving / guarding
@@ -1212,7 +1273,7 @@ class Game {
         if (!u.air && this.hostile(u.team, o.team)) {
           const crusher = u.def.armor === 'heavy' && u.moving ? u : o.def.armor === 'heavy' && o.moving ? o : null;
           const victim = crusher === u ? o : u;
-          if (crusher && victim.def.cat === 'infantry') { this.kill(victim, crusher); this.sound('crush', victim.x, victim.y); continue; }
+          if (crusher && victim.def.cat === 'infantry' && !victim.def.hero) { this.kill(victim, crusher); this.sound('crush', victim.x, victim.y); continue; }
         }
         const d = Math.sqrt(d2) || 0.01;
         const push = (min - d) * 0.5 * Math.min(1, dt * 12);
@@ -1361,7 +1422,7 @@ class Game {
       b.burstT -= dt;
       if (b.burstT <= 0 && b.target && !b.target.dead) { this.fire(b, w, b.target); b.burst--; b.burstT = 0.2; }
     }
-    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || distTo(b.x, b.y, b.target) > w.range * TILE + 8)) b.target = null;
+    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || distTo(b.x, b.y, b.target) > Math.min(w.range * TILE + 8, this.stealthRange(b.target)))) b.target = null;
     b.scanT -= dt;
     if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, w.range); }
     if (b.target) {
@@ -1393,6 +1454,7 @@ class Game {
   // structure takes the credit and the return fire
   fire(s, w, t) {
     const by = s.inside || s;
+    s.firedT = this.time;
     const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * this.teams[s.team].bonus('dmg', s.kind === 'unit' ? s.def.cat : categoryOf(s.key)) * (s.inside ? GARRISON.dmg : 1);
     s.recoil = 1;
     const ang = s.def.cat === 'vehicle' || s.kind === 'building' ? s.turret : s.facing;
@@ -1513,6 +1575,27 @@ class Game {
     } else {
       this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, z: p.tz || 0, size: 8, t: 0, life: 0.35 });
     }
+  }
+
+  // ---------- demolition charges ----------
+  plantCharge(b, u) {
+    if (this.charges.some(c => c.b === b)) return;
+    this.charges.push({ b, by: u, team: u.team, t: u.def.demo.fuse, fuse: u.def.demo.fuse, damage: u.def.demo.damage });
+    this.eva('Charge set', u.team);
+    this.sound('place', b.x, b.y);
+  }
+
+  // The charge goes off whoever holds the structure by then; it takes any occupants with it.
+  updateCharges(dt) {
+    for (const c of this.charges) {
+      c.t -= dt;
+      if (c.t > 0 || c.b.dead) continue;
+      const b = c.b, by = c.by && !c.by.dead ? c.by : null;
+      while (b.garrison && b.garrison.length) this.killOccupant(b, by);
+      this.explosion(b.x, b.y, 50 + b.w * 14, true);
+      this.damage(b, c.damage, 'blast', by);
+    }
+    this.charges = this.charges.filter(c => c.t > 0 && !c.b.dead);
   }
 
   // ---------- superweapons ----------

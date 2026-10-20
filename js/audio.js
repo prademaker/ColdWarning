@@ -318,15 +318,15 @@ const Sfx = {
     if (now - (this.lastUnitVoice || 0) < 1400 || speechSynthesis.speaking || speechSynthesis.pending) return;
     this.lastUnitVoice = now;
     const team = G.teams[u.team], east = FACTIONS[team.faction].side === 'east';
-    const role = u.def.harvester ? 'harvester' : u.def.engineer ? 'engineer' : u.def.cat === 'infantry' ? 'infantry' : u.air ? 'air' : 'vehicle';
+    const role = u.def.hero ? 'hero' : u.def.harvester ? 'harvester' : u.def.engineer ? 'engineer' : u.def.cat === 'infantry' ? 'infantry' : u.air ? 'air' : 'vehicle';
     const lines = UNIT_LINES[role][kind] || UNIT_LINES[role].select;
-    const extra = east ? (UNIT_LINES_EAST[kind] || []) : [];
+    const extra = east && role !== 'hero' ? (UNIT_LINES_EAST[kind] || []) : [];
     const pool = lines.concat(extra);
     const text = pool[Math.floor(Math.random() * pool.length)];
-    const pitch = { infantry: 0.95, engineer: 1.15, vehicle: 0.6, harvester: 0.8, air: 1.0 }[role];
+    const pitch = { infantry: 0.95, engineer: 1.15, vehicle: 0.6, harvester: 0.8, air: 1.0, hero: 1.1 }[role];
     this.play('radio');
     setTimeout(() => {
-      const u2 = this.speak(text, { rate: role === 'air' ? 1.2 : 1.1, pitch, female: role === 'air' && Math.random() < 0.5 });
+      const u2 = this.speak(text, { rate: role === 'air' ? 1.2 : 1.1, pitch, female: role === 'hero' || (role === 'air' && Math.random() < 0.5) });
       if (u2) { this.unitTalking = true; u2.onend = () => { this.unitTalking = false; }; }
     }, 90);
   },
@@ -347,6 +347,11 @@ const UNIT_LINES = {
     select: ['Armor ready.', 'Tank crew standing by.', 'Engines hot.', 'Vehicle reporting.', 'Locked and loaded.'],
     move: ['Rolling out.', 'Moving.', 'Advancing.', 'Changing position.', 'Acknowledged.'],
     attack: ['Target locked.', 'Firing!', 'Main gun ready.', 'Target acquired.', 'Bringing the hammer.'],
+  },
+  hero: {
+    select: ['Raven.', 'Talk to me.', 'Ready when you are.', "What's the job?"],
+    move: ['On the move.', 'Quiet as a ghost.', 'Going dark.', 'Moving.'],
+    attack: ['Lights out.', 'Got it.', 'One shot.', 'Leave it to me.'],
   },
   harvester: {
     select: ['Harvester ready.', 'Ore truck here.', 'Need a field.'],

@@ -115,6 +115,15 @@ const UNITS = {
     weapon: { warhead: 'fire', damage: 20, range: 3, cooldown: 0.3, proj: 'flame', ground: true, air: false },
     desc: 'East only. Short-range flamethrower that clears infantry and burns down structures.',
   },
+  // Campaign hero: never on a build list, she arrives with the mission. Enemies can't pick her out
+  // beyond stealth tiles unless she fired lately, and she blows up structures with C4 (demo).
+  commando: {
+    name: 'Commando "Raven"', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks'], buildable: false, hero: true,
+    cost: 2000, time: 0, hp: 600, speed: 1.6, sight: 9, radius: 5, selfHeal: 6, stealth: 3,
+    demo: { plant: 0.8, fuse: 4, damage: 9000 },
+    weapon: { warhead: 'bullet', damage: 120, range: 7, cooldown: 1.0, proj: 'tracer', ground: true, air: true },
+    desc: 'Campaign hero. Hard to spot until she opens fire, drops a soldier with every shot and plants C4 on structures. Heals when out of combat. When her survival is an objective, losing her loses the mission.',
+  },
   ifv: {
     name: 'Recon IFV', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory'], side: 'west',
     cost: 600, time: 7, hp: 260, speed: 3.3, sight: 8, radius: 9, turn: 7, key: 'Q',

@@ -35,7 +35,7 @@ const MODELS = {
   iskander_vox: { vox: { hull: 'iskander_hull.vox', turret: 'iskander_turret.vox' }, pivot: [17, 7.5], turretPivot: [13, 4], mount: [13, 7.5, 7], turret: 'turret', k: 1.0, cell: 88 },
   drone_vox: { vox: { hull: 'drone.vox' }, pivot: [11, 14], k: 1.0, cell: 72 },
   kirov_vox: { vox: { hull: 'kirov.vox' }, pivot: [23, 10.5], k: 1.5, cell: 160 },
-  ...Object.fromEntries(['rifle', 'rocket', 'engineer', 'sniper', 'shock'].flatMap(kind => [0, 1, 2].map(f =>
+  ...Object.fromEntries(['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando'].flatMap(kind => [0, 1, 2].map(f =>
     [`${kind}_vox_${f}`, { vox: { hull: `${kind}_${f}.vox` }, pivot: [2.5, 3.5], k: 1.25, cell: 40, anchor: 0.75 }]))),
   // structures (tools/sprites/voxel_buildings.js): 1 voxel = 2 game px, one facing, pivot at the footprint centre
   ...Object.fromEntries(Object.entries({

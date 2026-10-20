@@ -145,6 +145,7 @@ const Render = {
     }
     for (const e of air) { const [sx, sy] = this.P(e.x, e.y); this.drawUnit(ctx, e, sx, sy); }
     this.drawStrikes(ctx);
+    this.drawCharges(ctx);
 
     // ---- fog of war ----
     this.updateFogCanvas();
@@ -256,8 +257,17 @@ const Render = {
     const bags = u.dug ? 1 : u.digging ? Math.max(0, Math.min(1, u.digging > 0 ? 1 - u.digT / u.def.dig.time : u.digT / u.def.dig.pack)) : 0;
     if (bags) this.drawSandbags(ctx, u, bags, false);
     const bob = u.air && !u.def.jet ? Math.sin(u.anim * 3) * 2 : 0;
+    const hidden = u.def.stealth && G.stealthRange(u) < 1e9;
+    if (hidden) ctx.globalAlpha = 0.55;
     drawUnitArt(ctx, u, team, sx, sy - bob);
+    ctx.globalAlpha = 1;
     if (bags) this.drawSandbags(ctx, u, bags, true);
+    if (u.def.hero) {
+      // a gold marker so the hero is easy to find in a crowd
+      const y = sy - 30 + Math.sin(u.anim * 3) * 1.5;
+      ctx.fillStyle = '#ffd27a'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(sx, y + 5); ctx.lineTo(sx - 4, y); ctx.lineTo(sx, y - 5); ctx.lineTo(sx + 4, y); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
   },
 
   drawSandbags(ctx, u, k, front) {
@@ -406,6 +416,22 @@ const Render = {
     }
   },
 
+  // C4 on a structure: a blinking light and the seconds left
+  drawCharges(ctx) {
+    for (const c of G.charges) {
+      const b = c.b;
+      if (b.team !== G.player && !G.isVisibleBld(b)) continue;
+      const [x, y] = this.P(b.x, b.y, b.def.height * 0.45);
+      const on = Math.sin(G.time * (6 + (c.fuse - c.t) * 4)) > 0;
+      ctx.fillStyle = on ? '#ff3b2f' : '#5a1410';
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+      if (on) { ctx.fillStyle = 'rgba(255,60,40,0.3)'; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill(); }
+      ctx.font = 'bold 11px Oswald, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = '#000'; ctx.fillText('C4 ' + Math.ceil(c.t), x + 1, y - 7);
+      ctx.fillStyle = '#ffb4a8'; ctx.fillText('C4 ' + Math.ceil(c.t), x, y - 8);
+    }
+  },
+
   drawStrikes(ctx) {
     for (const s of G.pendingStrikes) {
       const [x, y] = this.P(s.x, s.y);
@@ -444,6 +470,15 @@ const Render = {
       ctx.strokeStyle = `rgba(255,40,40,${0.6 + 0.4 * Math.sin(s.t * 10)})`; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(s.x, s.y, R, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(s.x - R, s.y); ctx.lineTo(s.x + R, s.y); ctx.moveTo(s.x, s.y - R); ctx.lineTo(s.x, s.y + R); ctx.stroke();
+    }
+    if (G.mission) {
+      for (const mk of G.mission.markers) {
+        const p = (G.time * 0.8) % 1;
+        ctx.strokeStyle = 'rgba(255,210,122,0.9)'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(mk.x, mk.y, TILE * 2, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = `rgba(255,210,122,${0.8 * (1 - p)})`; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(mk.x, mk.y, TILE * (0.5 + 1.5 * p), 0, Math.PI * 2); ctx.stroke();
+      }
     }
     for (const e of ui.selection) {
       if (e.dead) continue;
@@ -513,6 +548,14 @@ const Render = {
         ctx.beginPath(); ctx.ellipse(x, y, 18, 9, 0, 0, Math.PI * 2); ctx.stroke();
       }
       if (isSel || hover || recent || ui.showBars) this.drawHealth(ctx, e, isSel);
+    }
+    if (G.mission) {
+      ctx.font = '600 12px Oswald, sans-serif'; ctx.textAlign = 'center';
+      for (const mk of G.mission.markers) {
+        const [x, y] = this.P(mk.x, mk.y, 18);
+        ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillText(mk.label, x + 1, y + 1);
+        ctx.fillStyle = '#ffd27a'; ctx.fillText(mk.label, x, y);
+      }
     }
     if (ui.drag) {
       const d = ui.drag;
