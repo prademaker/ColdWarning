@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cold Warning</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="menu">
+  <div class="menu-inner">
+    <div class="logo">COLD<span>WARNING</span></div>
+    <div class="year">2030 · THE THIRD WORLD WAR</div>
+    <p class="brief">Rare-earth supply lines have collapsed. Autonomous drones patrol contested borders and orbital weapons
+      hang over every capital. Establish a base, seize the ore fields, and crush the enemy before they do the same to you.</p>
+    <h3>Choose your side</h3>
+    <div id="factions"></div>
+    <div class="row">
+      <div><h3>Difficulty</h3><div id="difficulty" class="opts"></div></div>
+      <div><h3>Game speed</h3><div id="speed" class="opts"></div></div>
+      <div><h3>Map seed</h3><div class="opts"><input id="seed" type="number"><button id="reroll" class="opt">🎲</button></div></div>
+    </div>
+    <button id="start">DEPLOY</button>
+    <details class="help">
+      <summary>How to play</summary>
+      <ul>
+        <li><b>Start:</b> select your MCV and press <kbd>D</kbd> (or click it again) to deploy your Command Center.</li>
+        <li><b>Build:</b> pick a structure from the sidebar. When it says READY, click it again and place it near your base.</li>
+        <li><b>Economy:</b> Ore Refineries come with a Harvester. Gold ore and cyan lithium crystals are credits.</li>
+        <li><b>Power:</b> keep the power bar green. Low power slows production, kills your minimap and shuts down defenses.</li>
+        <li><b>Units:</b> left-click/drag to select, right-click to move/attack. <kbd>Ctrl</kbd>+right-click or <kbd>A</kbd> = attack-move.</li>
+        <li><kbd>S</kbd> stop · <kbd>Ctrl</kbd>+<kbd>1-9</kbd> make group · <kbd>1-9</kbd> recall (twice to jump) · double-click selects all of a type.</li>
+        <li><kbd>Tab</kbd> cycles build tabs · <kbd>Q</kbd>…<kbd>I</kbd> build hotkeys · <kbd>Z</kbd> sell · <kbd>X</kbd> repair · <kbd>F</kbd> superweapon.</li>
+        <li><kbd>H</kbd> jump to base · <kbd>Space</kbd> jump to last alert · <kbd>P</kbd> pause · <kbd>M</kbd> mute · arrows / screen edges / middle-drag scroll.</li>
+        <li>Engineers capture enemy buildings. Heavy tanks crush infantry. Units promote to Veteran and Elite with kills.</li>
+      </ul>
+    </details>
+  </div>
+</div>
+
+<div id="game" hidden>
+  <canvas id="view"></canvas>
+  <div id="messages"></div>
+  <div id="enemy-super" hidden></div>
+  <div id="sidebar">
+    <div id="sb-head">
+      <div id="credits">$ 0</div>
+      <div class="sb-icons">
+        <button id="btn-pause" title="Pause (P)">❚❚</button>
+        <button id="btn-sound" title="Sound (M)">♪</button>
+      </div>
+    </div>
+    <div id="radar-row">
+      <canvas id="minimap" width="200" height="200"></canvas>
+      <div id="power" title="Power used / produced">
+        <div id="power-fill"></div>
+        <div id="power-use"></div>
+      </div>
+    </div>
+    <div id="power-text"></div>
+    <div id="sb-buttons">
+      <button id="btn-repair" title="Repair mode (X)">🔧 Repair</button>
+      <button id="btn-sell" title="Sell mode (Z)">$ Sell</button>
+    </div>
+    <button id="btn-super" hidden></button>
+    <div id="tabs"></div>
+    <div id="build-grid"></div>
+    <div id="sel-info"></div>
+  </div>
+  <div id="tooltip" hidden></div>
+  <div id="pause-overlay" hidden><div>PAUSED<small>Press P to resume</small></div></div>
+  <div id="end" hidden></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/map.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
