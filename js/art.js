@@ -1,14 +1,29 @@
-// Cold War 2: 2030 — procedural artwork for structures and units.
-// Vehicle hulls and turrets are rendered once per faction into cached high-resolution sprites
-// and rotated at draw time; moving parts (tracks, wheels, rotors, exhaust) are drawn live.
+// Cold War 2: 2030 — artwork. Units, structures and scenery are small 3D models built from
+// shaded prisms, projected isometrically and pre-rendered into sprite caches (32 facings for
+// anything that turns, like the voxel units of the classic RTS games).
 'use strict';
 
-// ---------- colour helpers ----------
+// ---------- projection & colour helpers ----------
+// world (x, y on the ground, z up) -> screen offset; a 32px tile becomes a 64x32 diamond
+function isoX(x, y) { return x - y; }
+function isoY(x, y, z) { return (x + y) / 2 - z; }
+
+const FACINGS = 32;
+function facingIndex(a) { return ((Math.round(a / (Math.PI * 2) * FACINGS) % FACINGS) + FACINGS) % FACINGS; }
+
+const RGB_CACHE = new Map();
 function hexRgb(hex) {
-  let c = hex.replace('#', '');
-  if (c.length === 3) c = c.split('').map(ch => ch + ch).join('');
-  const n = parseInt(c, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  let v = RGB_CACHE.get(hex);
+  if (v) return v;
+  if (hex.startsWith('rgb')) v = hex.match(/[\d.]+/g).slice(0, 3).map(Number);
+  else {
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(ch => ch + ch).join('');
+    const n = parseInt(c, 16);
+    v = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  RGB_CACHE.set(hex, v);
+  return v;
 }
 function tone(hex, amt) { // amt < 0 darkens, > 0 lightens
   const [r, g, b] = hexRgb(hex), f = amt < 0 ? 0 : 255, p = Math.abs(amt);
@@ -16,6 +31,7 @@ function tone(hex, amt) { // amt < 0 darkens, > 0 lightens
 }
 function rgba(hex, a) { const [r, g, b] = hexRgb(hex); return `rgba(${r},${g},${b},${a})`; }
 function shade(hex, amt) { return tone(hex, amt); }
+function lit(rgb, k) { return `rgb(${Math.min(255, rgb[0] * k) | 0},${Math.min(255, rgb[1] * k) | 0},${Math.min(255, rgb[2] * k) | 0})`; }
 
 function poly(ctx, pts) {
   ctx.beginPath();
@@ -23,661 +39,630 @@ function poly(ctx, pts) {
   ctx.closePath();
 }
 
-// Fill a shape with a camouflage pattern, directional lighting and an outline.
-function camoFill(ctx, shape, camo, seed, bw, bh) {
-  ctx.save();
-  shape(); ctx.clip();
-  ctx.fillStyle = camo[0]; ctx.fillRect(-bw, -bh, bw * 2, bh * 2);
-  const r = makeRng(seed);
-  for (let i = 0; i < 12; i++) {
-    ctx.fillStyle = camo[1 + (i % 2)];
-    ctx.globalAlpha = 0.8;
-    ctx.beginPath();
-    ctx.ellipse((r() - 0.5) * bw * 2, (r() - 0.5) * bh * 2, 1.5 + r() * bw * 0.3, 1.2 + r() * bh * 0.35, r() * 3, 0, Math.PI * 2);
-    ctx.fill();
+// ---------- the prism renderer ----------
+const LIGHT = (() => { const v = [-0.5, 0.65, 1], l = Math.hypot(...v); return v.map(c => c / l); })();
+
+// primitives, in model space: x forward, y right, z up (pixels)
+function box(x0, x1, y0, y1, z0, z1, color, o) { return Object.assign({ pts: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]], z0, z1, color }, o); }
+function prism(pts, top, z0, z1, color, o) { return Object.assign({ pts, top, z0, z1, color }, o); }
+function cyl(cx, cy, r, z0, z1, color, rt = r, n = 10, o) {
+  const ring = rr => Array.from({ length: n }, (_, i) => { const a = i / n * Math.PI * 2 + Math.PI / n; return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; });
+  return Object.assign({ pts: ring(r), top: ring(rt), z0, z1, color }, o);
+}
+// shrink a polygon towards its centroid (for sloped armour and roofs)
+function inset(pts, k, dx = 0, dy = 0) {
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  return pts.map(([x, y]) => [cx + (x - cx) * k + dx, cy + (y - cy) * k + dy]);
+}
+
+// rotate/scale/translate parts into world-space prisms
+function place(parts, ang = 0, dx = 0, dy = 0, dz = 0, scale = 1) {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  const tf = (x, y, z) => [(x * c - y * s) * scale + dx, (x * s + y * c) * scale + dy, z * scale + dz];
+  return parts.map(p => ({
+    p,
+    B: p.pts.map(([x, y]) => tf(x, y, p.z0)),
+    T: (p.top || p.pts).map(([x, y]) => tf(x, y, p.z1)),
+  }));
+}
+
+function paintPrisms(ctx, prisms, ox, oy) {
+  for (const q of prisms) {
+    let cx = 0, cy = 0, cz = 0;
+    for (const v of q.B.concat(q.T)) { cx += v[0]; cy += v[1]; cz += v[2]; }
+    const n = q.B.length * 2;
+    q.c = [cx / n, cy / n, cz / n];
+    // painter's order: further back first; parts standing on others (higher base) later
+    q.depth = (cx + cy) / n + cz / n + 1.5 * Math.min(...q.B.map(v => v[2])) + (q.p.order || 0);
   }
-  ctx.globalAlpha = 1;
-  const g = ctx.createLinearGradient(-bw, -bh, bw * 0.6, bh);
-  g.addColorStop(0, 'rgba(255,255,255,0.28)'); g.addColorStop(0.45, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(0,0,0,0.38)');
-  ctx.fillStyle = g; ctx.fillRect(-bw, -bh, bw * 2, bh * 2);
-  ctx.restore();
-  shape();
-  ctx.strokeStyle = 'rgba(10,10,8,0.7)'; ctx.lineWidth = 0.7; ctx.stroke();
+  prisms.sort((a, b) => a.depth - b.depth);
+  for (const q of prisms) paintPrism(ctx, q, ox, oy);
 }
 
-function metalFill(ctx, shape, a, b, bw, bh) {
-  ctx.save(); shape(); ctx.clip();
-  const g = ctx.createLinearGradient(-bw, -bh, bw, bh);
-  g.addColorStop(0, a); g.addColorStop(1, b);
-  ctx.fillStyle = g; ctx.fillRect(-bw, -bh, bw * 2, bh * 2);
-  ctx.restore();
-  shape(); ctx.strokeStyle = 'rgba(10,10,10,0.7)'; ctx.lineWidth = 0.7; ctx.stroke();
+let CAMO_SEED = 1;
+function paintPrism(ctx, q, ox, oy) {
+  const { B, T, p, c } = q, n = B.length;
+  const pr = v => [ox + v[0] - v[1], oy + (v[0] + v[1]) / 2 - v[2]];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const a = B[i], b = B[j], d = T[i];
+    const e1 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], e2 = [d[0] - a[0], d[1] - a[1], d[2] - a[2]];
+    let nx = e1[1] * e2[2] - e1[2] * e2[1], ny = e1[2] * e2[0] - e1[0] * e2[2], nz = e1[0] * e2[1] - e1[1] * e2[0];
+    const mx = (a[0] + b[0] + T[j][0] + d[0]) / 4 - c[0], my = (a[1] + b[1] + T[j][1] + d[1]) / 4 - c[1], mz = (a[2] + b[2] + T[j][2] + d[2]) / 4 - c[2];
+    if (nx * mx + ny * my + nz * mz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    if (nx + ny + nz <= 1e-6) continue; // facing away from the camera
+    const l = Math.hypot(nx, ny, nz) || 1;
+    face(ctx, [pr(a), pr(b), pr(T[j]), pr(d)], [nx / l, ny / l, nz / l], p, false);
+  }
+  face(ctx, T.map(pr), [0, 0, 1], p, true);
 }
 
-function barrel(ctx, x0, x1, w, y = 0) {
-  const g = ctx.createLinearGradient(0, y - w / 2, 0, y + w / 2);
-  g.addColorStop(0, '#6b6f6a'); g.addColorStop(0.5, '#3a3d3a'); g.addColorStop(1, '#1e201e');
-  ctx.fillStyle = g; ctx.fillRect(x0, y - w / 2, x1 - x0, w);
-  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 0.5; ctx.strokeRect(x0, y - w / 2, x1 - x0, w);
+function face(ctx, pts, nrm, p, top) {
+  const col = hexRgb(top && p.topColor ? p.topColor : p.color);
+  const k = p.light ? 1.08 : 0.5 + 0.62 * Math.max(0, nrm[0] * LIGHT[0] + nrm[1] * LIGHT[1] + nrm[2] * LIGHT[2]);
+  poly(ctx, pts);
+  ctx.fillStyle = lit(col, k);
+  ctx.fill();
+  if (p.camo && !(top && p.topColor)) {
+    ctx.save(); ctx.clip();
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const [x, y] of pts) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    const r = makeRng(CAMO_SEED++);
+    const w = x1 - x0, h = y1 - y0;
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = lit(hexRgb(p.camo[i % 2]), k);
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.ellipse(x0 + r() * w, y0 + r() * h, 1 + r() * w * 0.3, 1 + r() * h * 0.3, r() * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    poly(ctx, pts);
+  }
+  if (p.edge !== false) {
+    ctx.strokeStyle = lit(col, k * 0.55);
+    ctx.globalAlpha = 0.7; ctx.lineWidth = 0.6; ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
 }
 
-function glass(ctx, x, y, rx, ry, rot = 0, gold) {
-  const g = ctx.createLinearGradient(x - rx, y - ry, x + rx, y + ry);
-  g.addColorStop(0, gold ? '#f3d58a' : '#c6ecff'); g.addColorStop(1, gold ? '#5a4214' : '#123248');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 0.5; ctx.stroke();
+// Render prisms into a tight canvas. Returns { c, ox, oy }: the screen position of the model
+// origin inside the canvas, so callers draw it at (screenX - ox, screenY - oy).
+function bake(prisms, extra) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const q of prisms) for (const v of q.B.concat(q.T)) {
+    const sx = v[0] - v[1], sy = (v[0] + v[1]) / 2 - v[2];
+    x0 = Math.min(x0, sx); y0 = Math.min(y0, sy); x1 = Math.max(x1, sx); y1 = Math.max(y1, sy);
+  }
+  if (!prisms.length) { x0 = y0 = -1; x1 = y1 = 1; }
+  const pad = 3, S = 2;
+  const c = document.createElement('canvas');
+  c.width = Math.ceil((x1 - x0 + pad * 2) * S); c.height = Math.ceil((y1 - y0 + pad * 2) * S);
+  const ctx = c.getContext('2d');
+  ctx.scale(S, S);
+  const ox = pad - x0, oy = pad - y0;
+  CAMO_SEED = 7;
+  paintPrisms(ctx, prisms, ox, oy);
+  if (extra) extra(ctx, ox, oy);
+  return { c, ox: ox, oy: oy, w: c.width / S, h: c.height / S };
 }
 
 const Art = {
   cache: new Map(),
-
-  // Cached sprite drawn at 2x resolution, centred on the origin, facing +x.
-  sprite(id, size, fn) {
-    let c = this.cache.get(id);
-    if (!c) {
-      c = document.createElement('canvas');
-      c.width = c.height = size * 2;
-      const x = c.getContext('2d');
-      x.scale(2, 2); x.translate(size / 2, size / 2);
-      fn(x);
-      this.cache.set(id, c);
-    }
-    return c;
+  get(id, fn) {
+    let s = this.cache.get(id);
+    if (!s) { s = fn(); this.cache.set(id, s); }
+    return s;
   },
-
-  part(ctx, u, team, name, size, angle, ox = 0) {
-    const spec = VEHICLES[u.key];
-    const c = this.sprite(`${u.key}|${name}|${team.faction}|${team.color}`, size, x => spec[name](x, team, team.camo || FACTIONS[team.faction].camo));
-    ctx.save();
-    ctx.rotate(angle);
-    ctx.drawImage(c, -size / 2 + ox, -size / 2, size, size);
-    ctx.restore();
-  },
-
-  unit(ctx, u, team) {
-    const fn = UNIT_LIVE[u.key];
-    if (fn) fn(ctx, u, team);
-  },
+  blit(ctx, s, x, y) { ctx.drawImage(s.c, x - s.ox, y - s.oy, s.w, s.h); },
 };
 
-// ---------- tracks & wheels (live, so they animate) ----------
-function trackPair(ctx, L, y0, w, u) {
-  const off = u.moving ? (u.anim * 22) % 3 : 0;
-  for (const s of [-1, 1]) {
-    const y = s > 0 ? y0 : -y0 - w;
-    ctx.fillStyle = '#1d1e1c'; ctx.fillRect(-L / 2, y, L, w);
-    ctx.fillStyle = '#3d3f3a';
-    for (let x = -L / 2 + off; x < L / 2 - 0.5; x += 3) ctx.fillRect(x, y, 1.2, w);
-    ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(-L / 2, y, L, 0.8);
-  }
-}
-function wheels(ctx, xs, y, rx, ry, u) {
-  for (const s of [-1, 1]) for (const x of xs) {
-    ctx.fillStyle = '#151614';
-    ctx.beginPath(); ctx.ellipse(x, s * y, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#3a3c38';
-    ctx.beginPath(); ctx.ellipse(x, s * y, rx * 0.45, ry * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-  }
-}
+// ---------- unit models ----------
+const TRACK = '#2b2b26', STEEL = '#7a848e', DARKSTEEL = '#3a4047', GUN = '#3a3c38', GLASS = '#2d5476';
 
-// ---------- vehicle sprite parts ----------
-const VEHICLES = {
+function teamCamo(team) { const c = team.camo || FACTIONS[team.faction].camo; return c; }
+function tracks(L, y0, y1, h = 5) { return [box(-L / 2, L / 2, -y1, -y0, 0, h, TRACK, { edge: true }), box(-L / 2, L / 2, y0, y1, 0, h, TRACK)]; }
+function wheelSet(xs, y0, y1, r = 2.3) { const out = []; for (const x of xs) for (const s of [-1, 1]) out.push(box(x - r, x + r, s > 0 ? y0 : -y1, s > 0 ? y1 : -y0, 0, r * 1.9, '#1e1f1c')); return out; }
+
+const UNIT_MODELS = {
   tank: {
-    hull(x, team, camo) {
-      const s = () => poly(x, [[-13, -7], [10, -7], [13.5, -4], [13.5, 4], [10, 7], [-13, 7]]);
-      camoFill(x, s, camo, 11, 14, 8);
-      x.strokeStyle = 'rgba(0,0,0,0.35)'; x.lineWidth = 0.6;
-      for (let i = -12; i < -5; i += 1.6) { x.beginPath(); x.moveTo(i, -4.5); x.lineTo(i, 4.5); x.stroke(); }
-      x.fillStyle = team.color; x.fillRect(-13, -7, 3, 2); x.fillRect(-13, 5, 3, 2);
-      x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(9, -6, 1, 12);
+    scale: 1.3,
+    hull(T, C) {
+      return [...tracks(27, 5, 9.5),
+        prism([[-13, -7.5], [12, -7.5], [12, 7.5], [-13, 7.5]], [[-12, -6.6], [7, -6.6], [7, 6.6], [-12, 6.6]], 3, 9, C[0], { camo: [C[1], C[2]] }),
+        box(-12, -7, -4, 4, 9, 9.5, C[1]),
+        box(-12.5, -10, -6.6, -4, 9, 9.6, T.color), box(-12.5, -10, 4, 6.6, 9, 9.6, T.color)];
     },
-    turret(x, team, camo) {
-      barrel(x, 6, 23, 2.2);
-      x.fillStyle = '#2a2c2a'; x.fillRect(12, -1.7, 3, 3.4); x.fillRect(21.5, -1.6, 2, 3.2);
-      const s = () => poly(x, [[-8, -6], [3, -6.5], [7.5, -3], [7.5, 3], [3, 6.5], [-8, 6]]);
-      camoFill(x, s, camo, 21, 9, 7);
-      x.fillStyle = team.color; x.fillRect(-6, -2.6, 4.5, 5.2);
-      x.strokeStyle = 'rgba(0,0,0,0.6)'; x.lineWidth = 0.5; x.strokeRect(-6, -2.6, 4.5, 5.2);
-      x.fillStyle = '#484a44'; x.beginPath(); x.arc(-1, 3.4, 1.8, 0, Math.PI * 2); x.fill(); x.stroke();
-      x.fillStyle = '#2b2d2a'; x.fillRect(1.5, -4.8, 2.5, 1.6);
+    turret(T, C) {
+      const base = [[-8, -6], [3, -6.5], [7, -3], [7, 3], [3, 6.5], [-8, 6]];
+      return [prism(base, inset(base, 0.85, -0.6), 9, 14, C[0], { camo: [C[1], C[2]] }),
+        box(-6, -1, -3, 3, 14, 14.5, T.color),
+        cyl(-2.5, 3.2, 1.8, 14, 15.4, C[1], 1.6, 6),
+        box(5, 22, -0.9, 0.9, 10.8, 12.4, GUN), box(11, 14, -1.3, 1.3, 10.5, 12.7, '#2c2e2a'), box(21, 23.5, -1.3, 1.3, 10.5, 12.7, '#2c2e2a')];
     },
   },
   ifv: {
-    hull(x, team, camo) {
-      const s = () => poly(x, [[-12, -6], [8, -6], [12.5, -2.5], [12.5, 2.5], [8, 6], [-12, 6]]);
-      camoFill(x, s, camo, 12, 13, 7);
-      x.strokeStyle = 'rgba(0,0,0,0.4)'; x.lineWidth = 0.6;
-      x.strokeRect(-11.5, -3.5, 4, 7);
-      x.fillStyle = team.color; x.fillRect(-12, -6, 2.5, 1.8); x.fillRect(-12, 4.2, 2.5, 1.8);
-      x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(8, -5, 0.8, 10);
+    scale: 1.3,
+    hull(T, C) {
+      const p = [[-12, -6.5], [10, -6.5], [13, -3], [13, 3], [10, 6.5], [-12, 6.5]];
+      return [...wheelSet([-8, -2.7, 2.7, 8], 5.4, 8.4),
+        prism(p, inset(p, 0.9, -1), 2.5, 10, C[0], { camo: [C[1], C[2]] }),
+        box(-12, -9.5, -6, -3.5, 10, 10.5, T.color), box(-12, -9.5, 3.5, 6, 10, 10.5, T.color)];
     },
-    turret(x, team, camo) {
-      barrel(x, 3, 15, 1.3);
-      x.fillStyle = '#5b5e58'; x.fillRect(-3, -6.2, 6, 2.2);
-      x.fillStyle = '#2a2c2a'; x.fillRect(2.6, -6, 0.8, 1.8);
-      const s = () => poly(x, [[-4.5, -3.8], [2, -4], [4, -1.8], [4, 1.8], [2, 4], [-4.5, 3.8]]);
-      camoFill(x, s, camo, 33, 5, 4.5);
-      x.fillStyle = team.color; x.fillRect(-3.5, -1.2, 2.4, 2.4);
+    turret(T, C) {
+      const p = [[-4.5, -3.8], [2, -4], [4, -1.8], [4, 1.8], [2, 4], [-4.5, 3.8]];
+      return [prism(p, inset(p, 0.8), 10, 13.5, C[0], { camo: [C[1], C[2]] }),
+        box(3, 15, -0.6, 0.6, 11.6, 12.6, GUN),
+        box(-3, 3, -6.5, -4, 10.5, 13, '#5a5d55'), box(-3.5, -0.5, -1.5, 1.5, 13.5, 13.9, T.color)];
     },
   },
   mlrs: {
-    hull(x, team, camo) {
-      const bed = () => poly(x, [[-13, -6], [5, -6], [5, 6], [-13, 6]]);
-      camoFill(x, bed, camo, 13, 14, 7);
-      const cab = () => poly(x, [[6, -6], [11, -6], [13.5, -3], [13.5, 3], [11, 6], [6, 6]]);
-      camoFill(x, cab, camo, 14, 14, 7);
-      glass(x, 11.5, 0, 1.2, 4.2);
-      x.fillStyle = team.color; x.fillRect(6.5, -6, 3, 1.6); x.fillRect(6.5, 4.4, 3, 1.6);
+    scale: 1.3,
+    hull(T, C) {
+      return [...wheelSet([-9, -3.5, 8], 5.4, 8.4),
+        box(-13, 5, -6.5, 6.5, 2.5, 6, C[0], { camo: [C[1], C[2]] }),
+        prism([[5, -6.5], [13, -6.5], [13, 6.5], [5, 6.5]], [[5, -6], [10.5, -6], [10.5, 6], [5, 6]], 2.5, 11.5, C[0], { camo: [C[1], C[2]] }),
+        box(10.8, 12.6, -5, 5, 7.5, 10.8, GLASS, { light: true }),
+        box(5.5, 8.5, -6.5, 6.5, 11.5, 12, T.color)];
     },
-    turret(x, team, camo) {
-      const s = () => poly(x, [[-8, -5], [7, -5], [7, 5], [-8, 5]]);
-      camoFill(x, s, [tone(camo[0], -0.2), camo[1], camo[2]], 44, 9, 6);
-      x.fillStyle = '#121310';
-      for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) { x.beginPath(); x.arc(5.5 - i * 0.2, -3.6 + j * 2.4, 0.8, 0, Math.PI * 2); x.fill(); }
-      x.strokeStyle = 'rgba(0,0,0,0.4)'; x.lineWidth = 0.4;
-      for (let i = -6; i < 5; i += 2.4) { x.beginPath(); x.moveTo(i, -5); x.lineTo(i, 5); x.stroke(); }
+    turret(T, C) {
+      const out = [box(-9, 5, -5, 5, 6, 13, tone(C[0], -0.15), { camo: [C[1], C[2]] }), box(-9, -5, -5, 5, 13, 13.5, T.color)];
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) out.push(box(5, 5.7, -4 + i * 2.8, -2.2 + i * 2.8, 7 + j * 3, 9 + j * 3, '#121310'));
+      return out;
     },
   },
   railtank: {
-    hull(x, team, camo) {
-      const s = () => poly(x, [[-13, -7], [8, -7], [14, -3], [14, 3], [8, 7], [-13, 7]]);
-      camoFill(x, s, camo, 15, 15, 8);
-      x.fillStyle = 'rgba(80,220,255,0.85)';
-      for (let i = 0; i < 3; i++) { x.fillRect(-11 + i * 3, -6, 1.6, 1.2); x.fillRect(-11 + i * 3, 4.8, 1.6, 1.2); }
-      x.fillStyle = team.color; x.fillRect(4, -7, 3.5, 1.6); x.fillRect(4, 5.4, 3.5, 1.6);
+    scale: 1.3,
+    hull(T, C) {
+      const p = [[-13, -7.5], [9, -7.5], [14, -3], [14, 3], [9, 7.5], [-13, 7.5]];
+      return [...tracks(27, 5, 9.5),
+        prism(p, inset(p, 0.88, -1), 3, 9, C[0], { camo: [C[1], C[2]] }),
+        box(-12, -5, -6.5, -5.5, 9, 9.4, '#55e6ff', { light: true }), box(-12, -5, 5.5, 6.5, 9, 9.4, '#55e6ff', { light: true }),
+        box(3, 6.5, -6.6, 6.6, 9, 9.4, T.color)];
     },
-    turret(x, team, camo) {
-      for (const y of [-1.6, 1.6]) barrel(x, 3, 25, 1.4, y);
-      x.fillStyle = '#6ef';
-      for (let i = 0; i < 5; i++) x.fillRect(7 + i * 3.5, -2.6, 1, 5.2);
-      const s = () => poly(x, [[-8, -6], [1, -6], [6, -2.5], [6, 2.5], [1, 6], [-8, 6]]);
-      camoFill(x, s, camo, 16, 9, 7);
-      x.fillStyle = team.color; x.fillRect(-6.5, -2.4, 4, 4.8);
-      x.fillStyle = 'rgba(80,220,255,0.9)'; x.fillRect(-7.5, -0.5, 1.5, 1);
+    turret(T, C) {
+      const p = [[-8, -6], [1, -6], [6, -2.6], [6, 2.6], [1, 6], [-8, 6]];
+      const out = [prism(p, inset(p, 0.82, -0.8), 9, 14, C[0], { camo: [C[1], C[2]] }), box(-7, -2, -2.5, 2.5, 14, 14.5, T.color)];
+      for (const y of [-2.6, 1.2]) out.push(box(4, 26, y, y + 1.4, 11, 12.4, '#3a3d40'));
+      for (let i = 0; i < 4; i++) out.push(box(8 + i * 4.2, 9.2 + i * 4.2, -3, 3, 10.5, 12.9, '#55e6ff', { light: true }));
+      return out;
     },
   },
   titan: {
-    hull(x, team, camo) {
-      const s = () => poly(x, [[-15.5, -9], [12, -9], [15.5, -5.5], [15.5, 5.5], [12, 9], [-15.5, 9]]);
-      camoFill(x, s, camo, 17, 16, 10);
-      x.strokeStyle = 'rgba(0,0,0,0.35)'; x.lineWidth = 0.6;
-      for (let i = -14; i < -6; i += 1.6) { x.beginPath(); x.moveTo(i, -6); x.lineTo(i, 6); x.stroke(); }
-      x.fillStyle = team.color; x.fillRect(-15.5, -9, 3.5, 2.2); x.fillRect(-15.5, 6.8, 3.5, 2.2);
+    scale: 1.3,
+    hull(T, C) {
+      const p = [[-15.5, -9], [13, -9], [13, 9], [-15.5, 9]];
+      return [...tracks(32, 6, 12.5, 6.5),
+        prism(p, [[-14.5, -8], [9, -8], [9, 8], [-14.5, 8]], 3.5, 11, C[0], { camo: [C[1], C[2]] }),
+        box(-14.5, -11, -8, -5, 11, 11.6, T.color), box(-14.5, -11, 5, 8, 11, 11.6, T.color)];
     },
-    turret(x, team, camo) {
-      for (const y of [-3, 3]) { barrel(x, 7, 27, 2.2, y); x.fillStyle = '#262826'; x.fillRect(25, y - 1.6, 2.4, 3.2); }
-      for (const y of [-12, 8.5]) {
-        const p = () => poly(x, [[-7, y], [3, y], [3, y + 3.5], [-7, y + 3.5]]);
-        metalFill(x, p, '#71756e', '#3a3d38', 10, 14);
-        x.fillStyle = '#121310'; for (let i = 0; i < 3; i++) { x.beginPath(); x.arc(2, y + 0.9 + i * 0.9, 0.35, 0, Math.PI * 2); x.fill(); }
-      }
-      const s = () => poly(x, [[-10, -8.5], [5, -8.5], [10, -4], [10, 4], [5, 8.5], [-10, 8.5]]);
-      camoFill(x, s, camo, 27, 11, 9);
-      x.fillStyle = team.color; x.fillRect(-8, -3.5, 6, 7);
-      x.strokeStyle = 'rgba(0,0,0,0.6)'; x.lineWidth = 0.5; x.strokeRect(-8, -3.5, 6, 7);
-      x.fillStyle = '#484a44'; x.beginPath(); x.arc(1, 4.6, 2, 0, Math.PI * 2); x.fill(); x.stroke();
+    turret(T, C) {
+      const p = [[-10, -8.5], [5, -8.5], [10, -4], [10, 4], [5, 8.5], [-10, 8.5]];
+      return [prism(p, inset(p, 0.85, -0.8), 11, 17.5, C[0], { camo: [C[1], C[2]] }),
+        box(-8, -2, -3.5, 3.5, 17.5, 18, T.color),
+        box(8, 27, -4, -2.2, 13.2, 15, GUN), box(8, 27, 2.2, 4, 13.2, 15, GUN),
+        box(25, 28, -4.6, -1.6, 12.8, 15.4, '#262826'), box(25, 28, 1.6, 4.6, 12.8, 15.4, '#262826'),
+        box(-8, 2, -12.5, -8.5, 12, 16.5, '#5c6058'), box(-8, 2, 8.5, 12.5, 12, 16.5, '#5c6058'),
+        cyl(1, 5, 2, 17.5, 19, C[1], 1.8, 6)];
     },
   },
   harvester: {
-    hull(x, team) {
-      const s = () => poly(x, [[-14, -8], [9, -8], [9, 8], [-14, 8]]);
-      metalFill(x, s, '#d4a73a', '#7a5a14', 15, 9);
-      x.save(); s(); x.clip();
-      x.fillStyle = '#1b1b18';
-      for (let i = -16; i < 12; i += 4) { x.beginPath(); x.moveTo(i, 8); x.lineTo(i + 2, 8); x.lineTo(i + 5, 5); x.lineTo(i + 3, 5); x.fill(); }
-      x.restore();
-      const cab = () => poly(x, [[9, -8], [12.5, -8], [14, -5], [14, 5], [12.5, 8], [9, 8]]);
-      metalFill(x, cab, '#6d757d', '#2c3237', 15, 9);
-      glass(x, 12.5, 0, 0.9, 5);
-      x.fillStyle = team.color; x.fillRect(5, -8, 3.5, 16);
-      x.fillStyle = '#5a5e60'; x.fillRect(14, -9, 2.4, 18);
-      x.fillStyle = '#2e3133'; for (let i = -8; i < 9; i += 2) x.fillRect(14.5, i, 1.4, 1);
+    scale: 1.3,
+    hull(T, C, cargo) {
+      const out = [...tracks(30, 6, 10.5, 5.5),
+        box(-15, 6, -8.5, 8.5, 3, 14, '#c69a2e'),
+        box(-13, 4, -6.5, 6.5, 13.8, 14.4, '#2a2418'),
+        box(-15, -12, -8.6, 8.6, 9, 14.2, T.color),
+        box(6, 14, -8, 8, 3, 13, STEEL), box(13.4, 14.4, -6, 6, 8, 12, GLASS, { light: true }),
+        box(14, 17.5, -9.5, 9.5, 0, 4, '#4b4f52')];
+      if (cargo > 0) out.push(box(-13, 4, -6.5, 6.5, 14.4, 14.4 + cargo * 1.2, '#e2ae3c'));
+      return out;
     },
   },
   mcv: {
-    hull(x, team, camo) {
-      const s = () => poly(x, [[-15, -9], [11, -9], [15, -5], [15, 5], [11, 9], [-15, 9]]);
-      camoFill(x, s, camo, 19, 16, 10);
-      const box = () => poly(x, [[-12, -6.5], [5, -6.5], [5, 6.5], [-12, 6.5]]);
-      metalFill(x, box, '#8f979e', '#3f464c', 13, 8);
-      x.fillStyle = team.color; x.fillRect(-12, -1.2, 17, 2.4);
-      x.strokeStyle = 'rgba(0,0,0,0.45)'; x.lineWidth = 0.5;
-      for (let i = -10; i < 5; i += 3) { x.beginPath(); x.moveTo(i, -6.5); x.lineTo(i, 6.5); x.stroke(); }
-      glass(x, 12.5, 0, 1, 4.5);
-      x.strokeStyle = '#ddd'; x.lineWidth = 0.6; x.beginPath(); x.moveTo(-9, -5); x.lineTo(-13, -11); x.stroke();
+    scale: 1.3,
+    hull(T, C) {
+      return [...tracks(31, 6, 10.5, 5.5),
+        box(-15.5, 15.5, -9, 9, 3, 9, C[0], { camo: [C[1], C[2]] }),
+        box(-13, 6, -7, 7, 9, 19, '#7b848c', { topColor: T.color }),
+        box(-13, 6, -7.2, -6.8, 11, 17, DARKSTEEL), box(-13, 6, 6.8, 7.2, 11, 17, DARKSTEEL),
+        box(8, 15, -7, 7, 9, 15, C[0], { camo: [C[1], C[2]] }), box(14.4, 15.4, -5, 5, 10.5, 14, GLASS, { light: true }),
+        box(-10, -9, -5, -4, 19, 27, '#c9ced2')];
     },
   },
   heli: {
-    body(x, team, camo) {
-      const boom = () => poly(x, [[-22, -1.3], [-4, -2.2], [-4, 2.2], [-22, 1.3]]);
-      camoFill(x, boom, camo, 41, 23, 3);
-      x.fillStyle = team.color; x.fillRect(-23.5, -1, 3, 5.5);
-      x.fillStyle = tone(camo[1], -0.1); x.fillRect(-18, -5, 2, 10);
-      const wing = () => poly(x, [[-3, -10], [2, -10], [2, 10], [-3, 10]]);
-      camoFill(x, wing, camo, 42, 4, 11);
-      for (const y of [-8.5, 8.5]) { metalFill(x, () => { x.beginPath(); x.ellipse(-0.5, y, 4, 1.6, 0, 0, Math.PI * 2); }, '#83877f', '#33362f', 5, 10); }
-      const body = () => { x.beginPath(); x.ellipse(2, 0, 11, 4.2, 0, 0, Math.PI * 2); };
-      camoFill(x, body, camo, 43, 13, 5);
-      glass(x, 8.5, 0, 3.2, 2.2); glass(x, 3.5, 0, 3, 2.4);
-      x.fillStyle = '#1b1d1b'; x.beginPath(); x.arc(12.8, 0, 1.4, 0, Math.PI * 2); x.fill();
-      x.fillStyle = '#30332f'; x.fillRect(11, -0.4, 4, 0.8);
+    scale: 1.3,
+    hull(T, C) {
+      const f = [[-6, -3.5], [8, -3.5], [13, -1.5], [13, 1.5], [8, 3.5], [-6, 3.5]];
+      return [prism(f, inset(f, 0.75, -1), 0, 7, C[0], { camo: [C[1], C[2]] }),
+        prism([[3, -2.2], [10, -2.2], [10, 2.2], [3, 2.2]], [[4, -1.6], [8, -1.6], [8, 1.6], [4, 1.6]], 6.5, 9.5, GLASS, { light: true }),
+        box(-23, -6, -1, 1, 3.5, 6, C[0], { camo: [C[1], C[2]] }),
+        box(-24.5, -21, -0.6, 0.6, 3.5, 12, T.color),
+        box(-20, -18, -4.5, 4.5, 4, 5, C[1]),
+        box(-2, 2, -9, 9, 2, 3.2, C[1]),
+        box(-3, 3, -10, -7.2, 0.4, 2.6, '#55584f'), box(-3, 3, 7.2, 10, 0.4, 2.6, '#55584f'),
+        box(-0.9, 0.9, -0.9, 0.9, 7, 11, '#2c2e2c')];
     },
   },
   jet: {
-    body(x, team) {
-      const west = FACTIONS[team.faction].side === 'west';
-      const shape = () => poly(x, [[17, 0], [9, -2.6], [3, -4], [-2, -12.5], [-7.5, -12.5], [-6, -4.5], [-11, -4.5], [-15, -8], [-17, -8],
-        [-14.5, -2.4], [-14.5, 2.4], [-17, 8], [-15, 8], [-11, 4.5], [-6, 4.5], [-7.5, 12.5], [-2, 12.5], [3, 4], [9, 2.6]]);
-      metalFill(x, shape, west ? '#aab3bb' : '#9aa49a', west ? '#4d565e' : '#4b544b', 17, 13);
-      x.strokeStyle = 'rgba(0,0,0,0.25)'; x.lineWidth = 0.4;
-      x.beginPath(); x.moveTo(-10, 0); x.lineTo(8, 0); x.moveTo(-4, -9); x.lineTo(1, -4); x.moveTo(-4, 9); x.lineTo(1, 4); x.stroke();
-      x.fillStyle = team.color;
-      x.fillRect(-14, -6.5, 3.5, 1.4); x.fillRect(-14, 5.1, 3.5, 1.4);
-      for (const y of [-9, 9]) { x.beginPath(); x.arc(-4.5, y, 1.3, 0, Math.PI * 2); x.fill(); }
-      glass(x, 7.5, 0, 4, 1.5, 0, true);
-      x.fillStyle = '#2a2d30'; x.fillRect(-15.5, -2.2, 1.5, 4.4);
+    scale: 1.3,
+    hull(T, C) {
+      const west = FACTIONS[T.faction].side === 'west';
+      const body = west ? '#a7b0b8' : '#9aa39a';
+      // the planform is concave, so it is built from convex pieces
+      return [
+        prism([[17, 0], [9, -2.6], [-15, -2.6], [-15, 2.6], [9, 2.6]], null, 0, 2.6, body),
+        prism([[3, -2.6], [-2, -12.5], [-7.5, -12.5], [-6, -2.6]], null, 0.6, 1.8, body),
+        prism([[3, 2.6], [-6, 2.6], [-7.5, 12.5], [-2, 12.5]], null, 0.6, 1.8, body),
+        prism([[-11, -2.6], [-15, -8], [-17, -8], [-15, -2.6]], null, 0.6, 1.6, body),
+        prism([[-11, 2.6], [-15, 2.6], [-17, 8], [-15, 8]], null, 0.6, 1.6, body),
+        box(-12, 9, -1.8, 1.8, 2.6, 4, body),
+        box(3, 9.5, -1.3, 1.3, 4, 5.5, '#c9a25a', { light: true }),
+        box(-14, -9.5, -4.6, -3.8, 2.6, 8.5, T.color), box(-14, -9.5, 3.8, 4.6, 2.6, 8.5, T.color),
+        box(-16.5, -14.5, -2.2, 2.2, 0.6, 3.2, '#2a2d30'),
+        box(-6, -3.5, -10, -8, 1.8, 2.1, T.color), box(-6, -3.5, 8, 10, 1.8, 2.1, T.color)];
     },
   },
 };
 
-// ---------- live drawing per unit (origin at unit, already lifted for aircraft) ----------
-function infantryArt(ctx, u, team, kit) {
-  const camo = team.camo || FACTIONS[team.faction].camo;
-  const step = u.moving ? Math.sin(u.anim * 12) * 2 : 0;
-  ctx.rotate(u.facing);
-  ctx.scale(1.35, 1.35);
-  ctx.fillStyle = '#20211d';
-  ctx.fillRect(-2 + step, -3, 3, 1.8); ctx.fillRect(-2 - step, 1.2, 3, 1.8);
-  ctx.fillStyle = team.color; ctx.fillRect(-4.6, -2.2, 2.6, 4.4);
-  ctx.fillStyle = camo[1]; ctx.beginPath(); ctx.ellipse(-0.6, 0, 3, 3.8, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = camo[0]; ctx.beginPath(); ctx.ellipse(-0.2, 0, 2.4, 3.3, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.5; ctx.stroke();
-  kit && kit(camo);
-  ctx.fillStyle = u.key === 'engineer' ? '#f2c230' : tone(camo[2], -0.35);
-  ctx.beginPath(); ctx.arc(0.6, 0, 2.1, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.beginPath(); ctx.arc(0.1, -0.6, 0.9, 0, Math.PI * 2); ctx.fill();
+// infantry: little voxel soldiers with a walk cycle
+function infantryParts(key, T, C, frame) {
+  const p = [0, 1.4, 0, -1.4][frame];
+  const helmet = key === 'engineer' ? '#e6b62e' : tone(C[2], -0.35);
+  const out = [
+    box(-1 + p, 1 + p, -2, -0.5, 0, 4.5, tone(C[1], -0.1)), box(-1 - p, 1 - p, 0.5, 2, 0, 4.5, tone(C[1], -0.1)),
+    box(-1.6, 1.6, -2.4, 2.4, 4.5, 9.5, C[0], { camo: [C[1], C[2]] }),
+    box(-3.2, -1.6, -1.8, 1.8, 5, 9, T.color),
+    box(-1.1, 1.3, -1.2, 1.2, 9.5, 12, helmet)];
+  if (key === 'rifle') out.push(box(0, 8, 1.5, 2.3, 6.5, 7.6, '#1b1c1a'));
+  if (key === 'rocket') out.push(box(-4.5, 8, -2.7, -1.2, 9, 10.7, tone(C[1], -0.2)), box(7.4, 8.2, -2.8, -1.1, 8.8, 10.9, '#111'));
+  if (key === 'engineer') out.push(box(-1, 2.5, 2.6, 4.2, 3, 5.5, '#c9a43a'));
+  return out;
 }
 
-function vehicle(L, trackY, trackW, hullSize, turretSize, wheelSpec) {
-  return (ctx, u, team) => {
-    ctx.save(); ctx.rotate(u.facing);
-    if (wheelSpec) wheels(ctx, wheelSpec[0], wheelSpec[1], wheelSpec[2], wheelSpec[3], u);
-    else trackPair(ctx, L, trackY, trackW, u);
-    ctx.restore();
-    Art.part(ctx, u, team, 'hull', hullSize, u.facing);
-    if (turretSize) {
-      const rec = (u.recoil || 0) * 2.5;
-      Art.part(ctx, u, team, 'turret', turretSize, u.turret, -rec);
-      if (u.recoil) u.recoil = Math.max(0, u.recoil - 0.08);
-    }
-  };
+function unitSprite(u, team, part) {
+  const m = UNIT_MODELS[u.key];
+  const C = teamCamo(team);
+  if (!m) { // infantry
+    const frame = u.moving ? Math.floor(u.anim * 8) % 4 : 0;
+    const f = facingIndex(u.facing);
+    return Art.get(`${u.key}|${team.faction}|${team.color}|${f}|${frame}`, () =>
+      bake(place(infantryParts(u.key, team, C, frame), f / FACINGS * Math.PI * 2, 0, 0, 0, 1.6)));
+  }
+  const ang = part === 'turret' ? u.turret : u.facing;
+  const f = facingIndex(ang);
+  const cargo = u.def.harvester ? Math.ceil(u.cargo / u.def.capacity * 3) : 0;
+  return Art.get(`${u.key}|${part}|${team.faction}|${team.color}|${f}|${cargo}`, () =>
+    bake(place(m[part](team, C, cargo), f / FACINGS * Math.PI * 2, 0, 0, 0, m.scale)));
 }
 
-const UNIT_LIVE = {
-  rifle(ctx, u, team) {
-    infantryArt(ctx, u, team, () => { ctx.fillStyle = '#151614'; ctx.fillRect(0.5, 1.4, 8, 1.3); ctx.fillRect(4, 1, 1.2, 2.2); });
-  },
-  rocket(ctx, u, team) {
-    infantryArt(ctx, u, team, camo => { ctx.fillStyle = tone(camo[1], -0.2); ctx.fillRect(-4.5, -3.6, 12, 2.4); ctx.fillStyle = '#111'; ctx.fillRect(7, -3.6, 1, 2.4); });
-  },
-  engineer(ctx, u, team) {
-    infantryArt(ctx, u, team, () => { ctx.fillStyle = '#c9a43a'; ctx.fillRect(-5.5, -1.8, 3, 3.6); ctx.fillStyle = '#555'; ctx.fillRect(1, 2.2, 4, 1); });
-  },
-  tank: vehicle(26, 6, 4, 40, 52),
-  ifv: vehicle(0, 0, 0, 36, 36, [[-8, -2.7, 2.7, 8], 6.4, 2.6, 1.7]),
-  mlrs: vehicle(0, 0, 0, 36, 28, [[-9, -4, 9], 6.4, 2.6, 1.8]),
-  railtank: vehicle(26, 6.2, 4, 40, 56),
-  titan: vehicle(31, 8.5, 5.5, 44, 60),
-  harvester(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    trackPair(ctx, 28, 7.5, 4.5, u);
-    ctx.restore();
-    Art.part(ctx, u, team, 'hull', 40, u.facing);
-    // ore bin shows the load
-    ctx.save(); ctx.rotate(u.facing);
-    const f = u.cargo / u.def.capacity;
-    ctx.fillStyle = '#2a2418'; ctx.fillRect(-12, -6, 15, 12);
-    ctx.fillStyle = '#e2ae3c'; ctx.fillRect(-12, 6 - 12 * f, 15, 12 * f);
-    ctx.fillStyle = 'rgba(255,240,180,0.35)';
-    for (let i = 0; i < 6 * f; i++) ctx.fillRect(-11 + (i * 5) % 13, 5 - 12 * f + (i * 3) % 6, 1.5, 1.5);
-    if (u.hstate === 'mine') { ctx.fillStyle = '#999'; ctx.fillRect(15 + Math.sin(u.anim * 20) * 0.8, -9, 1.6, 18); }
-    ctx.restore();
-  },
-  mcv: vehicle(30, 7.5, 5, 44, 0),
-  heli(ctx, u, team) {
-    Art.part(ctx, u, team, 'body', 52, u.facing);
-    // tail rotor
-    ctx.save(); ctx.rotate(u.facing); ctx.translate(-22, 3.5);
-    ctx.strokeStyle = 'rgba(40,40,40,0.7)'; ctx.lineWidth = 1;
-    const ta = u.anim * 50;
-    ctx.beginPath(); ctx.moveTo(Math.cos(ta) * 3.5, Math.sin(ta) * 1); ctx.lineTo(-Math.cos(ta) * 3.5, -Math.sin(ta) * 1); ctx.stroke();
-    ctx.restore();
-    // main rotor: blur disc + blades
-    ctx.fillStyle = 'rgba(210,215,220,0.09)';
-    ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
+// draw a unit whose ground point projects to (sx, sy)
+function drawUnitArt(ctx, u, team, sx, sy) {
+  const m = UNIT_MODELS[u.key];
+  const lift = u.alt || 0;
+  Art.blit(ctx, unitSprite(u, team, 'hull'), sx, sy - lift);
+  if (m && m.turret) {
+    const rec = (u.recoil || 0) * 2.5;
+    const tx = -Math.cos(u.turret) * rec, ty = -Math.sin(u.turret) * rec;
+    Art.blit(ctx, unitSprite(u, team, 'turret'), sx + isoX(tx, ty), sy - lift + isoY(tx, ty, 0));
+    if (u.recoil) u.recoil = Math.max(0, u.recoil - 0.08);
+  }
+  if (u.key === 'heli') {
+    // rotor disc in the horizontal plane
+    const ry = sy - lift - 11 * 1.3;
+    ctx.fillStyle = 'rgba(220,225,230,0.10)';
+    ctx.beginPath(); ctx.ellipse(sx, ry, 25, 12.5, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(25,25,25,0.75)'; ctx.lineWidth = 1.6;
     const a = u.anim * 28;
     ctx.beginPath();
-    for (let i = 0; i < 4; i++) { const b = a + i * Math.PI / 2; ctx.moveTo(0, 0); ctx.lineTo(Math.cos(b) * 17, Math.sin(b) * 17); }
+    for (let i = 0; i < 4; i++) { const b = a + i * Math.PI / 2, bx = Math.cos(b) * 22, by = Math.sin(b) * 22; ctx.moveTo(sx, ry); ctx.lineTo(sx + isoX(bx, by), ry + isoY(bx, by, 0)); }
     ctx.stroke();
-    ctx.fillStyle = '#2a2c2a'; ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+  }
+  if (u.key === 'jet') {
+    const bx = -Math.cos(u.facing) * 21, by = -Math.sin(u.facing) * 21;
+    const ex = sx + isoX(bx, by), ey = sy - lift + isoY(bx, by, 2);
+    const g = ctx.createRadialGradient(ex, ey, 0, ex, ey, 6 + Math.random() * 2);
+    g.addColorStop(0, 'rgba(255,240,200,0.95)'); g.addColorStop(0.5, 'rgba(255,140,40,0.7)'); g.addColorStop(1, 'rgba(255,80,20,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ex, ey, 8, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// ---------- structure models (footprint-local: 0..W along x, 0..H along y) ----------
+const ROOF = '#949da5';
+function foundation(W, H) { return [box(1, W - 1, 1, H - 1, 0, 2, '#5b5e60', { order: -100 })]; }
+function lamp(x, y, z, c = '#ffd27a') { return box(x - 1.2, x + 1.2, y - 1.2, y + 1.2, z, z + 1.2, c, { light: true }); }
+
+const BLD_MODELS = {
+  cc(T) {
+    return [...foundation(96, 96),
+      box(6, 90, 32, 90, 2, 24, STEEL, { topColor: T.color }),
+      box(10, 30, 89.6, 90.8, 12, 17, '#ffd27a', { light: true }), box(66, 86, 89.6, 90.8, 12, 17, '#ffd27a', { light: true }),
+      box(89.6, 90.8, 40, 84, 12, 17, '#ffd27a', { light: true }),
+      box(38, 58, 89.4, 91, 2, 18, '#1b1f22'), box(38, 58, 89.4, 91.2, 18, 20, '#d9ad2b'),
+      cyl(28, 58, 13, 24, 25, '#3a3f43', 13, 12),
+      box(58, 88, 6, 40, 2, 52, STEEL, { topColor: '#46505a' }),
+      box(60, 86, 39.6, 40.8, 36, 44, '#9fd8ff', { light: true }), box(87.6, 88.8, 8, 38, 36, 44, '#9fd8ff', { light: true }),
+      box(60, 86, 39.6, 40.8, 22, 26, '#9fd8ff', { light: true }),
+      cyl(78, 16, 5, 52, 57, '#e9edf0', 3, 8),
+      box(64, 65.5, 10, 11.5, 52, 74, '#c9ced2')];
   },
-  jet(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    const fl = 5 + Math.random() * 4;
-    const g = ctx.createLinearGradient(-15, 0, -15 - fl, 0);
-    g.addColorStop(0, 'rgba(255,240,200,0.95)'); g.addColorStop(0.4, 'rgba(255,150,50,0.8)'); g.addColorStop(1, 'rgba(255,80,20,0)');
-    ctx.fillStyle = g;
-    for (const y of [-1.2, 1.2]) { ctx.beginPath(); ctx.moveTo(-15, y - 1); ctx.lineTo(-15 - fl, y); ctx.lineTo(-15, y + 1); ctx.fill(); }
-    ctx.restore();
-    Art.part(ctx, u, team, 'body', 40, u.facing);
+  power(T) {
+    const out = [...foundation(64, 64),
+      box(4, 60, 34, 60, 2, 12, STEEL, { topColor: ROOF }),
+      box(8, 56, 59.6, 60.8, 5, 8, '#ffd27a', { light: true }),
+      cyl(24, 22, 15, 2, 14, '#d8dde1', 13, 12), cyl(24, 22, 13, 14, 21, '#e9edf0', 6, 12),
+      cyl(24, 22, 15.3, 7, 10, T.color, 15.3, 12),
+      cyl(24, 22, 4.5, 21, 22.5, '#6fe9ff', 4, 8, { light: true })];
+    for (let i = 0; i < 5; i++) out.push(cyl(50, 14, 5, 2 + i * 9, 2 + (i + 1) * 9, i % 2 ? '#e6e6e6' : T.color, 5, 10));
+    return out;
+  },
+  refinery(T) {
+    return [...foundation(96, 96),
+      box(4, 60, 6, 62, 2, 24, STEEL, { topColor: T.color }),
+      box(8, 56, 61.6, 62.8, 12, 17, '#ffd27a', { light: true }),
+      cyl(78, 24, 11, 2, 30, '#c9cfd4', 11, 12, { topColor: '#e2ae3c' }), cyl(78, 58, 11, 2, 30, '#c9cfd4', 11, 12, { topColor: '#e2ae3c' }),
+      cyl(78, 24, 11.2, 20, 23, T.color, 11.2, 12), cyl(78, 58, 11.2, 20, 23, T.color, 11.2, 12),
+      box(58, 68, 30, 36, 14, 18, '#3c4247'),
+      box(32, 64, 66, 94, 0, 2.5, '#2b2f32', { order: -50 }), box(32, 64, 66, 68.5, 2.5, 3, '#d9ad2b', { order: -49 })];
+  },
+  barracks(T) {
+    return [...foundation(64, 64),
+      box(4, 60, 12, 56, 2, 14, STEEL),
+      prism([[4, 12], [60, 12], [60, 56], [4, 56]], [[4, 30], [60, 30], [60, 38], [4, 38]], 14, 24, T.color),
+      box(26, 38, 55.6, 57, 2, 11, '#1b1f22'),
+      box(8, 22, 55.6, 56.8, 7, 10, '#ffd27a', { light: true }), box(42, 56, 55.6, 56.8, 7, 10, '#ffd27a', { light: true }),
+      ...[0, 1, 2, 3].map(i => box(6 + i * 4, 9.5 + i * 4, 58, 61, 0, 3, '#9a8b60')),
+      ...[0, 1, 2, 3].map(i => box(44 + i * 4, 47.5 + i * 4, 58, 61, 0, 3, '#9a8b60'))];
+  },
+  factory(T) {
+    const out = [...foundation(96, 96),
+      box(4, 92, 10, 90, 2, 30, STEEL, { topColor: T.color }),
+      box(24, 72, 89.4, 91, 2, 24, '#1b1f22'), box(24, 72, 89.4, 91.2, 24, 26.5, '#d9ad2b'),
+      box(6, 20, 89.6, 90.8, 16, 21, '#ffd27a', { light: true }), box(76, 90, 89.6, 90.8, 16, 21, '#ffd27a', { light: true }),
+      box(91.6, 92.8, 20, 80, 16, 21, '#ffd27a', { light: true }),
+      box(10, 13, 14, 17, 30, 42, '#d9ad2b'), box(10, 62, 14, 17, 42, 44.5, '#d9ad2b')];
+    for (let i = 0; i < 5; i++) out.push(box(16 + i * 16, 20 + i * 16, 18, 84, 30, 31.5, tone(T.color, -0.35)));
+    return out;
+  },
+  radar(T) {
+    return [...foundation(64, 64),
+      box(8, 56, 24, 58, 2, 18, STEEL, { topColor: ROOF }),
+      box(8, 56, 57.6, 58.8, 13, 16, T.color),
+      box(12, 52, 57.6, 58.8, 6, 9, '#9fd8ff', { light: true }),
+      box(28, 36, 28, 36, 18, 34, '#7c858c'), box(26, 38, 26, 38, 18, 20, DARKSTEEL)];
+  },
+  airfield(T) {
+    const out = [box(2, 94, 2, 62, 0, 1.5, '#33373a', { order: -100 }),
+      box(4, 92, 19.5, 20.5, 1.5, 1.8, T.color, { order: -99 }), box(4, 92, 43.5, 44.5, 1.5, 1.8, T.color, { order: -99 })];
+    for (let i = 0; i < 6; i++) out.push(box(8 + i * 13, 15 + i * 13, 31, 33, 1.5, 1.8, '#e8e8e8', { order: -99 }));
+    out.push(box(74, 92, 4, 20, 1.5, 24, STEEL), box(73, 93, 3, 21, 24, 30, '#7fc8f0', { light: true, topColor: T.color }));
+    const jet = place(UNIT_MODELS.jet.hull(T, teamCamo(T)), 0, 34, 32, 1.5, 1.1);
+    return { parts: out, extra: jet };
+  },
+  tech(T) {
+    return [...foundation(64, 64),
+      box(6, 58, 14, 58, 2, 22, '#cfd4d8', { topColor: '#e4e8eb' }),
+      box(10, 54, 57.6, 58.8, 10, 15, '#9fd8ff', { light: true }),
+      cyl(32, 34, 12, 22, 25, '#9aa3ab', 12, 12), cyl(32, 34, 11, 25, 33, T.color, 4, 12),
+      box(12, 13.5, 18, 19.5, 22, 36, '#c9ced2')];
+  },
+  super_lance(T, st) {
+    const out = [...foundation(96, 96),
+      box(6, 90, 14, 90, 2, 16, STEEL, { topColor: ROOF }),
+      box(10, 86, 89.6, 90.8, 8, 12, T.color),
+      cyl(48, 50, 13, 16, 22, '#d8dde1', 30, 14),
+      cyl(48, 50, 3, 22, 44, '#9aa3ab', 2, 8)];
+    for (let i = 0; i < 3; i++) { const a = i * Math.PI * 2 / 3; out.push(box(48 + Math.cos(a) * 20 - 1, 48 + Math.cos(a) * 20 + 1, 50 + Math.sin(a) * 20 - 1, 50 + Math.sin(a) * 20 + 1, 22, 38, '#6d7680')); }
+    out.push(cyl(48, 50, 4, 44, 48, st ? '#bff4ff' : '#5a6670', 2, 8, { light: !!st }));
+    return out;
+  },
+  super_silo(T, st) {
+    const out = [...foundation(96, 96),
+      box(6, 90, 6, 90, 2, 12, '#5f6458', { topColor: '#4b4f46' }),
+      box(10, 86, 89.6, 90.8, 5, 9, T.color),
+      box(26, 70, 26, 70, 12, 12.4, '#141516')];
+    const o = st ? 14 : 0;
+    out.push(box(26 - o, 48 - o, 26, 70, 12.4, 14.5, '#8f9488'), box(48 + o, 70 + o, 26, 70, 12.4, 14.5, '#8f9488'),
+      box(26 - o, 48 - o, 46, 50, 14.5, 14.8, '#d9ad2b'), box(48 + o, 70 + o, 46, 50, 14.5, 14.8, '#d9ad2b'));
+    if (st) out.push(cyl(48, 48, 5, 12.4, 34, '#e8e8e8', 4, 10), cyl(48, 48, 4, 34, 40, '#d33', 0.5, 10));
+    return out;
+  },
+  turret() {
+    return [cyl(16, 16, 13, 0, 5, '#9a8b60', 12, 12), cyl(16, 16, 8, 0, 7, '#4d545b', 7, 10)];
+  },
+  railturret() {
+    return [box(3, 29, 3, 29, 0, 10, STEEL, { topColor: ROOF }), box(3, 29, 28.6, 29.6, 3, 6, '#d9ad2b')];
+  },
+  sam() {
+    return [box(2, 30, 4, 28, 0, 4, '#3d4247'), box(2, 30, 27.6, 28.6, 1, 3, '#d9ad2b'), cyl(16, 16, 6, 4, 8, '#4d545b', 5, 10)];
   },
 };
 
-// ---------- structures ----------
-const STEEL_A = '#6a737c', STEEL_B = '#30363c';
+// rotating weapons on defensive structures (pivot at the footprint centre)
+const BLD_TURRETS = {
+  turret: { z: 7, parts: T => [box(-5, 4, -4.5, 4.5, 0, 5, tone(T.color, -0.15)), box(4, 16, -2.2, -1.2, 2, 3, GUN), box(4, 17, -0.5, 0.5, 2, 3, GUN), box(4, 16, 1.2, 2.2, 2, 3, GUN)] },
+  railturret: {
+    z: 10, parts: T => {
+      const p = [[-7, -6], [1, -6], [5, -2], [5, 2], [1, 6], [-7, 6]];
+      const out = [prism(p, inset(p, 0.85), 0, 6, tone(T.color, -0.1)), box(4, 24, -2.2, -0.8, 2, 3.5, '#3a3d40'), box(4, 24, 0.8, 2.2, 2, 3.5, '#3a3d40')];
+      for (let i = 0; i < 4; i++) out.push(box(7 + i * 4, 8 + i * 4, -2.6, 2.6, 1.5, 4, '#55e6ff', { light: true }));
+      return out;
+    },
+  },
+  sam: {
+    z: 8, parts: T => {
+      const out = [box(-8, 8, -7, 7, 0, 8, tone(T.color, -0.2))];
+      for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) out.push(box(8, 8.8, -6 + i * 7, -1 + i * 7, 1 + j * 3.5, 3.5 + j * 3.5, '#151617'));
+      out.push(box(-8, 8, -7.2, -6.8, 1, 7, '#e8e8e8'), box(-8, 8, 6.8, 7.2, 1, 7, '#e8e8e8'));
+      return out;
+    },
+  },
+};
 
-function hazard(ctx, x, y, w, h) {
-  ctx.save();
-  ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-  ctx.fillStyle = '#d9ad2b'; ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#1b1b1b';
-  for (let i = -h; i < w; i += 6) { ctx.beginPath(); ctx.moveTo(x + i, y + h); ctx.lineTo(x + i + 3, y + h); ctx.lineTo(x + i + 3 + h, y); ctx.lineTo(x + i + h, y); ctx.fill(); }
-  ctx.restore();
+function buildingState(b, team) {
+  if (b.key === 'super_lance' || b.key === 'super_silo') return team.superReady ? 1 : 0;
+  return 0;
 }
 
-// An oblique block: roof on top, front wall facing the viewer, shadow to the lower right.
-function bBlock(ctx, x, y, w, h, hgt, roofA, roofB, opt = {}) {
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  const sh = hgt * 0.75;
-  ctx.beginPath();
-  ctx.moveTo(x + w, y + 1); ctx.lineTo(x + w + sh, y + sh * 0.55 + 1); ctx.lineTo(x + w + sh, y + h + sh * 0.55);
-  ctx.lineTo(x + sh, y + h + sh * 0.55); ctx.lineTo(x, y + h); ctx.closePath(); ctx.fill();
-  const wy = y + h - hgt;
-  const g = ctx.createLinearGradient(0, wy, 0, y + h);
-  g.addColorStop(0, opt.wall || '#5c656e'); g.addColorStop(1, '#22272b');
-  ctx.fillStyle = g; ctx.fillRect(x, wy, w, hgt);
-  ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 1;
-  for (let i = x + 6; i < x + w - 1; i += 7) { ctx.beginPath(); ctx.moveTo(i + 0.5, wy); ctx.lineTo(i + 0.5, y + h); ctx.stroke(); }
-  const rg = ctx.createLinearGradient(x, y, x + w * 0.7, wy);
-  rg.addColorStop(0, roofA); rg.addColorStop(1, roofB);
-  ctx.fillStyle = rg; ctx.fillRect(x, y, w, h - hgt);
-  if (opt.ribs) {
-    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-    for (let i = x + 4; i < x + w - 1; i += opt.ribs) { ctx.beginPath(); ctx.moveTo(i + 0.5, y + 2); ctx.lineTo(i + 0.5, wy - 1); ctx.stroke(); }
-  }
-  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(x, y, w, 1.5); ctx.fillRect(x, y, 1.5, h - hgt);
-  ctx.strokeStyle = 'rgba(8,10,12,0.75)'; ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-  ctx.beginPath(); ctx.moveTo(x, wy + 0.5); ctx.lineTo(x + w, wy + 0.5); ctx.stroke();
-  return wy;
+function buildingSprite(b, team) {
+  const st = buildingState(b, team);
+  return Art.get(`B|${b.key}|${team.faction}|${team.color}|${st}`, () => {
+    // structures wear a slightly muted team colour so roofs don't overpower the scene
+    const m = BLD_MODELS[b.key](Object.assign({}, team, { color: tone(team.color, -0.18) }), st);
+    const parts = m.parts || m;
+    let prisms = place(parts);
+    if (m.extra) prisms = prisms.concat(m.extra);
+    return bake(prisms);
+  });
 }
 
-function teamRoof(team) { return [tone(team.color, -0.05), tone(team.color, -0.55)]; }
-
-function windows(ctx, x, y, w, n, lit, color = '#ffd27a') {
-  const gap = w / n;
-  for (let i = 0; i < n; i++) {
-    ctx.fillStyle = lit ? color : '#20262b';
-    ctx.fillRect(x + i * gap + gap * 0.2, y, gap * 0.6, 2.2);
-    if (lit) { ctx.fillStyle = rgba(color === '#ffd27a' ? '#ffd27a' : '#9fd8ff', 0.18); ctx.fillRect(x + i * gap, y - 1, gap, 4.2); }
-  }
+function buildingTurretSprite(b, team) {
+  const spec = BLD_TURRETS[b.key];
+  const f = facingIndex(b.turret);
+  return Art.get(`BT|${b.key}|${team.color}|${f}`, () =>
+    bake(place(spec.parts(team), f / FACINGS * Math.PI * 2, b.w * TILE / 2, b.h * TILE / 2, spec.z)));
 }
 
-function cylinder(ctx, cx, by, r, h, a, b, top) {
-  ctx.fillStyle = 'rgba(0,0,0,0.38)';
-  ctx.beginPath(); ctx.ellipse(cx + h * 0.4, by + h * 0.2, r, r * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-  const g = ctx.createLinearGradient(cx - r, 0, cx + r, 0);
-  g.addColorStop(0, b); g.addColorStop(0.35, a); g.addColorStop(1, b);
-  ctx.fillStyle = g; ctx.fillRect(cx - r, by - h, r * 2, h);
-  ctx.beginPath(); ctx.ellipse(cx, by, r, r * 0.45, 0, 0, Math.PI); ctx.fill();
-  ctx.fillStyle = top || a;
-  ctx.beginPath(); ctx.ellipse(cx, by - h, r, r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 0.7; ctx.stroke();
+// ---------- live structure details (lights, flags, dishes) ----------
+function blink(ctx, x, y, on, color) {
+  ctx.fillStyle = on ? color : '#3a1010';
+  ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill();
+  if (on) { ctx.fillStyle = rgba(color, 0.25); ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fill(); }
 }
 
 function flagpole(ctx, x, y, faction, t) {
   ctx.strokeStyle = '#c8ccd0'; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 24); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - 26); ctx.stroke();
   const img = FLAG_IMG[faction];
   if (!img || !img.complete || !img.naturalWidth) return;
-  const W = 13, H = 8.5, n = 5, sw = img.naturalWidth / n;
+  const W = 15, H = 10, n = 5, sw = img.naturalWidth / n;
   for (let i = 0; i < n; i++) {
-    const wave = Math.sin(t * 5 - i * 0.9) * 0.9 * (i / n);
-    ctx.drawImage(img, i * sw, 0, sw, img.naturalHeight, x + i * W / n, y - 24 + wave, W / n + 0.3, H);
-  }
-  ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(x, y - 24, W, H);
-}
-
-function blink(ctx, x, y, on, color) {
-  ctx.fillStyle = on ? color : '#3a1010';
-  ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill();
-  if (on) { ctx.fillStyle = rgba(color, 0.25); ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill(); }
-}
-
-function dish(ctx, cx, cy, r, a) {
-  ctx.save(); ctx.translate(cx, cy);
-  ctx.fillStyle = '#3a4046'; ctx.fillRect(-1.5, 0, 3, r * 0.8);
-  ctx.rotate(0.3); ctx.scale(Math.max(0.15, Math.abs(Math.cos(a))), 1);
-  const g = ctx.createRadialGradient(-r * 0.3, -r * 0.3, 1, 0, 0, r);
-  g.addColorStop(0, '#f2f5f7'); g.addColorStop(1, '#9aa3ab');
-  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, r, r * 0.8, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#59616a'; ctx.lineWidth = 1; ctx.stroke();
-  ctx.fillStyle = '#59616a'; ctx.beginPath(); ctx.arc(0, 0, r * 0.18, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-}
-
-function sandbags(ctx, cx, cy, r) {
-  for (let i = 0; i < 14; i++) {
-    const a = i / 14 * Math.PI * 2;
-    ctx.fillStyle = i % 2 ? '#a8996c' : '#8e8058';
-    ctx.beginPath(); ctx.ellipse(cx + Math.cos(a) * r, cy + Math.sin(a) * r * 0.9, 3.4, 2.4, a, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 0.5; ctx.stroke();
+    const wave = Math.sin(t * 5 - i * 0.9) * 1.1 * (i / n);
+    ctx.drawImage(img, i * sw, 0, sw, img.naturalHeight, x + i * W / n, y - 26 + wave, W / n + 0.3, H);
   }
 }
 
-const BLD_ART = {
-  cc(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const [ra, rb] = teamRoof(team);
-    const wy = bBlock(ctx, X + 4, Y + 22, W - 10, H - 26, hgt, ra, rb, { ribs: 8 });
-    hazard(ctx, X + W / 2 - 16, Y + H - 6, 32, 3);
-    ctx.fillStyle = '#1a1e21'; ctx.fillRect(X + W / 2 - 14, wy + 4, 28, hgt - 6);
-    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(X + W / 2 - 14, wy + 6 + i * 4); ctx.lineTo(X + W / 2 + 14, wy + 6 + i * 4); ctx.stroke(); }
-    windows(ctx, X + 8, wy + 6, 26, 4, !low); windows(ctx, X + W - 38, wy + 6, 26, 4, !low);
-    // helipad on the main roof
-    ctx.fillStyle = '#2e3337'; ctx.beginPath(); ctx.arc(X + 26, Y + 34, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#e6e6e6'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(X + 26, Y + 34, 9.5, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#e6e6e6'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('H', X + 26, Y + 34.5);
-    // command tower
-    const ty = bBlock(ctx, X + W - 38, Y + 4, 28, 40, 22, STEEL_A, STEEL_B);
-    windows(ctx, X + W - 36, ty + 4, 24, 5, !low, '#9fd8ff');
-    windows(ctx, X + W - 36, ty + 10, 24, 5, !low, '#9fd8ff');
-    ctx.fillStyle = '#e9edf0'; ctx.beginPath(); ctx.arc(X + W - 18, Y + 12, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#7c868f'; ctx.stroke();
-    ctx.strokeStyle = '#c9ced2'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(X + W - 30, Y + 10); ctx.lineTo(X + W - 30, Y - 12); ctx.stroke();
-    blink(ctx, X + W - 30, Y - 12, Math.sin(t * 4) > 0, '#ff4040');
-    flagpole(ctx, X + 10, Y + 26, team.faction, t);
+const BLD_LIVE = {
+  cc(ctx, P, b, team, t) {
+    let [x, y] = P(64.7, 10.7, 74); blink(ctx, x, y, Math.sin(t * 4) > 0, '#ff4040');
+    [x, y] = P(28, 58, 25.2);
+    ctx.strokeStyle = 'rgba(230,230,230,0.85)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(x, y, 13, 6.5, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,230,230,0.9)'; ctx.font = 'bold 9px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('H', x, y);
+    [x, y] = P(14, 40, 24); flagpole(ctx, x, y, team.faction, t);
   },
-  power(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const wy = bBlock(ctx, X + 3, Y + 18, W - 6, H - 21, 10, STEEL_A, STEEL_B, { ribs: 6 });
-    windows(ctx, X + 6, wy + 4, W - 12, 5, !low);
-    // fusion dome
-    const cx = X + 23, cy = Y + 24;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(cx + 6, cy + 6, 15, 11, 0, 0, Math.PI * 2); ctx.fill();
-    const g = ctx.createRadialGradient(cx - 5, cy - 6, 2, cx, cy, 15);
-    g.addColorStop(0, '#f2f5f7'); g.addColorStop(1, '#6d777f');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 14, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = team.color; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(cx, cy, 11, 0.2, Math.PI - 0.2); ctx.stroke();
-    const pulse = low ? 0.12 : 0.55 + 0.45 * Math.sin(t * 3 + b.anim);
-    const cg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 8);
-    cg.addColorStop(0, `rgba(200,250,255,${pulse})`); cg.addColorStop(1, `rgba(60,200,255,0)`);
-    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
-    // striped exhaust stack
-    const sx = X + W - 11, sb = Y + H - 14;
-    cylinder(ctx, sx, sb, 5, 34, '#d9dde0', '#7f878e');
-    ctx.save(); ctx.beginPath(); ctx.rect(sx - 5, sb - 34, 10, 34); ctx.clip();
-    ctx.fillStyle = team.color; for (let i = 0; i < 4; i++) ctx.fillRect(sx - 5, sb - 32 + i * 9, 10, 4.5);
+  power(ctx, P, b, team, t, low) {
+    let [x, y] = P(50, 14, 48); blink(ctx, x, y, Math.sin(t * 3) > 0, '#ff4040');
+    [x, y] = P(24, 22, 22.5);
+    const pulse = low ? 0.1 : 0.45 + 0.35 * Math.sin(t * 3 + b.anim);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 12);
+    g.addColorStop(0, `rgba(190,250,255,${pulse})`); g.addColorStop(1, 'rgba(60,200,255,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
+    if (!low && Math.random() < 0.06) { const [wx, wy] = [b.tx * TILE + 50, b.ty * TILE + 14]; G.effects.push({ type: 'smoke', x: wx, y: wy, z: 50, t: 0, life: 1.6, size: 3 }); }
+  },
+  refinery(ctx, P, b, team, t) {
+    let [x, y] = P(33, 94, 3); blink(ctx, x, y, Math.floor(t * 2) % 2 === 0, '#ffcc33');
+    [x, y] = P(63, 94, 3); blink(ctx, x, y, Math.floor(t * 2) % 2 === 1, '#ffcc33');
+  },
+  barracks(ctx, P, b, team, t) { const [x, y] = P(8, 14, 14); flagpole(ctx, x, y, team.faction, t); },
+  radar(ctx, P, b, team, t, low) {
+    const [x, y] = P(32, 32, 38);
+    const a = low ? 0.4 : t * 1.4;
+    ctx.save(); ctx.translate(x, y);
+    const sx = Math.cos(a);
+    ctx.scale(Math.max(0.12, Math.abs(sx)), 1);
+    const g = ctx.createRadialGradient(-4, -4, 1, 0, 0, 14);
+    g.addColorStop(0, '#f5f7f9'); g.addColorStop(1, '#8e98a1');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, 14, 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#59616a'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#59616a'; ctx.beginPath(); ctx.arc(0, 0, 2.4, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
-    blink(ctx, sx, sb - 36, Math.sin(t * 3 + 1) > 0, '#ff4040');
-    if (!low && Math.random() < 0.08 && G && b.team !== undefined) G.effects.push({ type: 'smoke', x: sx, y: sb - 36, t: 0, life: 1.6, size: 3 });
+    const [lx, ly] = P(10, 26, 19); blink(ctx, lx, ly, Math.sin(t * 5) > 0.3, '#40ff70');
   },
-  refinery(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const [ra, rb] = teamRoof(team);
-    const wy = bBlock(ctx, X + 4, Y + 8, W * 0.6, H - 34, hgt, ra, rb, { ribs: 7 });
-    windows(ctx, X + 8, wy + 5, W * 0.6 - 8, 5, !low);
-    for (let i = 0; i < 2; i++) cylinder(ctx, X + W * 0.8, Y + 30 + i * 30, 10, 18, '#c9cfd4', '#636b72', '#9aa2a8');
-    ctx.fillStyle = '#e2ae3c'; for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.ellipse(X + W * 0.8, Y + 12 + i * 30, 6, 2.6, 0, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#3c4247'; ctx.fillRect(X + W * 0.62, Y + 20, W * 0.12, 5);
-    ctx.fillStyle = '#26292c'; ctx.fillRect(X + TILE, Y + H - 20, TILE, 18);
-    hazard(ctx, X + TILE, Y + H - 20, TILE, 3);
-    blink(ctx, X + TILE + 3, Y + H - 4, Math.floor(t * 2) % 2 === 0, '#ffcc33');
-    blink(ctx, X + 2 * TILE - 3, Y + H - 4, Math.floor(t * 2) % 2 === 1, '#ffcc33');
+  airfield(ctx, P, b, team, t, low) {
+    for (let i = 0; i < 8; i++) { const [x, y] = P(8 + i * 11.5, 50, 2); blink(ctx, x, y, !low && Math.floor(t * 6) % 8 === i, '#ffd040'); }
   },
-  barracks(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const [ra, rb] = teamRoof(team);
-    const wy = bBlock(ctx, X + 4, Y + 10, W - 8, H - 18, hgt, ra, rb, { ribs: 5 });
-    windows(ctx, X + 6, wy + 4, W - 12, 4, !low);
-    ctx.fillStyle = '#1a1e21'; ctx.fillRect(X + W / 2 - 6, wy + 3, 12, hgt - 3);
-    for (let i = 0; i < 5; i++) {
-      ctx.fillStyle = i % 2 ? '#a8996c' : '#8e8058';
-      ctx.beginPath(); ctx.ellipse(X + 8 + i * 5, Y + H - 4, 3, 2, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(X + W - 8 - i * 5, Y + H - 4, 3, 2, 0, 0, Math.PI * 2); ctx.fill();
-    }
-    flagpole(ctx, X + 8, Y + 12, team.faction, t);
+  tech(ctx, P, b, team, t, low) {
+    for (let i = 0; i < 3; i++) { const [x, y] = P(12 + i * 6, 58.5, 19); blink(ctx, x, y, !low && Math.floor(t * 3 + i) % 3 === 0, '#60e0ff'); }
+    const [x, y] = P(12.7, 18.7, 36); blink(ctx, x, y, Math.sin(t * 4) > 0, '#ff4040');
   },
-  factory(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const [ra, rb] = teamRoof(team);
-    const wy = bBlock(ctx, X + 3, Y + 6, W - 6, H - 9, hgt, ra, rb, { ribs: 9 });
-    ctx.fillStyle = 'rgba(160,210,240,0.35)';
-    for (let i = 0; i < 4; i++) ctx.fillRect(X + 12 + i * 20, Y + 12, 10, 3);
-    ctx.fillStyle = '#16191b'; ctx.fillRect(X + W / 2 - 24, wy + 2, 48, hgt - 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-    for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(X + W / 2 - 24, wy + 5 + i * 3.5); ctx.lineTo(X + W / 2 + 24, wy + 5 + i * 3.5); ctx.stroke(); }
-    hazard(ctx, X + W / 2 - 24, wy, 48, 3);
-    windows(ctx, X + 6, wy + 5, 16, 2, !low); windows(ctx, X + W - 22, wy + 5, 16, 2, !low);
-    ctx.strokeStyle = '#d9ad2b'; ctx.lineWidth = 3;
-    const ca = Math.sin(t * 0.5 + b.anim) * 0.5;
-    ctx.beginPath(); ctx.moveTo(X + 14, Y + 18); ctx.lineTo(X + 14 + Math.cos(ca) * 36, Y + 18 + Math.sin(ca) * 14); ctx.stroke();
-    ctx.fillStyle = '#2b2f33'; ctx.fillRect(X + 11, Y + 15, 6, 6);
+  super_lance(ctx, P, b, team, t) {
+    const charge = team.superReady ? 1 : Math.min(1, (team.superTimer || 0) / BUILDINGS.super_lance.superweapon.charge);
+    const [x, y] = P(48, 50, 22.5);
+    ctx.strokeStyle = rgba('#5ac8ff', 0.4 + 0.6 * charge); ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(x, y, 26, 13, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * charge); ctx.stroke();
+    if (team.superReady) { const [ex, ey] = P(48, 50, 48); const g = ctx.createRadialGradient(ex, ey, 0, ex, ey, 14); g.addColorStop(0, `rgba(210,245,255,${0.6 + 0.4 * Math.sin(t * 8)})`); g.addColorStop(1, 'rgba(90,200,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ex, ey, 14, 0, Math.PI * 2); ctx.fill(); }
   },
-  radar(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const [ra, rb] = teamRoof(team);
-    const wy = bBlock(ctx, X + 4, Y + 16, W - 8, H - 20, hgt, STEEL_A, STEEL_B);
-    windows(ctx, X + 7, wy + 5, W - 14, 4, !low, '#9fd8ff');
-    ctx.fillStyle = ra; ctx.fillRect(X + 4, Y + 16, W - 8, 4);
-    ctx.strokeStyle = '#8a939b'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(X + W / 2 - 6, Y + 24); ctx.lineTo(X + W / 2, Y + 4); ctx.lineTo(X + W / 2 + 6, Y + 24); ctx.stroke();
-    dish(ctx, X + W / 2, Y + 8, 12, low ? 0 : t * 1.4);
-    blink(ctx, X + 8, Y + 18, Math.sin(t * 5) > 0.3, '#40ff70');
-  },
-  airfield(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    ctx.fillStyle = '#2b2f32'; ctx.fillRect(X + 2, Y + 2, W - 4, H - 4);
-    ctx.fillStyle = '#35393c'; ctx.fillRect(X + 4, Y + 20, W - 8, 24);
-    ctx.fillStyle = '#e8e8e8';
-    for (let i = 0; i < 6; i++) ctx.fillRect(X + 10 + i * 13, Y + 31.5, 7, 1.5);
-    for (let i = 0; i < 4; i++) { ctx.fillRect(X + 6, Y + 22 + i * 5.5, 5, 2); }
-    ctx.fillStyle = team.color; ctx.fillRect(X + 4, Y + 20, W - 8, 1.2); ctx.fillRect(X + 4, Y + 43, W - 8, 1.2);
-    for (let i = 0; i < 8; i++) blink(ctx, X + 8 + i * 11.5, Y + 47, !low && Math.floor(t * 6) % 8 === i, '#ffd040');
-    const wy = bBlock(ctx, X + W - 24, Y + 2, 20, 16, 10, ...teamRoof(team));
-    windows(ctx, X + W - 22, wy + 3, 16, 3, !low, '#9fd8ff');
-    // parked jet silhouette
-    ctx.save(); ctx.translate(X + 26, Y + 32); ctx.fillStyle = 'rgba(150,160,168,0.85)';
-    poly(ctx, [[12, 0], [3, -2], [-1, -9], [-5, -9], [-4, -2], [-9, -3], [-11, -5], [-10, 0], [-11, 5], [-9, 3], [-4, 2], [-5, 9], [-1, 9], [3, 2]]);
-    ctx.fill(); ctx.restore();
-  },
-  tech(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const wy = bBlock(ctx, X + 3, Y + 12, W - 6, H - 16, hgt, '#d9dde0', '#7d868d');
-    windows(ctx, X + 6, wy + 5, W - 12, 5, !low, '#9fd8ff');
-    const cx = X + W / 2, cy = Y + 22;
-    const g = ctx.createRadialGradient(cx - 3, cy - 4, 1, cx, cy, 11);
-    g.addColorStop(0, '#ffffff'); g.addColorStop(0.6, rgba(team.color, 0.9)); g.addColorStop(1, team.dark);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 0.8;
-    ctx.beginPath(); ctx.arc(cx, cy, 10, Math.PI * 1.1, Math.PI * 1.6); ctx.stroke();
-    for (let i = 0; i < 3; i++) blink(ctx, X + 9 + i * 4, Y + 15, !low && Math.floor(t * 3 + i) % 3 === 0, '#60e0ff');
-  },
-  super_lance(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    bBlock(ctx, X + 4, Y + 10, W - 8, H - 14, hgt, STEEL_A, STEEL_B, { ribs: 8 });
-    const tm = b.team !== undefined && G ? G.teams[b.team] : team;
-    const charge = tm.superReady ? 1 : Math.min(1, (tm.superTimer || 0) / BUILDINGS.super_lance.superweapon.charge);
-    const cx = X + W / 2, cy = Y + H / 2 - 8;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(cx + 8, cy + 8, 24, 18, 0, 0, Math.PI * 2); ctx.fill();
-    const g = ctx.createRadialGradient(cx - 6, cy - 8, 2, cx, cy, 24);
-    g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#8c959d');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 23, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#59616a'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.strokeStyle = rgba('#5ac8ff', 0.4 + 0.6 * charge); ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(cx, cy, 18, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * charge); ctx.stroke();
-    for (let i = 0; i < 3; i++) {
-      const a = i * Math.PI * 2 / 3 + 0.4;
-      ctx.strokeStyle = '#6d7680'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * 22, cy + Math.sin(a) * 22); ctx.lineTo(cx, cy); ctx.stroke();
-    }
-    ctx.fillStyle = tm.superReady ? `rgba(200,240,255,${0.6 + 0.4 * Math.sin(t * 8)})` : '#4a5560';
-    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = team.color; ctx.fillRect(X + 4, Y + H - 4 - hgt - 4, W - 8, 3);
-  },
-  super_silo(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    bBlock(ctx, X + 4, Y + 8, W - 8, H - 12, hgt, '#5f6458', '#2f322b');
-    const tm = b.team !== undefined && G ? G.teams[b.team] : team;
-    const charge = tm.superReady ? 1 : Math.min(1, (tm.superTimer || 0) / BUILDINGS.super_silo.superweapon.charge);
-    const cx = X + W / 2, cy = Y + H / 2 - 6;
-    ctx.fillStyle = '#16171a'; ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI * 2); ctx.fill();
-    const open = tm.superReady ? 9 : 0;
-    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI * 2); ctx.clip();
-    const dg = ctx.createLinearGradient(cx - 20, 0, cx + 20, 0);
-    dg.addColorStop(0, '#8f9488'); dg.addColorStop(1, '#4b4f46');
-    ctx.fillStyle = dg; ctx.fillRect(cx - 20, cy - 20, 20 - open, 40); ctx.fillRect(cx + open, cy - 20, 20 - open, 40);
-    hazard(ctx, cx - 20, cy - 2, 20 - open, 4); hazard(ctx, cx + open, cy - 2, 20 - open, 4);
-    if (tm.superReady) { ctx.fillStyle = `rgba(255,80,40,${0.5 + 0.5 * Math.sin(t * 8)})`; ctx.fillRect(cx - open, cy - 20, open * 2, 40); }
-    ctx.restore();
-    ctx.strokeStyle = '#2a2c28'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#111'; ctx.fillRect(X + 10, Y + H - 12, W - 20, 4);
-    ctx.fillStyle = team.color; ctx.fillRect(X + 10, Y + H - 12, (W - 20) * charge, 4);
-  },
-  turret(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const cx = X + W / 2, cy = Y + H / 2 + 1;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(cx + 3, cy + 4, 13, 0, Math.PI * 2); ctx.fill();
-    sandbags(ctx, cx, cy, 11);
-    const g = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 9);
-    g.addColorStop(0, '#8a9198'); g.addColorStop(1, '#3a4046');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 8, 0, Math.PI * 2); ctx.fill();
-    ctx.save(); ctx.translate(cx, cy - 2); ctx.rotate(b.turret);
-    for (const y of [-1.6, 0, 1.6]) barrel(ctx, 3, 15, 1.1, y);
-    metalFill(ctx, () => poly(ctx, [[-5, -5], [3, -5], [5, -2], [5, 2], [3, 5], [-5, 5]]), tone(team.color, 0.15), team.dark, 6, 6);
-    ctx.restore();
-  },
-  railturret(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const cx = X + W / 2, cy = Y + H / 2;
-    bBlock(ctx, X + 3, Y + 6, W - 6, H - 8, 6, STEEL_A, STEEL_B);
-    ctx.save(); ctx.translate(cx, cy - 4); ctx.rotate(b.turret);
-    for (const y of [-1.3, 1.3]) barrel(ctx, 2, 22, 1.2, y);
-    ctx.fillStyle = low ? '#334' : '#6ef'; for (let i = 0; i < 4; i++) ctx.fillRect(6 + i * 4, -2.2, 1, 4.4);
-    metalFill(ctx, () => poly(ctx, [[-7, -6], [1, -6], [5, -2], [5, 2], [1, 6], [-7, 6]]), tone(team.color, 0.1), team.dark, 8, 7);
-    ctx.restore();
-  },
-  sam(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const cx = X + W / 2, cy = Y + H / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(cx - 10, cy - 7, 24, 20);
-    ctx.fillStyle = '#3d4247'; ctx.fillRect(cx - 12, cy - 10, 24, 20);
-    hazard(ctx, cx - 12, cy + 8, 24, 2);
-    ctx.save(); ctx.translate(cx, cy - 2); ctx.rotate(b.turret);
-    metalFill(ctx, () => poly(ctx, [[-8, -8], [8, -8], [8, 8], [-8, 8]]), tone(team.color, -0.1), team.dark, 9, 9);
-    ctx.fillStyle = '#1a1c1e';
-    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { ctx.beginPath(); ctx.arc(6, -4 + i * 8 + (j ? 0 : 0), 2.4, 0, Math.PI * 2); ctx.fill(); }
-    ctx.fillStyle = '#e8e8e8'; ctx.fillRect(-6, -6, 10, 3.5); ctx.fillRect(-6, 2.5, 10, 3.5);
-    ctx.fillStyle = '#d33'; ctx.fillRect(3, -6, 1.5, 3.5); ctx.fillRect(3, 2.5, 1.5, 3.5);
-    ctx.restore();
+  super_silo(ctx, P, b, team, t) {
+    const charge = team.superReady ? 1 : Math.min(1, (team.superTimer || 0) / BUILDINGS.super_silo.superweapon.charge);
+    const [x0, y0] = P(10, 91, 4), [x1, y1] = P(86, 91, 4);
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    ctx.strokeStyle = team.color; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + (x1 - x0) * charge, y0 + (y1 - y0) * charge); ctx.stroke();
+    if (team.superReady) { const [x, y] = P(48, 48, 40); blink(ctx, x, y, Math.sin(t * 8) > 0, '#ff3020'); }
   },
 };
 
+// ---------- scenery ----------
+function rockSprite(theme, v) {
+  return Art.get(`R|${theme.rock}|${!!theme.snow}|${v}`, () => {
+    const r = makeRng(v * 977 + 13);
+    const col = `rgb(${theme.rock.join(',')})`;
+    const parts = [];
+    const n = 2 + (v % 3);
+    for (let k = 0; k < n; k++) {
+      const cx = (r() - 0.5) * 16, cy = (r() - 0.5) * 16, rad = 5 + r() * 7, h = 5 + r() * 12;
+      const sides = 6 + ((r() * 3) | 0), rot = r() * 6;
+      const pts = Array.from({ length: sides }, (_, i) => { const a = rot + i / sides * Math.PI * 2, rr = rad * (0.75 + r() * 0.3); return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; });
+      parts.push(prism(pts, inset(pts, 0.45 + r() * 0.25, (r() - 0.5) * 3, (r() - 0.5) * 3), 0, h, col, theme.snow ? { topColor: '#eef3f8' } : {}));
+    }
+    return bake(place(parts));
+  });
+}
+
+function treeSprite(theme, v) {
+  return Art.get(`T|${theme.decor}|${theme.leaf.join()}|${!!theme.snow}|${v}`, () => {
+    const r = makeRng(v * 131 + 7);
+    const s = 0.8 + r() * 0.5;
+    const c = document.createElement('canvas');
+    const W = 52, H = 72, S = 2;
+    c.width = W * S; c.height = H * S;
+    const ctx = c.getContext('2d'); ctx.scale(S, S);
+    const ox = W / 2, oy = H - 8;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(ox + 8 * s, oy + 2, 14 * s, 5 * s, 0, 0, Math.PI * 2); ctx.fill();
+    const [hi, lo] = theme.leaf;
+    if (theme.decor === 'pine') {
+      ctx.fillStyle = '#4a3422'; ctx.fillRect(ox - 1.5, oy - 10 * s, 3, 10 * s);
+      for (let k = 0; k < 4; k++) {
+        const w = (13 - k * 2.8) * s, y = oy - (6 + k * 9) * s, h = 15 * s;
+        ctx.fillStyle = lo;
+        ctx.beginPath(); ctx.moveTo(ox, y - h); ctx.lineTo(ox + w, y); ctx.lineTo(ox - w, y); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = hi;
+        ctx.beginPath(); ctx.moveTo(ox, y - h); ctx.lineTo(ox, y); ctx.lineTo(ox - w, y); ctx.closePath(); ctx.fill();
+        if (theme.snow) { ctx.fillStyle = 'rgba(240,246,252,0.85)'; ctx.beginPath(); ctx.moveTo(ox, y - h); ctx.lineTo(ox + w * 0.45, y - h * 0.45); ctx.lineTo(ox - w * 0.5, y - h * 0.4); ctx.closePath(); ctx.fill(); }
+      }
+    } else if (theme.decor === 'shrub') {
+      ctx.strokeStyle = lo; ctx.lineWidth = 1.3;
+      for (let k = 0; k < 7; k++) { const a = -Math.PI * (0.1 + k / 7 * 0.8); ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.cos(a) * 9 * s, oy + Math.sin(a) * 9 * s); ctx.stroke(); }
+      ctx.fillStyle = hi; ctx.beginPath(); ctx.arc(ox, oy - 4 * s, 3.5 * s, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#4a3422'; ctx.fillRect(ox - 1.8, oy - 14 * s, 3.6, 14 * s);
+      const lobes = [[0, -26], [-8, -20], [8, -20], [-4, -32], [5, -31], [0, -18]];
+      for (const [lx, ly] of lobes) {
+        const x = ox + lx * s, y = oy + ly * s, rr = (8 + r() * 3) * s;
+        const g = ctx.createRadialGradient(x - rr * 0.4, y - rr * 0.4, 1, x, y, rr);
+        g.addColorStop(0, hi); g.addColorStop(1, lo);
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    return { c, ox, oy, w: W, h: H };
+  });
+}
+
 // ---------- sidebar cameos ----------
 // Units and structures shown in the style mock use its artwork; everything else gets a
-// procedural cameo rendered in the same dark style.
+// rendered cameo in the same dark style.
 const CAMEO_ART = { tank: 1, ifv: 1, heli: 1, jet: 1, rifle: 1, sam: 1, cc: 1, barracks: 1, factory: 1, power: 1, radar: 1, airfield: 1 };
 function cameoUrl(key, faction) { return CAMEO_ART[key] ? `assets/cameos/${faction}/${key}.webp` : null; }
 
@@ -689,28 +674,36 @@ function drawIcon(key, team, w, h) {
   const g = ctx.createRadialGradient(w / 2, h * 0.45, 4, w / 2, h / 2, w * 0.7);
   g.addColorStop(0, '#22344a'); g.addColorStop(1, '#0a131f');
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  const savedG = G;
-  try {
-    G = null;
-    if (BUILDINGS[key]) {
-      const def = BUILDINGS[key];
-      const s = Math.min((w - 8) / (def.w * TILE), (h - 10) / (def.h * TILE + 18));
-      ctx.translate(w / 2 - def.w * TILE * s / 2, h / 2 - def.h * TILE * s / 2 + 6 * s);
-      ctx.scale(s, s);
-      const fake = { key, def, tx: 0, ty: 0, w: def.w, h: def.h, x: def.w * TILE / 2, y: def.h * TILE / 2, hp: 1, maxHp: 1, built: 1, turret: -0.6, anim: 0 };
-      const fakeTeam = Object.assign({ superTimer: 200, superReady: false, lowPower: false }, team);
-      ctx.fillStyle = '#3a3e42'; ctx.fillRect(1, 1, def.w * TILE - 2, def.h * TILE - 2);
-      BLD_ART[key](ctx, fake, 0, 0, def.w * TILE, def.h * TILE, def.height, fakeTeam, false, 0.5);
-    } else {
-      const def = UNITS[key];
-      const s = Math.min(2.6, (h - 8) / (def.radius * 2.8));
-      ctx.translate(w / 2, h / 2 + 2);
-      ctx.scale(s, s);
-      const fake = { key, def, facing: -0.55, turret: -0.55, anim: 0.3, moving: false, cargo: def.capacity ? def.capacity * 0.6 : 0, alt: 0, air: !!def.air };
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.beginPath(); ctx.ellipse(2, 3, def.radius, def.radius * 0.75, 0, 0, Math.PI * 2); ctx.fill();
-      UNIT_LIVE[key](ctx, fake, team);
+  const fakeTeam = Object.assign({ superTimer: 200, superReady: false, lowPower: false }, team);
+  let s;
+  if (BUILDINGS[key]) {
+    const def = BUILDINGS[key];
+    s = buildingSprite({ key, w: def.w, h: def.h }, fakeTeam);
+    if (BLD_TURRETS[key]) {
+      const t = buildingTurretSprite({ key, w: def.w, h: def.h, turret: 0.6 }, fakeTeam);
+      const both = document.createElement('canvas');
+      both.width = s.c.width; both.height = s.c.height;
+      const bc = both.getContext('2d');
+      bc.drawImage(s.c, 0, 0);
+      bc.drawImage(t.c, (s.ox - t.ox) * 2, (s.oy - t.oy) * 2);
+      s = { c: both, ox: s.ox, oy: s.oy, w: s.w, h: s.h };
     }
-  } finally { G = savedG; }
+  } else {
+    const fake = { key, def: UNITS[key], facing: 0.6, turret: 0.4, anim: 0, moving: false, cargo: UNITS[key].capacity ? UNITS[key].capacity * 0.7 : 0 };
+    s = unitSprite(fake, fakeTeam, 'hull');
+    if (UNIT_MODELS[key] && UNIT_MODELS[key].turret) {
+      const t = unitSprite(fake, fakeTeam, 'turret');
+      const both = document.createElement('canvas');
+      const x0 = Math.min(-s.ox, -t.ox), y0 = Math.min(-s.oy, -t.oy);
+      const x1 = Math.max(s.w - s.ox, t.w - t.ox), y1 = Math.max(s.h - s.oy, t.h - t.oy);
+      both.width = (x1 - x0) * 2; both.height = (y1 - y0) * 2;
+      const bc = both.getContext('2d'); bc.scale(2, 2);
+      bc.drawImage(s.c, -s.ox - x0, -s.oy - y0, s.w, s.h);
+      bc.drawImage(t.c, -t.ox - x0, -t.oy - y0, t.w, t.h);
+      s = { c: both, ox: -x0, oy: -y0, w: x1 - x0, h: y1 - y0 };
+    }
+  }
+  const k = Math.min((w - 8) / s.w, (h - 8) / s.h, 2.2);
+  ctx.drawImage(s.c, (w - s.w * k) / 2, (h - s.h * k) / 2 + 2, s.w * k, s.h * k);
   return c;
 }

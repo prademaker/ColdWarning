@@ -56,8 +56,8 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/map.js` | Seeded terrain and ore generation, A* pathfinding |
 | `js/game.js` | Simulation: units, combat, harvesting, production, power, fog |
 | `js/ai.js` | Computer opponent |
-| `js/art.js` | Procedural artwork for structures and units, sidebar cameos |
-| `js/render.js` | Draw loop: terrain, entities, effects, fog, overlays |
+| `js/art.js` | 3D prism models for units, structures and scenery; sprite caches; sidebar cameos |
+| `js/render.js` | Isometric draw loop: terrain chunks, depth-sorted sprites, effects, fog, overlays |
 | `js/flags.js` | Faction flags as SVG |
 | `js/ui.js` | Input, camera, sidebar, minimap |
 | `js/audio.js` | Synthesized sound and announcer voice |
@@ -75,4 +75,7 @@ the logo and menu banners are cut from it by `tools/extract_assets.py` (needs Pi
 python3 tools/extract_assets.py
 ```
 
-Units, structures and terrain in the battlefield itself are drawn procedurally in code.
+The battlefield uses a Red Alert 2 style isometric view. Units, structures, trees and rocks are small
+3D models built from shaded prisms in `js/art.js` (camouflage, team colours, lit windows), rendered
+in 32 facings and cached as sprites. The game logic still runs on a square tile grid; only the view
+is projected.

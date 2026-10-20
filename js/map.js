@@ -234,10 +234,10 @@ class GameMap {
     const H = (x, y) => hill(x / LW * 9, y / LW * 9) * 0.7 + hill(x / LW * 23 + 7, y / LW * 23 + 3) * 0.3;
     const sm = t => t < 0.2 ? 0 : t > 0.8 ? 1 : (t - 0.2) / 0.6 * ((t - 0.2) / 0.6) * (3 - 2 * (t - 0.2) / 0.6);
     const warp = makeNoise(rng, 64);
-    const hard = t => t === T_WATER || t === T_ROCK;
+    const hard = t => t === T_ROCK;
     for (let py = 0; py < LW; py++) {
       for (let px = 0; px < LW; px++) {
-        // warp land/land boundaries so they look organic; water and cliffs stay exact
+        // warp terrain boundaries so shores and patches look organic; cliffs stay exact
         let fx = px / S - 0.5, fy = py / S - 0.5;
         const wx = fx + (warp(px / LW * 40, py / LW * 40) - 0.5) * 1.1, wy = fy + (warp(px / LW * 40 + 17, py / LW * 40 + 9) - 0.5) * 1.1;
         const cx0 = Math.max(0, Math.min(N - 2, Math.floor(wx))), cy0 = Math.max(0, Math.min(N - 2, Math.floor(wy)));
@@ -313,41 +313,18 @@ class GameMap {
           const wx = X + rng() * TILE, wy = Y + rng() * TILE;
           ctx.beginPath(); ctx.moveTo(wx, wy); ctx.quadraticCurveTo(wx + 5, wy - 2, wx + 10, wy); ctx.stroke();
         }
-        // shore foam
-        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const nx = x + dx, ny = y + dy;
-          if (!this.inside(nx, ny) || this.terrain[this.idx(nx, ny)] === T_WATER) continue;
-          const g = ctx.createLinearGradient(X + (dx === 1 ? TILE : 0), Y + (dy === 1 ? TILE : 0), X + (dx === 1 ? TILE - 8 : dx === -1 ? 8 : 0), Y + (dy === 1 ? TILE - 8 : dy === -1 ? 8 : 0));
-          g.addColorStop(0, 'rgba(220,240,245,0.35)'); g.addColorStop(1, 'rgba(220,240,245,0)');
-          ctx.fillStyle = g;
-          if (dx) ctx.fillRect(X + (dx === 1 ? TILE - 8 : 0), Y, 8, TILE); else ctx.fillRect(X, Y + (dy === 1 ? TILE - 8 : 0), TILE, 8);
-        }
       }
     }
-    // cliffs and boulders
-    const rc = th.rock;
-    const rockHi = `rgb(${rc[0] + 60},${rc[1] + 58},${rc[2] + 54})`, rockLo = `rgb(${rc[0] - 40},${rc[1] - 40},${rc[2] - 38})`;
+    // boulders and trees are upright 3D props drawn by the renderer; only bushes are painted flat
+    this.props = [];
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       if (this.terrain[this.idx(x, y)] !== T_ROCK) continue;
-      for (let k = 0; k < 3; k++) {
-        const bx = x * TILE + 6 + rng() * 20, by = y * TILE + 6 + rng() * 20, r = 6 + rng() * 8;
-        ctx.fillStyle = 'rgba(0,0,0,0.35)';
-        ctx.beginPath(); ctx.ellipse(bx + 4, by + 5, r, r * 0.8, 0, 0, Math.PI * 2); ctx.fill();
-        const g = ctx.createRadialGradient(bx - r * 0.35, by - r * 0.45, 1, bx, by, r);
-        g.addColorStop(0, rockHi); g.addColorStop(1, rockLo);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        const sides = 6 + ((rng() * 3) | 0), rot = rng() * 6;
-        for (let s2 = 0; s2 < sides; s2++) {
-          const a = rot + s2 / sides * Math.PI * 2, rr = r * (0.75 + rng() * 0.3);
-          ctx.lineTo(bx + Math.cos(a) * rr, by + Math.sin(a) * rr * 0.8);
-        }
-        ctx.closePath(); ctx.fill();
-        if (th.snow) { ctx.fillStyle = 'rgba(240,246,252,0.85)'; ctx.beginPath(); ctx.ellipse(bx - r * 0.2, by - r * 0.35, r * 0.55, r * 0.3, 0, 0, Math.PI * 2); ctx.fill(); }
-      }
+      this.props.push({ kind: 'rock', x: (x + 0.3 + rng() * 0.4) * TILE, y: (y + 0.3 + rng() * 0.4) * TILE, v: (rng() * 8) | 0 });
     }
-    // vegetation
-    for (const dc of this.decor) this.drawDecor(ctx, dc, th, rng);
+    for (const dc of this.decor) {
+      if (dc.kind === 'bush') this.drawDecor(ctx, dc, th, rng);
+      else this.props.push({ kind: 'tree', x: dc.x * TILE, y: dc.y * TILE, v: (rng() * 6) | 0 });
+    }
     this.terrainCanvas = cv;
 
     // minimap terrain

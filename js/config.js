@@ -153,59 +153,59 @@ const UNITS = {
 
 const BUILDINGS = {
   cc: {
-    name: 'Command Center', cat: 'building', w: 3, h: 3, hp: 2500, cost: 3000, time: 30, power: 20, sight: 8, height: 26,
+    name: 'Command Center', cat: 'building', w: 3, h: 3, hp: 2500, cost: 3000, time: 30, power: 20, sight: 8, height: 54,
     desc: 'Constructs all base structures.', buildable: false, produces: 'structure',
   },
   power: {
-    name: 'Power Plant', cat: 'building', w: 2, h: 2, hp: 800, cost: 600, time: 6, power: 150, sight: 5, height: 18, req: [], key: 'Q',
+    name: 'Power Plant', cat: 'building', w: 2, h: 2, hp: 800, cost: 600, time: 6, power: 150, sight: 5, height: 46, req: [], key: 'Q',
     desc: 'Fusion reactor providing 150 power. Keep your grid supplied!',
   },
   refinery: {
-    name: 'Ore Refinery', cat: 'building', w: 3, h: 3, hp: 1200, cost: 2000, time: 12, power: -50, sight: 6, height: 20, req: ['power'], key: 'W',
+    name: 'Ore Refinery', cat: 'building', w: 3, h: 3, hp: 1200, cost: 2000, time: 12, power: -50, sight: 6, height: 30, req: ['power'], key: 'W',
     desc: 'Processes ore into credits. Comes with a free Harvester.',
   },
   barracks: {
-    name: 'Barracks', cat: 'building', w: 2, h: 2, hp: 900, cost: 500, time: 6, power: -20, sight: 5, height: 14, req: ['power'], key: 'E', produces: 'infantry',
+    name: 'Barracks', cat: 'building', w: 2, h: 2, hp: 900, cost: 500, time: 6, power: -20, sight: 5, height: 24, req: ['power'], key: 'E', produces: 'infantry',
     desc: 'Trains infantry.',
   },
   factory: {
-    name: 'War Factory', cat: 'building', w: 3, h: 3, hp: 1500, cost: 2000, time: 14, power: -40, sight: 6, height: 24, req: ['refinery', 'barracks'], key: 'R', produces: 'vehicle',
+    name: 'War Factory', cat: 'building', w: 3, h: 3, hp: 1500, cost: 2000, time: 14, power: -40, sight: 6, height: 44, req: ['refinery', 'barracks'], key: 'R', produces: 'vehicle',
     desc: 'Builds vehicles.',
   },
   radar: {
-    name: 'Radar Station', cat: 'building', w: 2, h: 2, hp: 1000, cost: 1000, time: 8, power: -60, sight: 10, height: 18, req: ['factory'], key: 'T',
+    name: 'Radar Station', cat: 'building', w: 2, h: 2, hp: 1000, cost: 1000, time: 8, power: -60, sight: 10, height: 34, req: ['factory'], key: 'T',
     desc: 'Enables the tactical minimap. Unlocks advanced tech.',
   },
   airfield: {
-    name: 'Airfield', cat: 'building', w: 3, h: 2, hp: 900, cost: 1000, time: 8, power: -40, sight: 6, height: 10, req: ['radar'], key: 'Y', produces: 'air',
+    name: 'Airfield', cat: 'building', w: 3, h: 2, hp: 900, cost: 1000, time: 8, power: -40, sight: 6, height: 30, req: ['radar'], key: 'Y', produces: 'air',
     desc: 'Builds helicopters and fighter jets.',
   },
   tech: {
-    name: 'Tech Lab', cat: 'building', w: 2, h: 2, hp: 1200, cost: 1800, time: 14, power: -100, sight: 6, height: 22, req: ['radar'], key: 'U',
+    name: 'Tech Lab', cat: 'building', w: 2, h: 2, hp: 1200, cost: 1800, time: 14, power: -100, sight: 6, height: 33, req: ['radar'], key: 'U',
     desc: 'Unlocks faction super-units and the superweapon.',
   },
   super_lance: {
-    name: 'Orbital Lance', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 22, req: ['tech'], pkg: 'tech', key: 'I',
+    name: 'Orbital Lance', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 46, req: ['tech'], pkg: 'tech', key: 'I',
     superweapon: { charge: 300, damage: 1400, radius: 3.5, kind: 'lance' },
     desc: 'Satellite uplink. Calls down an orbital laser strike every 5 minutes.',
   },
   super_silo: {
-    name: 'Hypersonic Silo', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 16, req: ['tech'], pkg: 'heavy', key: 'I',
+    name: 'Hypersonic Silo', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 36, req: ['tech'], pkg: 'heavy', key: 'I',
     superweapon: { charge: 300, damage: 1600, radius: 4, kind: 'missile' },
     desc: 'Launches a hypersonic warhead every 5 minutes.',
   },
   turret: {
-    name: 'Gatling Turret', cat: 'defense', w: 1, h: 1, hp: 700, cost: 500, time: 5, power: 0, sight: 7, height: 10, req: ['barracks'], key: 'Q',
+    name: 'Gatling Turret', cat: 'defense', w: 1, h: 1, hp: 700, cost: 500, time: 5, power: 0, sight: 7, height: 12, req: ['barracks'], key: 'Q',
     weapon: { warhead: 'bullet', damage: 13, range: 6, cooldown: 0.22, proj: 'tracer', ground: true, air: true },
     desc: 'Rapid-fire anti-infantry defense. Needs no power.',
   },
   railturret: {
-    name: 'Rail Turret', cat: 'defense', w: 1, h: 1, hp: 1000, cost: 1000, time: 9, power: -50, sight: 8, height: 12, req: ['factory'], key: 'W', needsPower: true,
+    name: 'Rail Turret', cat: 'defense', w: 1, h: 1, hp: 1000, cost: 1000, time: 9, power: -50, sight: 8, height: 16, req: ['factory'], key: 'W', needsPower: true,
     weapon: { warhead: 'rail', damage: 110, range: 7.5, cooldown: 2.2, proj: 'rail', ground: true, air: false },
     desc: 'Anti-armor railgun emplacement. Requires power.',
   },
   sam: {
-    name: 'SAM Site', cat: 'defense', w: 1, h: 1, hp: 650, cost: 750, time: 7, power: -30, sight: 9, height: 10, req: ['radar'], key: 'E', needsPower: true,
+    name: 'SAM Site', cat: 'defense', w: 1, h: 1, hp: 650, cost: 750, time: 7, power: -30, sight: 9, height: 16, req: ['radar'], key: 'E', needsPower: true,
     weapon: { warhead: 'flak', damage: 55, range: 9, cooldown: 1.1, proj: 'rocket', speed: 14, ground: false, air: true, burst: 2 },
     desc: 'Surface-to-air missiles. Requires power.',
   },

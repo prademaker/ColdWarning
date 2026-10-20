@@ -30,8 +30,8 @@ const UI = {
     G.on('eva', msg => { Sfx.say(msg); this.flashMessages(); });
     G.on('sound', (name, x, y) => {
       if (x !== undefined) {
-        const m = 100;
-        if (x < this.cam.x - m || y < this.cam.y - m || x > this.cam.x + this.canvas.width + m || y > this.cam.y + this.canvas.height + m) return;
+        const m = 100, [sx, sy] = this.toScreen(x, y);
+        if (sx < -m || sy < -m || sx > this.canvas.width + m || sy > this.canvas.height + m) return;
       }
       Sfx.play(name);
     });
@@ -44,39 +44,52 @@ const UI = {
     this.clampCam();
   },
 
+  // The camera lives in isometric screen space: world (x, y) shows at (x - y, (x + y) / 2).
   centerOn(x, y) {
-    this.cam.x = x - this.canvas.width / 2;
-    this.cam.y = y - this.canvas.height / 2;
+    this.cam.x = (x - y) - this.canvas.width / 2;
+    this.cam.y = (x + y) / 2 - this.canvas.height / 2;
     this.clampCam();
   },
 
   clampCam() {
     if (!G) return;
-    const W = G.map.w * TILE, H = G.map.h * TILE;
-    this.cam.x = Math.max(-40, Math.min(W - this.canvas.width + 40, this.cam.x));
-    this.cam.y = Math.max(-40, Math.min(H - this.canvas.height + 40, this.cam.y));
+    const W = G.map.w * TILE, m = 120;
+    this.cam.x = Math.max(-W - m, Math.min(W - this.canvas.width + m, this.cam.x));
+    this.cam.y = Math.max(-m, Math.min(W - this.canvas.height + m, this.cam.y));
   },
 
-  toWorld(sx, sy) { return { x: sx + this.cam.x, y: sy + this.cam.y }; },
+  // screen -> ground point in the world, and back
+  toWorld(sx, sy) {
+    const X = sx + this.cam.x, Y = sy + this.cam.y;
+    return { x: Y + X / 2, y: Y - X / 2 };
+  },
+  toScreen(x, y, z = 0) { return [x - y - this.cam.x, (x + y) / 2 - z - this.cam.y]; },
 
-  // ---------- picking ----------
+  // ---------- picking (done in screen space so tall sprites can be clicked) ----------
   entityAt(wx, wy) {
+    const [mx, my] = this.toScreen(wx, wy);
     let best = null, bd = 1e9;
     for (const e of G.entities) {
       if (e.dead || e.kind !== 'unit') continue;
       if (!G.isVisibleTo(e, G.player)) continue;
-      const d = Math.hypot(e.x - wx, e.y - (e.alt || 0) - wy);
-      if (d < e.def.radius + 5 && d < bd) { bd = d; best = e; }
+      const [sx, sy] = this.toScreen(e.x, e.y, (e.alt || 0) + (e.def.cat === 'infantry' ? 7 : 8));
+      const d = Math.hypot(sx - mx, sy - my);
+      if (d < e.def.radius * 1.2 + 5 && d < bd) { bd = d; best = e; }
     }
     if (best) return best;
-    const tx = Math.floor(wx / TILE), ty = Math.floor(wy / TILE);
-    if (!G.map.inside(tx, ty)) return null;
-    const id = G.map.bld[G.map.idx(tx, ty)];
-    if (id >= 0) {
+    // walk up the building heights: the frontmost structure under the cursor wins
+    let hit = null, hd = -1e9;
+    for (let z = 0; z <= 70; z += 4) {
+      const w = this.toWorld(mx, my + z);
+      const tx = Math.floor(w.x / TILE), ty = Math.floor(w.y / TILE);
+      if (!G.map.inside(tx, ty)) continue;
+      const id = G.map.bld[G.map.idx(tx, ty)];
+      if (id < 0) continue;
       const b = G.byId.get(id);
-      if (b && !b.dead && G.isVisibleTo(b, G.player)) return b;
+      if (!b || b.dead || !G.isVisibleTo(b, G.player) || z > b.def.height + 22) continue;
+      if (b.x + b.y > hd) { hd = b.x + b.y; hit = b; }
     }
-    return null;
+    return hit;
   },
 
   ownSelected() { return this.selection.filter(e => !e.dead && e.team === G.player); },
@@ -157,7 +170,7 @@ const UI = {
       this.cam.y = this.pan.cy - (e.clientY - this.pan.y);
       this.clampCam();
     }
-    if (this.drag) { const w = this.toWorld(this.mouse.x, this.mouse.y); this.drag.x1 = w.x; this.drag.y1 = w.y; }
+    if (this.drag) { this.drag.x1 = this.mouse.x; this.drag.y1 = this.mouse.y; }
   },
 
   onDown(e) {
@@ -194,7 +207,7 @@ const UI = {
       this.mode = null; this.updateCursor();
       return;
     }
-    this.drag = { x0: w.x, y0: w.y, x1: w.x, y1: w.y, shift: e.shiftKey, ent };
+    this.drag = { x0: this.mouse.x, y0: this.mouse.y, x1: this.mouse.x, y1: this.mouse.y, shift: e.shiftKey, ent };
   },
 
   onUp(e) {
@@ -220,8 +233,11 @@ const UI = {
       return;
     }
     const x0 = Math.min(d.x0, d.x1), x1 = Math.max(d.x0, d.x1), y0 = Math.min(d.y0, d.y1), y1 = Math.max(d.y0, d.y1);
-    const list = G.entities.filter(e => e.kind === 'unit' && !e.dead && e.team === G.player &&
-      e.x >= x0 && e.x <= x1 && e.y - (e.alt || 0) >= y0 && e.y - (e.alt || 0) <= y1);
+    const list = G.entities.filter(e => {
+      if (e.kind !== 'unit' || e.dead || e.team !== G.player) return false;
+      const [sx, sy] = this.toScreen(e.x, e.y, (e.alt || 0) + 6);
+      return sx >= x0 && sx <= x1 && sy >= y0 && sy <= y1;
+    });
     // prefer combat units when the box catches harvesters too
     const combat = list.filter(u => !u.def.harvester);
     this.select(combat.length ? combat : list, d.shift);
@@ -240,9 +256,12 @@ const UI = {
       }
       return;
     }
-    const cx = this.cam.x, cy = this.cam.y, W = this.canvas.width, H = this.canvas.height;
-    const list = G.entities.filter(o => o.kind === 'unit' && !o.dead && o.team === G.player && o.key === ent.key &&
-      o.x >= cx && o.x <= cx + W && o.y >= cy && o.y <= cy + H);
+    const W = this.canvas.width, H = this.canvas.height;
+    const list = G.entities.filter(o => {
+      if (o.kind !== 'unit' || o.dead || o.team !== G.player || o.key !== ent.key) return false;
+      const [sx, sy] = this.toScreen(o.x, o.y);
+      return sx >= 0 && sx <= W && sy >= 0 && sy <= H;
+    });
     this.select(list, e.shiftKey);
   },
 
@@ -363,7 +382,7 @@ const UI = {
     if (dx || dy) { this.cam.x += dx; this.cam.y += dy; this.clampCam(); }
     this.mouseWorld = this.toWorld(this.mouse.x, this.mouse.y);
     this.hover = this.mouse.inside ? this.entityAt(this.mouseWorld.x, this.mouseWorld.y) : null;
-    if (this.drag) { this.drag.x1 = this.mouseWorld.x; this.drag.y1 = this.mouseWorld.y; }
+    if (this.drag) { this.drag.x1 = this.mouse.x; this.drag.y1 = this.mouse.y; }
     if (this.placing) {
       const def = BUILDINGS[this.placing.key];
       this.placing.tx = Math.floor(this.mouseWorld.x / TILE - def.w / 2 + 0.5);
@@ -419,7 +438,13 @@ const UI = {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(Render.fogCanvas, 0, 0, W, H);
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-    ctx.strokeRect(this.cam.x / TILE * sx + 0.5, this.cam.y / TILE * sy + 0.5, this.canvas.width / TILE * sx, this.canvas.height / TILE * sy);
+    // the view is a rotated rectangle on the square map
+    ctx.beginPath();
+    for (const [px, py] of [[0, 0], [this.canvas.width, 0], [this.canvas.width, this.canvas.height], [0, this.canvas.height]]) {
+      const w = this.toWorld(px, py);
+      ctx.lineTo(w.x / TILE * sx, w.y / TILE * sy);
+    }
+    ctx.closePath(); ctx.stroke();
     if (G.alertPos && G.time - G.alertPos.t < 4) {
       const r = 6 + ((G.time - G.alertPos.t) * 10) % 10;
       ctx.strokeStyle = '#f33'; ctx.beginPath(); ctx.arc(G.alertPos.x / TILE * sx, G.alertPos.y / TILE * sy, r, 0, Math.PI * 2); ctx.stroke();

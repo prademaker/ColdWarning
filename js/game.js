@@ -222,6 +222,16 @@ function categoryOf(key) {
   return UNITS[key].cat;
 }
 
+// visual heights (for drawing shots in the 3D view)
+function aimZ(e) {
+  if (e.kind === 'building') return e.def.height * 0.6;
+  return (e.alt || 0) + (e.def.cat === 'infantry' ? 8 : e.air ? 4 : 10);
+}
+function muzzleZ(e) {
+  if (e.kind === 'building') return e.def.cat === 'defense' ? 12 : e.def.height * 0.6;
+  return (e.alt || 0) + (e.def.cat === 'infantry' ? 8 : e.air ? 3 : 14);
+}
+
 function armorOf(e) { return e.kind === 'building' ? 'building' : e.def.armor; }
 
 // distance in pixels from point to entity (edge for buildings)
@@ -511,7 +521,7 @@ class Game {
       if (e.def.cat === 'infantry') {
         this.effects.push({ type: 'corpse', x: e.x, y: e.y, t: 0, life: 6, color: t.color });
       } else {
-        this.explosion(e.x, e.y - e.alt, e.def.radius * 2.2, true);
+        this.explosion(e.x, e.y, e.def.radius * 2.2, true, 0, e.alt);
         if (!e.air) this.decal(e.x, e.y, e.def.radius * 1.6);
         else this.effects.push({ type: 'falling', x: e.x, y: e.y, alt: e.alt, t: 0, life: 0.6 });
       }
@@ -520,12 +530,12 @@ class Game {
     }
   }
 
-  explosion(x, y, size, big, delay = 0) {
-    this.effects.push({ type: 'explosion', x, y, size, t: -delay, life: 0.7 + size / 120 });
+  explosion(x, y, size, big, delay = 0, z = 0) {
+    this.effects.push({ type: 'explosion', x, y, z, size, t: -delay, life: 0.7 + size / 120 });
     const n = big ? 10 : 4;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = (0.4 + Math.random()) * size * 1.6;
-      this.effects.push({ type: 'debris', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, z: 0, vz: 40 + Math.random() * 80, t: -delay, life: 0.9 });
+      this.effects.push({ type: 'debris', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, z, vz: 40 + Math.random() * 80, t: -delay, life: 0.9 });
     }
     if (delay === 0) this.sound(big ? 'boom' : 'pop', x, y);
     if (big && size > 60) this.shake = Math.min(12, this.shake + size / 25);
@@ -844,7 +854,7 @@ class Game {
       }
       if (d <= range && d >= minR) {
         u.path = null;
-        const a = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
+        const a = Math.atan2(t.y - u.y, t.x - u.x);
         const hasTurret = u.def.cat === 'vehicle';
         if (hasTurret) u.turret = turnToward(u.turret, a, 8 * dt); else u.facing = a;
         if (u.air) { u.facing = turnToward(u.facing, a, 5 * dt); this.hover(u, dt); }
@@ -907,7 +917,7 @@ class Game {
       const t = u.target;
       gx = t.x; gy = t.y;
       const w = this.weaponFor(u, t);
-      const a = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
+      const a = Math.atan2(t.y - u.y, t.x - u.x);
       const d = distTo(u.x, u.y, t);
       const isW2 = w === u.def.weapon2;
       if (d < w.range * TILE && Math.abs(angDiff(u.facing, a)) < 0.4 && (isW2 ? u.cool2 : u.cool) <= 0) {
@@ -1051,7 +1061,7 @@ class Game {
           u.mineT = 0.25;
           const take = Math.min(m.ore[i], 28, cap - u.cargo);
           m.ore[i] -= take; u.cargo += take;
-          if (take > 0) this.effects.push({ type: 'spark', x: u.x + Math.cos(u.facing) * 12, y: u.y + Math.sin(u.facing) * 12, t: 0, life: 0.3, color: m.oreType[i] === GEM ? '#7ff' : '#fc4' });
+          if (take > 0) this.effects.push({ type: 'spark', x: u.x + Math.cos(u.facing) * 14, y: u.y + Math.sin(u.facing) * 14, z: 4, t: 0, life: 0.3, color: m.oreType[i] === GEM ? '#7ff' : '#fc4' });
         }
         if (u.cargo >= cap - 0.5) { u.hstate = 'toRef'; u.path = null; }
         else if (m.ore[i] <= 1) {
@@ -1150,7 +1160,7 @@ class Game {
     b.scanT -= dt;
     if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, w.range); }
     if (b.target) {
-      const a = Math.atan2(b.target.y - (b.target.alt || 0) - b.y, b.target.x - b.x);
+      const a = Math.atan2(b.target.y - b.y, b.target.x - b.x);
       b.turret = turnToward(b.turret, a, 6 * dt);
       if (Math.abs(angDiff(b.turret, a)) < 0.12 && b.cool <= 0) {
         this.fire(b, w, b.target);
@@ -1166,14 +1176,14 @@ class Game {
     s.recoil = 1;
     const ang = s.def.cat === 'vehicle' || s.kind === 'building' ? s.turret : s.facing;
     const len = s.kind === 'building' ? 12 : (s.def.radius || 6) + 2;
-    const sx = s.x + Math.cos(ang) * len, sy = s.y - (s.alt || 0) - (s.kind === 'building' ? s.def.height * 0.5 : 0) + Math.sin(ang) * len;
-    const tx = t.x, ty = t.y - (t.alt || 0);
+    const sx = s.x + Math.cos(ang) * len, sy = s.y + Math.sin(ang) * len, sz = muzzleZ(s);
+    const tx = t.x, ty = t.y, tz = aimZ(t);
     const vis = s.team === this.player || this.isVisibleTile(Math.floor(s.x / TILE), Math.floor(s.y / TILE));
     switch (w.proj) {
       case 'tracer': {
         const jx = (Math.random() - 0.5) * 8, jy = (Math.random() - 0.5) * 8;
-        this.effects.push({ type: 'tracer', x: sx, y: sy, x2: tx + jx, y2: ty + jy, t: 0, life: 0.08 });
-        this.effects.push({ type: 'flash', x: sx, y: sy, t: 0, life: 0.06, size: 5 });
+        this.effects.push({ type: 'tracer', x: sx, y: sy, z: sz, x2: tx + jx, y2: ty + jy, z2: tz, t: 0, life: 0.08 });
+        this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.06, size: 5 });
         this.damage(t, dmg, w.warhead, s);
         if (vis) this.sound(w.warhead === 'flak' ? 'flak' : 'gun', sx, sy);
         break;
@@ -1182,7 +1192,7 @@ class Game {
         const a = Math.atan2(ty - sy, tx - sx);
         const L = w.range * TILE + 16;
         const ex = sx + Math.cos(a) * L, ey = sy + Math.sin(a) * L;
-        this.effects.push({ type: 'rail', x: sx, y: sy, x2: w.pierce ? ex : tx, y2: w.pierce ? ey : ty, t: 0, life: 0.45 });
+        this.effects.push({ type: 'rail', x: sx, y: sy, z: sz, x2: w.pierce ? ex : tx, y2: w.pierce ? ey : ty, z2: tz, t: 0, life: 0.45 });
         if (w.pierce) {
           const hit = this.unitsNear((sx + ex) / 2, (sy + ey) / 2, L / 2 + 20);
           for (const o of hit) {
@@ -1194,23 +1204,23 @@ class Game {
           }
           if (t.kind === 'building') this.damage(t, dmg, w.warhead, s);
         } else this.damage(t, dmg, w.warhead, s);
-        this.effects.push({ type: 'flash', x: tx, y: ty, t: 0, life: 0.15, size: 10, color: '#8ff' });
+        this.effects.push({ type: 'flash', x: tx, y: ty, z: tz, t: 0, life: 0.15, size: 10, color: '#8ff' });
         if (vis) this.sound('rail', sx, sy);
         break;
       }
       case 'shell': case 'rocket': case 'arty': {
         const p = {
-          type: w.proj, x: sx, y: sy, sx, sy, target: t, tx, ty, team: s.team, src: s,
+          type: w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: s,
           dmg, warhead: w.warhead, splash: w.splash || 0, speed: (w.speed || 12) * TILE, t: 0,
           ang: Math.atan2(ty - sy, tx - sx),
         };
         if (w.proj === 'arty') {
           p.tx += (Math.random() - 0.5) * TILE * 1.5; p.ty += (Math.random() - 0.5) * TILE * 1.5;
           p.dur = Math.hypot(p.tx - sx, p.ty - sy) / p.speed + 0.4;
-          p.target = null;
+          p.target = null; p.tz = 0;
         }
         this.projectiles.push(p);
-        this.effects.push({ type: 'flash', x: sx, y: sy, t: 0, life: 0.08, size: w.proj === 'shell' ? 9 : 6 });
+        this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.08, size: w.proj === 'shell' ? 9 : 6 });
         if (vis) this.sound(w.proj === 'shell' ? 'cannon' : 'rocket', sx, sy);
         break;
       }
@@ -1224,19 +1234,20 @@ class Game {
       if (p.type === 'arty') {
         const k = Math.min(1, p.t / p.dur);
         p.x = p.sx + (p.tx - p.sx) * k; p.y = p.sy + (p.ty - p.sy) * k;
-        p.z = Math.sin(k * Math.PI) * Math.min(160, p.dur * 90);
-        if (Math.random() < 0.5) this.effects.push({ type: 'smoke', x: p.x, y: p.y - p.z, t: 0, life: 0.6, size: 3 });
+        p.z = p.sz * (1 - k) + Math.sin(k * Math.PI) * Math.min(160, p.dur * 90);
+        if (Math.random() < 0.5) this.effects.push({ type: 'smoke', x: p.x, y: p.y, z: p.z, t: 0, life: 0.6, size: 3 });
         if (k >= 1) { this.impact(p); continue; }
         keep.push(p); continue;
       }
-      if (p.target && !p.target.dead) { p.tx = p.target.x; p.ty = p.target.y - (p.target.alt || 0); }
+      if (p.target && !p.target.dead) { p.tx = p.target.x; p.ty = p.target.y; p.tz = aimZ(p.target); }
       const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
       const desired = Math.atan2(dy, dx);
       p.ang = p.type === 'rocket' ? turnToward(p.ang, desired, 9 * dt) : desired;
       const sp = p.speed * dt;
       if (d <= sp + 4 || p.t > 4) { this.impact(p); continue; }
       p.x += Math.cos(p.ang) * sp; p.y += Math.sin(p.ang) * sp;
-      if (p.type === 'rocket' && Math.random() < 0.7) this.effects.push({ type: 'smoke', x: p.x, y: p.y, t: 0, life: 0.5, size: 2.5 });
+      p.z = p.tz + (p.sz - p.tz) * Math.min(1, Math.max(0, d / p.d0));
+      if (p.type === 'rocket' && Math.random() < 0.7) this.effects.push({ type: 'smoke', x: p.x, y: p.y, z: p.z, t: 0, life: 0.5, size: 2.5 });
       keep.push(p);
     }
     this.projectiles = keep;
@@ -1258,9 +1269,9 @@ class Game {
       this.decal(p.tx, p.ty, 10);
     } else if (p.target && !p.target.dead) {
       this.damage(p.target, p.dmg, p.warhead, p.src);
-      this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, size: p.type === 'shell' ? 12 : 10, t: 0, life: 0.4 });
+      this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, z: p.tz, size: p.type === 'shell' ? 12 : 10, t: 0, life: 0.4 });
     } else {
-      this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, size: 8, t: 0, life: 0.35 });
+      this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, z: p.tz || 0, size: 8, t: 0, life: 0.35 });
     }
   }
 
@@ -1310,7 +1321,7 @@ class Game {
         f.x += f.vx * dt; f.y += f.vy * dt; f.vz -= 250 * dt; f.z = Math.max(0, (f.z || 0) + f.vz * dt);
         f.vx *= 0.96; f.vy *= 0.96;
       }
-      if (f.type === 'smoke') f.y -= 10 * dt;
+      if (f.type === 'smoke') f.z = (f.z || 0) + 14 * dt;
       if (f.type === 'falling') f.alt = Math.max(0, f.alt - 60 * dt);
     }
     this.effects = this.effects.filter(f => f.t < f.life);
