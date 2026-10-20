@@ -3,12 +3,14 @@
 'use strict';
 
 class WaveDirector {
-  constructor(team, difficulty) {
+  // cfg lets a campaign mission override the defense-mode pacing: { total, first, interval }
+  constructor(team, difficulty, cfg = {}) {
     this.team = team;
     this.mult = (DIFFICULTY[difficulty] || DIFFICULTY.normal).income;
-    this.total = DEFENSE.waves;
+    this.total = cfg.total || DEFENSE.waves;
+    this.interval = cfg.interval || DEFENSE.interval;
     this.wave = 0;                 // waves launched so far
-    this.next = DEFENSE.firstWave; // game time of the next wave
+    this.next = cfg.first || DEFENSE.firstWave; // game time of the next wave
     this.paid = 0;                 // last wave whose clearing bounty was paid
     this.warned = 0;
     this.thinkT = 0;
@@ -58,7 +60,7 @@ class WaveDirector {
   launch() {
     const n = ++this.wave;
     const t = this.team;
-    this.next = G.time + DEFENSE.interval;
+    this.next = G.time + this.interval;
     let budget = (1000 + n * 650 + n * n * 35) * this.mult;
     const keys = [];
     // every fifth wave is led by super tanks
@@ -92,6 +94,7 @@ class WaveDirector {
       if (tgt && g.length) G.commandMove(g, Math.floor(tgt.x / TILE), Math.floor(tgt.y / TILE), true, true);
     });
     G.eva(n === this.total ? 'Final wave incoming' : 'Wave ' + n + ' incoming', G.player);
+    if (G.mission) G.mission.onWave(n, groups.flat(), entries.slice(0, nE));
   }
 
   // the player's nearest structure (or unit, once the base is gone)

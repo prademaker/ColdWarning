@@ -20,14 +20,20 @@
     <div class="m-map"></div>
   </header>
   <main class="menu-inner">
-    <h3>Choose your faction</h3>
-    <div id="factions"></div>
+    <div id="faction-box">
+      <h3>Choose your faction</h3>
+      <div id="factions"></div>
+    </div>
     <div class="m-row">
       <section class="m-box"><h3>Mode</h3><div id="mode" class="opts"></div></section>
       <section class="m-box" id="lineup-box"><h3>Players</h3><div id="lineup" class="opts"></div></section>
-      <section class="m-box"><h3>Map size</h3><div id="mapsize" class="opts"></div></section>
+      <section class="m-box" id="mapsize-box"><h3>Map size</h3><div id="mapsize" class="opts"></div></section>
     </div>
-    <div class="m-row">
+    <section id="campaign" class="m-box" hidden>
+      <div class="c-head"><h3>Operation Northwind</h3><span class="c-sub">Campaign · West vs a revived Soviet Union · 2030</span></div>
+      <div class="c-body"><div id="c-missions"></div><div id="c-brief"></div></div>
+    </section>
+    <div class="m-row" id="skirmish-row">
       <section class="m-box">
         <h3 id="enemy-title">Opponent</h3>
         <div id="enemy" class="opts"></div>
@@ -40,7 +46,7 @@
     <div class="m-row">
       <section class="m-box"><h3>Difficulty</h3><div id="difficulty" class="opts"></div></section>
       <section class="m-box"><h3>Game speed</h3><div id="speed" class="opts"></div></section>
-      <section class="m-box"><h3>Map seed</h3><div class="opts"><input id="seed" type="number"><button id="reroll" class="opt" title="Random seed">⟳</button></div></section>
+      <section class="m-box" id="seed-box"><h3>Map seed</h3><div class="opts"><input id="seed" type="number"><button id="reroll" class="opt" title="Random seed">⟳</button></div></section>
       <section class="m-box"><h3>Audio</h3><div id="audio" class="sliders"></div></section>
       <button id="start">DEPLOY</button>
     </div>
@@ -59,6 +65,7 @@
         <li><b>Garrisons:</b> right-click a civilian building or your own Battle Bunker with infantry to move in; they fire out of it. Select the building and press <kbd>D</kbd> to empty it. Flame weapons burn occupants out.</li>
         <li><b>Dig in:</b> select riflemen and press <kbd>D</kbd> to dig in behind sandbags (tougher, longer range, can't move). Any move order gets them up again.</li>
         <li><b>Players:</b> fight up to three computer players, alone or with a computer ally. Allies share vision. The opponent you pick leads the enemy side; the others get random factions.</li>
+        <li><b>Campaign:</b> Operation Northwind, four missions with a story and objectives. Commando <b>Raven</b> joins you: enemies can't spot her from a distance until she opens fire, she drops infantry at long range, and right-clicking an enemy structure with her plants C4. Lose her and the mission fails. <kbd>Space</kbd> jumps to the latest alert or reinforcement.</li>
         <li><b>Defense mode:</b> no enemy base. Waves march on you from the other corners of the map, with super tanks every fifth wave. Survive them all to win. Clearing a wave pays a bounty, and <i>Send now</i> calls the next wave early for extra credits.</li>
       </ul>
     </details>
@@ -71,6 +78,8 @@
   <canvas id="view"></canvas>
   <div id="messages"></div>
   <div id="enemy-super" hidden></div>
+  <div id="objectives" hidden></div>
+  <div id="radio" hidden></div>
   <div id="wave-info" hidden><span id="wave-text"></span><button id="wave-call" title="Call the next wave now for bonus credits">Send now</button></div>
   <div id="sidebar">
     <div id="sb-head">
@@ -111,6 +120,7 @@
 <script src="js/game.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/waves.js"></script>
+<script src="js/campaign.js"></script>
 <script src="js/art.js"></script>
 <script src="js/render.js"></script>
 <script src="js/audio.js"></script>

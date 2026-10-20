@@ -45,6 +45,16 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   send a few troopers into cover when they fight next to one.
 - Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
+- Campaign, *Operation Northwind*: four missions with briefings, radio chatter, objectives and a mission select screen
+  (each mission unlocks when you win the one before; add `?unlock` to the URL to open them all, or `?mission=<id>` to jump straight in).
+  The West takes on General Volkov's revived Soviet Union:
+  1. **Thin Ice** (Arctic): Raven alone with a few Marines sneaks into a listening post, blows up its radar and runs for extraction.
+  2. **Holdfast** (Temperate): as the EU, deploy, garrison the village and hold out against 8 waves. Raven arrives as reinforcement; the last wave brings a Kirov.
+  3. **Countdown** (Steppe): a Russian base guards a Hypersonic Silo on a launch clock. Destroy it, steal it with an Engineer, or cut their power to stall the clock.
+  4. **Red Storm** (Arctic, large): with an EU ally against Volkov's base and the Russian Expeditionary Force, Kirov vanguard included.
+- Campaign hero, Commando **Raven**: enemies can't pick her out from more than 3 tiles away unless she fired in the last few seconds, her rifle drops a
+  soldier with each shot at long range, she heals when out of combat, and right-clicking an enemy structure with her plants a C4 charge that destroys it
+  (and anyone garrisoned inside). Tanks can't crush her. When her survival is an objective, losing her loses the mission.
 - Procedurally generated maps (seeded) in three sizes.
 - Audio is all synthesized in the browser, with no sound files:
   - Layered weapon and explosion effects, panned to where they happen on screen, with reverb and theater wind ambience.
@@ -79,6 +89,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/game.js` | Simulation: units, combat, harvesting, production, power, fog |
 | `js/ai.js` | Computer opponent |
 | `js/waves.js` | Defense mode waves |
+| `js/campaign.js` | Campaign missions (data plus a small script each) and the mission runtime: objectives, radio, markers, timers |
 | `js/art.js` | 3D prism models for units, structures and scenery; sprite caches; sidebar cameos |
 | `js/render.js` | Isometric draw loop: terrain chunks, depth-sorted sprites, effects, fog, overlays |
 | `js/flags.js` | Faction flags as SVG |

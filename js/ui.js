@@ -433,7 +433,7 @@ const UI = {
     this.updateMessages();
   },
 
-  radarOn() { const t = G.playerTeam; return t.countOf('radar') > 0 && !t.lowPower; },
+  radarOn() { const t = G.playerTeam; return (G.mission && G.mission.def.radar) || (t.countOf('radar') > 0 && !t.lowPower); },
 
   drawMinimap() {
     const c = this.minimap, ctx = this.mctx, W = c.width, H = c.height;
@@ -474,6 +474,11 @@ const UI = {
       ctx.lineTo(w.x / TILE * sx, w.y / TILE * sy);
     }
     ctx.closePath(); ctx.stroke();
+    if (G.mission) {
+      ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2;
+      for (const mk of G.mission.markers) { ctx.beginPath(); ctx.arc(mk.x / TILE * sx, mk.y / TILE * sy, 5, 0, Math.PI * 2); ctx.stroke(); }
+      ctx.lineWidth = 1;
+    }
     if (G.alertPos && G.time - G.alertPos.t < 4) {
       const r = 6 + ((G.time - G.alertPos.t) * 10) % 10;
       ctx.strokeStyle = '#f33'; ctx.beginPath(); ctx.arc(G.alertPos.x / TILE * sx, G.alertPos.y / TILE * sy, r, 0, Math.PI * 2); ctx.stroke();
@@ -650,7 +655,7 @@ const UI = {
     const ebox = document.getElementById('enemy-super');
     const foe = G.teams.find(o => G.hostile(o.id, G.player) && o.countOf(o.superKey()) > 0 &&
       G.entities.some(e => e.team === o.id && e.key === o.superKey() && e.seen));
-    if (foe) {
+    if (foe && !(G.mission && G.mission.clock)) {
       const sw = BUILDINGS[foe.superKey()].superweapon;
       const left = Math.max(0, sw.charge - foe.superTimer);
       ebox.hidden = false;
@@ -667,9 +672,36 @@ const UI = {
       if (el.textContent !== txt) el.textContent = txt;
       document.getElementById('wave-call').hidden = left === null;
     }
+    this.updateMission(ebox.hidden && wbox.hidden ? 12 : 52);
     document.getElementById('btn-sell').classList.toggle('on', this.mode === 'sell');
     document.getElementById('btn-repair').classList.toggle('on', this.mode === 'repair');
     this.updateSelInfo();
+  },
+
+  // campaign: objectives (and the mission clock) top-left, radio transmissions bottom-left
+  updateMission(top) {
+    const M = G.mission, box = document.getElementById('objectives'), radio = document.getElementById('radio');
+    box.hidden = !M; radio.hidden = !M || !M.current;
+    if (!M) return;
+    box.style.top = top + 'px';
+    const mark = { active: '◇', done: '✓', failed: '✗' };
+    let html = '<div class="ob-head">Objectives</div>';
+    if (M.clock) {
+      const left = Math.max(0, M.clock.end - G.time);
+      html += `<div class="ob-clock${left < 60 ? ' urgent' : ''}">${M.clock.label} ${Main.clock(left)}${M.clock.paused ? ' <small>STALLED: NO POWER</small>' : ''}</div>`;
+    }
+    for (const o of M.objectives) html += `<div class="ob ${o.state}${o.optional ? ' bonus' : ''}">${mark[o.state]} ${o.text}${o.optional ? ' <i>bonus</i>' : ''}</div>`;
+    if (html !== this.obHtml) { box.innerHTML = html; this.obHtml = html; }
+    if (M.current) {
+      const c = M.current, who = CAST[c.who] || { name: c.who, role: '', color: '#ddd' };
+      const key = c.t + c.who;
+      if (this.radioKey !== key) {
+        this.radioKey = key;
+        radio.style.setProperty('--who', who.color);
+        radio.innerHTML = `<div class="rd-who">${who.name}<span>${who.role}</span></div><div class="rd-text">${c.text}</div>`;
+        radio.classList.remove('in'); void radio.offsetWidth; radio.classList.add('in');
+      }
+    }
   },
 
   updateSelInfo() {
@@ -685,6 +717,7 @@ const UI = {
         if (e.def.harvester) extra += `Cargo: ${Math.round(e.cargo)}/${e.def.capacity}`;
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';
         else if (e.def.engineer) extra += 'Right-click enemy structure to capture';
+        else if (e.def.demo) extra += `${G.stealthRange(e) < 1e9 ? 'Hidden' : 'Spotted'} · Kills: ${e.kills} · Right-click a structure for C4`;
         else extra += `Kills: ${e.kills}`;
         if (e.def.dig && e.team === G.player) extra += e.dug ? ' · Dug in, D to get up' : ' · D to dig in';
       } else if (e.def.garrison) {

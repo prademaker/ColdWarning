@@ -391,6 +391,7 @@ function infantryParts(key, T, C, frame) {
   if (key === 'engineer') out.push(box(-1, 2.5, 2.6, 4.2, 3, 5.5, '#c9a43a'));
   if (key === 'sniper') out.push(box(0, 11, 1.5, 2.3, 7.5, 8.4, '#1b1c1a'));
   if (key === 'shock') out.push(box(-4.5, -3.2, -2, 2, 5, 10, '#d6ac2c'), box(0, 7, 1.5, 2.3, 6, 7, '#3a3c38'));
+  if (key === 'commando') out.push(box(0, 9, 1.5, 2.3, 7, 8, '#1b1c1a'), box(-1.2, 1.4, -1.6, 1.4, 11.6, 12.6, T.color));
   return out;
 }
 
@@ -418,7 +419,7 @@ const SPRITE_FOR = {
   tank: 'tank_vox', ifv: 'ifv_vox', mlrs: 'mlrs_vox', railtank: 'railtank_vox', titan: 'titan_vox',
   harvester: 'harvester_vox', mcv: 'mcv_vox', heli: 'heli_vox', jet: 'jet_vox',
   rifle: 'rifle_vox', rocket: 'rocket_vox', engineer: 'engineer_vox',
-  sniper: 'sniper_vox', shock: 'shock_vox', flak: 'flak_vox', tos: 'tos_vox', iskander: 'iskander_vox', drone: 'drone_vox', kirov: 'kirov_vox',
+  sniper: 'sniper_vox', shock: 'shock_vox', commando: 'commando_vox', flak: 'flak_vox', tos: 'tos_vox', iskander: 'iskander_vox', drone: 'drone_vox', kirov: 'kirov_vox',
 };
 if (typeof location !== 'undefined') {
   const q = new URLSearchParams(location.search);

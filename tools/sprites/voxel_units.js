@@ -213,9 +213,18 @@ function soldier(kind, frame) {
     for (const y of [Y - 2, Y + 2]) { g.box(0, 0, y, y, 5, 11, C.hazard); g.set(0, y, 12, C.steelDark); }                            // fuel tanks either side of the pack
     g.box(4, 8, Y + 2, Y + 2, 7, 7, C.steelDark); g.set(9, Y + 2, 7, C.flame);                                                       // flame lance
   }
+  if (kind === 'commando') {
+    // campaign hero: dark fatigues, team-coloured beret instead of a helmet, suppressed rifle, C4 on the chest
+    for (const [, e] of g.v) if (e[2] >= 6 && e[2] <= 10 && e[3] !== TEAM) e[3] = e[2] === 8 ? C.steel : C.steelDark;
+    g.clear(1, 4, Y - 1, Y + 1, 12, 13);
+    g.box(2, 3, Y - 1, Y + 1, 12, 12, C.rubber);                                                                                   // hair
+    g.box(1, 4, Y - 2, Y + 1, 13, 13, TEAM); g.set(4, Y - 1, 12, TEAM);                                                            // beret
+    g.box(5, 5, Y - 1, Y + 1, 7, 8, C.hazard);                                                                                     // C4 blocks
+    g.box(4, 12, Y + 2, Y + 2, 8, 8, C.gunDark); g.box(10, 12, Y + 2, Y + 2, 8, 8, C.rubber); g.set(6, Y + 2, 9, C.steelDark);     // suppressed rifle + sight
+  }
   return g;
 }
-for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
+for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
 
 // ======== bloc and nation specials ========
 

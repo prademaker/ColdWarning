@@ -687,5 +687,44 @@ const SPRITE_META = {
     },
     "style": "voxel",
     "camo": true
+  },
+  "commando_vox_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "commando_vox_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "commando_vox_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
   }
 };
