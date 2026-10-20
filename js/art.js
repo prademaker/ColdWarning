@@ -722,6 +722,55 @@ const BLD_LIVE = {
 };
 
 // ---------- scenery ----------
+// Ore deposits: one sprite per tile, anchored at the tile centre. level 1-4 grows with the amount
+// left. Ore is clumps of host rock with gold-ochre mineral faces and loose gravel; lithium is a
+// cluster or two of hexagonal crystals growing out of a rocky base.
+function oreSprite(gem, level, v) {
+  return Art.get(`O|${gem}|${level}|${v}`, () => {
+    const r = makeRng(v * 7919 + level * 131 + (gem ? 3 : 1));
+    const parts = [];
+    const around = (cx, cy, spread) => [cx + (r() - 0.5) * spread, cy + (r() - 0.5) * spread * 0.9];
+    if (gem) {
+      const clusters = level <= 2 ? 1 : 2;
+      for (let c = 0; c < clusters; c++) {
+        const [cx, cy] = around(0, 0, 26);
+        parts.push(cyl(cx, cy, 3 + level * 0.4, 0, 1.2, '#4b5658', 2.4, 7, { topColor: '#5d6a6c' }));
+        const k = 2 + ((r() * (level + 1)) | 0);
+        for (let i = 0; i < k; i++) {
+          const [ox, oy] = around(cx, cy, 5);
+          const rad = 0.8 + r() * 0.8 + level * 0.15, h = 3 + r() * 3 + level * 1.2;
+          const tint = ['#3fb6cc', '#56c9dc', '#2f9fbb', '#6ad3e2'][(r() * 4) | 0];
+          parts.push(cyl(ox, oy, rad, 0.6, h, tint, rad * 0.8, 6, { topColor: '#c9f7ff' }));
+          parts.push(cyl(ox, oy, rad * 0.8, h, h + rad * 1.5, '#a6eef7', 0.1, 6, { light: true }));
+        }
+      }
+    } else {
+      // thin tiles are sometimes just gravel, which breaks up the tile grid
+      const clumps = level <= 1 && v === 3 ? 0 : 1 + (level >= 3 ? 1 : 0);
+      for (let c = 0; c < clumps; c++) {
+        const [cx, cy] = around(0, 0, 26);
+        const n = 2 + level;
+        for (let i = 0; i < n; i++) {
+          const [lx, ly] = around(cx, cy, 9);
+          const rad = 1.4 + r() * 1.4 + level * 0.35, h = 0.8 + r() * 1.2 + level * 0.35;
+          const sides = 5 + ((r() * 3) | 0), rot = r() * 6;
+          const pts = Array.from({ length: sides }, (_, q) => { const a = rot + q / sides * Math.PI * 2, rr = rad * (0.65 + r() * 0.4); return [lx + Math.cos(a) * rr, ly + Math.sin(a) * rr * 0.85]; });
+          const rich = r() < 0.55;
+          parts.push(prism(pts, inset(pts, 0.45 + r() * 0.25, (r() - 0.5) * 0.8, (r() - 0.5) * 0.8), 0, h,
+            rich ? ['#9a7430', '#a57c32', '#8c6a2c'][(r() * 3) | 0] : ['#6f604a', '#7b6a50', '#655744'][(r() * 3) | 0],
+            { topColor: rich ? ['#d9a83c', '#e3b64a'][(r() * 2) | 0] : '#958360' }));
+          if (rich && r() < 0.4) parts.push(cyl(lx, ly - rad * 0.2, 0.5, h, h + 0.4, '#fff0b0', 0.2, 5, { light: true }));
+        }
+      }
+      for (let i = 0; i < 3 + level * 2; i++) {           // loose gravel
+        const [gx, gy] = around(0, 0, 30);
+        parts.push(cyl(gx, gy, 0.6 + r() * 0.5, 0, 0.5, r() < 0.5 ? '#b08436' : '#7b6a50', 0.3, 5));
+      }
+    }
+    return bake(place(parts));
+  });
+}
+
 function rockSprite(theme, v) {
   return Art.get(`R|${theme.rock}|${!!theme.snow}|${v}`, () => {
     const r = makeRng(v * 977 + 13);

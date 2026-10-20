@@ -106,6 +106,7 @@ const Render = {
     for (const f of G.effects) if (f.type === 'corpse') this.drawCorpse(ctx, f);
     this.drawGroundOverlays(ctx, ui);
     ctx.restore();
+    this.drawOreDeposits(ctx, tx0, ty0, tx1, ty1, t);
 
     // ---- upright pass, sorted by depth ----
     const list = [], air = [];
@@ -167,31 +168,42 @@ const Render = {
     ctx.drawImage(this.grade.c, 0, 0);
   },
 
+  // soil stains under ore fields (ground pass, world coordinates)
   drawOre(ctx, tx0, ty0, tx1, ty1) {
     const m = G.map;
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
       const i = m.idx(tx, ty);
-      const amt = m.ore[i];
-      if (amt < 5 || !G.explored[i]) continue;
-      const gem = m.oreType[i] === GEM;
-      const n = Math.max(1, Math.min(5, Math.ceil(amt / (gem ? 180 : 110))));
-      let seed = i * 9301 + 49297;
-      const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-      ctx.fillStyle = gem ? 'rgba(40,120,140,0.2)' : 'rgba(150,110,30,0.2)';
-      ctx.fillRect(tx * TILE, ty * TILE, TILE, TILE);
-      for (let k = 0; k < n; k++) {
-        const x = tx * TILE + 5 + rnd() * 22, y = ty * TILE + 6 + rnd() * 20;
-        const s = 3 + rnd() * 3 + Math.min(3, amt / 300);
-        if (gem) {
-          ctx.fillStyle = '#1b6b80';
-          ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s * 0.7, y); ctx.lineTo(x, y + s * 0.6); ctx.lineTo(x - s * 0.7, y); ctx.closePath(); ctx.fill();
-          ctx.fillStyle = '#7ff3ff';
-          ctx.beginPath(); ctx.moveTo(x - s, y - s); ctx.lineTo(x + s * 0.7, y); ctx.lineTo(x - s * 0.1, y - s * 0.1); ctx.closePath(); ctx.fill();
-        } else {
-          ctx.fillStyle = '#7a5a18';
-          ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#e6b23a';
-          ctx.beginPath(); ctx.arc(x - s * 0.35, y - s * 0.35, s * 0.6, 0, Math.PI * 2); ctx.fill();
+      if (m.ore[i] < 5 || !G.explored[i]) continue;
+      const gem = m.oreType[i] === GEM, x = tx * TILE + TILE / 2, y = ty * TILE + TILE / 2;
+      const g = ctx.createRadialGradient(x, y, 2, x, y, TILE * 0.85);
+      const a = 0.18 + Math.min(0.22, m.ore[i] / 2500);
+      g.addColorStop(0, gem ? `rgba(40,110,120,${a})` : `rgba(120,82,24,${a + 0.05})`);
+      g.addColorStop(1, gem ? 'rgba(40,110,120,0)' : 'rgba(120,82,24,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - TILE, y - TILE, TILE * 2, TILE * 2);
+    }
+  },
+
+  // the deposits themselves: upright 3D ore lumps and crystals, back to front
+  drawOreDeposits(ctx, tx0, ty0, tx1, ty1, t) {
+    const m = G.map;
+    for (let d = tx0 + ty0; d <= tx1 + ty1; d++) {
+      for (let tx = Math.max(tx0, d - ty1); tx <= Math.min(tx1, d - ty0); tx++) {
+        const ty = d - tx, i = m.idx(tx, ty), amt = m.ore[i];
+        if (amt < 5 || !G.explored[i]) continue;
+        const gem = m.oreType[i] === GEM;
+        const level = Math.max(1, Math.min(4, Math.ceil(amt / (gem ? 220 : 130))));
+        const v = (i * 2654435761 >>> 0) % 4;
+        const [sx, sy] = this.P(tx * TILE + TILE / 2, ty * TILE + TILE / 2);
+        if (sx < -60 || sy < -60 || sx > ctx.canvas.width + 60 || sy > ctx.canvas.height + 60) continue;
+        Art.blit(ctx, oreSprite(gem, level, v), sx, sy);
+        // lithium glints now and then
+        if (gem && ((i * 7 + Math.floor(t * 1.5)) % 23) === 0) {
+          const p = (t * 1.5) % 1, gx = sx + ((i * 13) % 17) - 8, gy = sy - 10 - ((i * 7) % 6);
+          ctx.save(); ctx.globalCompositeOperation = 'lighter';
+          ctx.strokeStyle = `rgba(230,255,255,${Math.sin(p * Math.PI)})`; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(gx - 3, gy); ctx.lineTo(gx + 3, gy); ctx.moveTo(gx, gy - 3); ctx.lineTo(gx, gy + 3); ctx.stroke();
+          ctx.restore();
         }
       }
     }
