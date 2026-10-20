@@ -50,7 +50,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   send a few troopers into cover when they fight next to one.
 - Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
-- Campaign, *Operation Northwind*: four missions with briefings, radio chatter, objectives and a mission select screen
+- Campaign, *Operation Northwind*: five Allies vs Axis missions with briefings, radio chatter, objectives and a mission select screen
   (each mission unlocks when you win the one before; add `?unlock` to the URL to open them all, or `?mission=<id>` to jump straight in).
   The Allies take on General Volkov's revived Soviet Union:
   1. **Thin Ice** (Arctic): Raven alone with a few Marines sneaks into a listening post, blows up its radar and runs for extraction.
