@@ -6,6 +6,15 @@ const Main = {
 
   init() {
     Sfx.init();
+    Music.init(Sfx.ctx, Sfx.musicBus, Sfx.reverb);
+    Music.onTrack = title => this.showTrack(title);
+    // browsers only allow audio after a click or key press: start the menu music on the first one
+    const wake = () => {
+      Sfx.resume();
+      if (!document.getElementById('menu').hidden) Music.play('menu');
+      removeEventListener('pointerdown', wake); removeEventListener('keydown', wake);
+    };
+    addEventListener('pointerdown', wake); addEventListener('keydown', wake);
     const params = new URLSearchParams(location.search);
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
@@ -76,6 +85,17 @@ const Main = {
       b.addEventListener('click', () => { s.speed = v; this.buildMenu(); });
       sbox.appendChild(b);
     }
+    const abox = document.getElementById('audio');
+    abox.innerHTML = '';
+    for (const [key, label] of [['music', 'Music'], ['sfx', 'Effects'], ['voice', 'Voices']]) {
+      const row = document.createElement('label');
+      row.innerHTML = `<span>${label}</span><input type="range" min="0" max="100" value="${Math.round(Sfx.vol[key] * 100)}">`;
+      row.querySelector('input').addEventListener('input', e => {
+        Sfx.resume(); Sfx.setVolume(key, e.target.value / 100);
+        if (key === 'sfx') Sfx.play('click');
+      });
+      abox.appendChild(row);
+    }
     const seed = document.getElementById('seed');
     seed.value = s.seed;
     seed.onchange = () => { s.seed = parseInt(seed.value, 10) || 1; };
@@ -100,6 +120,8 @@ const Main = {
     this.paused = false;
     UI.init(document.getElementById('view'));
     G.eva('Battle control online', G.player);
+    Sfx.ambience(opts.theater);
+    Music.play('game');
     if (!this.running) {
       this.running = true;
       this.last = performance.now(); this.acc = 0;
@@ -118,6 +140,7 @@ const Main = {
     this.last = now;
     if (G && !document.getElementById('game').hidden) {
       if (!this.paused && !G.over) {
+        Music.update(dt, G.heat);
         this.acc += dt * this.speed;
         let steps = 0;
         while (this.acc >= TICK && steps < 8) { G.update(TICK); this.acc -= TICK; steps++; }
@@ -134,6 +157,7 @@ const Main = {
 
   showEnd() {
     this.endShown = true;
+    Music.mode = 'end';
     const el = document.getElementById('end');
     const p = G.playerTeam, e = G.teams.find(t => t.id !== G.player);
     const mins = Math.floor(G.over.time / 60), secs = Math.floor(G.over.time % 60);
@@ -161,7 +185,18 @@ const Main = {
     document.getElementById('menu').hidden = false;
     document.getElementById('end').hidden = true;
     if (window.speechSynthesis) speechSynthesis.cancel();
+    Sfx.stopAmbience();
+    Music.play('menu');
     this.buildMenu();
+  },
+
+  // "now playing" card, like the radio in the old games
+  showTrack(title) {
+    const el = document.getElementById('track');
+    el.innerHTML = `<small>NOW PLAYING</small>♫ ${title}`;
+    el.hidden = false; el.classList.remove('fade'); void el.offsetWidth; el.classList.add('fade');
+    clearTimeout(this.trackT);
+    this.trackT = setTimeout(() => { el.hidden = true; }, 6000);
   },
 };
 

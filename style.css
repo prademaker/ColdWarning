@@ -170,3 +170,14 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 .endbox td:first-child { text-align: left; color: var(--dim); }
 .endbtns button { margin: 10px 6px 0; padding: 10px 24px; background: linear-gradient(180deg, #ff4a3d, #b4161a); border: 0; font-family: var(--head); letter-spacing: 2px; font-size: 15px; border-radius: 2px; color: #fff; }
 .endbtns button + button { background: var(--panel2); border: 1px solid var(--edge2); }
+
+/* audio settings and now-playing card */
+.sliders { display: flex; flex-direction: column; gap: 4px; min-width: 190px; }
+.sliders label { display: flex; align-items: center; gap: 10px; font-family: var(--head); font-size: 13px; letter-spacing: 1px; color: #c9d6e3; }
+.sliders span { width: 56px; }
+.sliders input { flex: 1; accent-color: var(--gold); height: 14px; }
+#track { position: fixed; left: 16px; bottom: 16px; z-index: 50; pointer-events: none; padding: 8px 14px 9px; background: rgba(6,14,26,.85);
+  border: 1px solid var(--edge2); border-left: 3px solid var(--gold); font-family: var(--head); font-size: 16px; letter-spacing: 1px; color: #e9eef4; }
+#track small { display: block; font-size: 10px; letter-spacing: 3px; color: var(--gold); }
+#track.fade { animation: trackfade 6s ease forwards; }
+@keyframes trackfade { 0% { opacity: 0; transform: translateY(8px); } 6%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
