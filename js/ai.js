@@ -7,10 +7,11 @@
 // how much the AI wants a known enemy structure gone (or captured)
 const AI_TARGET_VALUE = {
   super_lance: 14, super_silo: 14, factory: 10, refinery: 9, tech: 8, power: 7, cc: 7,
-  airfield: 6, hub: 6, barracks: 5, radar: 5, laser: 3, railturret: 3, turret: 3, bunker: 3, sam: 2,
+  airfield: 6, hub: 6, robotics: 7, gchq: 5, krasukha: 5, propaganda: 4, barracks: 5, radar: 5,
+  laser: 3, thaad: 4, koksan: 4, railturret: 3, turret: 3, bunker: 3, sam: 2,
 };
 const AI_RAIDERS = ['heli', 'drone'];
-const AI_CAPTURE = ['super_lance', 'super_silo', 'cc', 'factory', 'tech', 'hub', 'refinery', 'airfield', 'radar'];
+const AI_CAPTURE = ['super_lance', 'super_silo', 'cc', 'factory', 'tech', 'robotics', 'hub', 'gchq', 'refinery', 'airfield', 'radar'];
 
 function aiWorth(e) {
   const base = e.def.cost * Math.max(0.2, e.hp / e.maxHp);
@@ -27,10 +28,11 @@ class AI {
     this.d = DIFFICULTY[difficulty] || DIFFICULTY.normal;
     this.thinkT = 1 + team.id * 0.35;
     const sup = team.superKey();
-    // nation-only structures (Support Hub, Laser Tower) drop out for everyone else
+    // the country's edge structure goes in once its requirements are up; defensive ones twice
+    const edge = FACTIONS[team.faction].edge, edge2 = BUILDINGS[edge].cat === 'defense' ? edge : null;
     this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret', 'bunker',
-      'hub', 'airfield', 'power', 'tech', 'laser', 'sam', 'power', 'turret', 'bunker', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
-      'laser', 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => inRoster(k, team.faction));
+      edge, 'airfield', 'power', 'tech', 'sam', 'power', 'turret', 'bunker', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
+      edge2, 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => k && inRoster(k, team.faction));
     this.nextAttack = this.d.firstAttack;
     this.waves = 0;
     this.wave = null;          // the attack wave in the field: { ids, foe, state, stage, t, start, target }
@@ -142,7 +144,9 @@ class AI {
       if (e.dead) continue;
       if (G.allied(e.team, me)) src.push(e); else if (e.team !== NEUTRAL) foes.push(e);
     }
+    const all = G.reveals(me); // a GCHQ shows every enemy unit
     for (const e of foes) {
+      if (all && e.kind === 'unit') { this.intel.set(e.id, { e, x: e.x, y: e.y, t: G.time }); continue; }
       const pad = e.kind === 'building' ? Math.max(e.w, e.h) * TILE / 2 : 0;
       for (const s of src) {
         const r = s.def.sight * TILE + pad, dx = e.x - s.x, dy = e.y - s.y;
@@ -335,17 +339,18 @@ class AI {
 
     // lean the mix toward whatever counters the enemy army we have seen
     // (pick() skips whatever this nation can't build, so both blocs share one table)
-    let inf = { rifle: 5, rocket: 5, sniper: 1.5, shock: 2.5 };
-    let veh = { ifv: 2, flak: 2, tank: 5, mlrs: 1.5, tos: 1.5, railtank: 3, titan: 3, iskander: 1 };
+    let inf = { rifle: 5, rocket: 5, sniper: 1.5, shock: 2.5, sas: 1, hacker: 1 };
+    let veh = { ifv: 2, flak: 2, tank: 5, mlrs: 1.5, tos: 1.5, railtank: 3, titan: 3, iskander: 1, aegis: 1.5, raijin: 2, demotruck: 1.5 };
     let air = { heli: 6, drone: 4, kirov: 3, jet: 4 };
     const mix = this.enemyMix();
     if (d.counter && mix.total > 1500) {
       const f = k => mix[k] / mix.total, armor = f('light') + f('heavy');
       const def = Math.min(1, mix.defense / 6000);
-      inf = { rifle: 2 + f('infantry') * 8, rocket: 2 + (armor + f('air')) * 8, sniper: f('infantry') * 4, shock: 1 + f('infantry') * 4 + def * 2 };
+      inf = { rifle: 2 + f('infantry') * 8, rocket: 2 + (armor + f('air')) * 8, sniper: f('infantry') * 4, shock: 1 + f('infantry') * 4 + def * 2,
+        sas: 0.5 + def * 2, hacker: armor * 3 };
       veh = { ifv: 1 + f('air') * 5 + f('infantry') * 2, flak: 1 + f('air') * 7 + f('infantry') * 2, tank: 3 + f('light') * 4 + f('heavy') * 2,
         mlrs: 1 + f('infantry') * 3 + def * 3, tos: 1 + f('infantry') * 3 + def * 3, railtank: 2 + f('heavy') * 4, titan: 2 + f('heavy') * 3 + f('air') * 3,
-        iskander: def * 3 };
+        iskander: def * 3, aegis: 1.5, raijin: 1 + armor * 2 + f('air') * 2 + def, demotruck: 1 + def * 2 + f('heavy') * 2 };
       air = { heli: 3 + armor * 6, drone: 3 + armor * 4, kirov: 2 + def * 3 + f('infantry') * 2, jet: 2 + f('air') * 10 };
     }
     // helicopters (or Reaper drones) for the raiding party: they fly over defenses and don't hold up the war factory

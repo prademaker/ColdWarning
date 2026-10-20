@@ -178,9 +178,9 @@ if (typeof SPRITE_META !== 'undefined') {
     }
   }
 }
-const CAMO_TINT = { usa: '#e6dcc4', russia: '#a9b480', china: '#98b78b', eu: '#a4ad98', soviet: '#b3ae7c' };
+const CAMO_TINT = { usa: '#e6dcc4', russia: '#a9b480', china: '#98b78b', eu: '#a4ad98', soviet: '#b3ae7c', uk: '#d9d2b8', japan: '#a6b394', northkorea: '#a6aa80' };
 // voxel camouflage is stored as greys and painted in these faction colours
-const VOX_CAMO = { usa: '#d8c39a', russia: '#97a06a', china: '#86a273', eu: '#9aa390', soviet: '#aaa26c' };
+const VOX_CAMO = { usa: '#d8c39a', russia: '#97a06a', china: '#86a273', eu: '#9aa390', soviet: '#aaa26c', uk: '#c8b98e', japan: '#94a37f', northkorea: '#9ca06c' };
 const loaded = img => img.complete && img.naturalWidth > 0;
 
 function teamSheet(key, part, team) {
@@ -356,8 +356,8 @@ const UNIT_MODELS = {
   jet: {
     scale: 1.3,
     hull(T, C) {
-      const west = FACTIONS[T.faction].side === 'west';
-      const body = west ? '#a7b0b8' : '#9aa39a';
+      const allies = FACTIONS[T.faction].side === 'allies';
+      const body = allies ? '#a7b0b8' : '#9aa39a';
       // the planform is concave, so it is built from convex pieces
       return [
         prism([[17, 0], [9, -2.6], [-15, -2.6], [-15, 2.6], [9, 2.6]], null, 0, 2.6, body),
@@ -375,7 +375,8 @@ const UNIT_MODELS = {
 };
 
 // bloc and nation specials borrow the nearest model until their sprite sheets have loaded
-Object.assign(UNIT_MODELS, { flak: UNIT_MODELS.ifv, tos: UNIT_MODELS.mlrs, iskander: UNIT_MODELS.mlrs, drone: UNIT_MODELS.jet, kirov: UNIT_MODELS.heli });
+Object.assign(UNIT_MODELS, { flak: UNIT_MODELS.ifv, tos: UNIT_MODELS.mlrs, iskander: UNIT_MODELS.mlrs, drone: UNIT_MODELS.jet, kirov: UNIT_MODELS.heli,
+  aegis: UNIT_MODELS.ifv, raijin: UNIT_MODELS.tank, demotruck: UNIT_MODELS.ifv });
 
 // infantry: little voxel soldiers with a walk cycle
 function infantryParts(key, T, C, frame) {
@@ -391,6 +392,8 @@ function infantryParts(key, T, C, frame) {
   if (key === 'engineer') out.push(box(-1, 2.5, 2.6, 4.2, 3, 5.5, '#c9a43a'));
   if (key === 'sniper') out.push(box(0, 11, 1.5, 2.3, 7.5, 8.4, '#1b1c1a'));
   if (key === 'shock') out.push(box(-4.5, -3.2, -2, 2, 5, 10, '#d6ac2c'), box(0, 7, 1.5, 2.3, 6, 7, '#3a3c38'));
+  if (key === 'sas') out.push(box(0, 9, 1.5, 2.3, 7, 8, '#1b1c1a'), box(-1.2, 1.4, -1.6, 1.4, 11.6, 12.6, '#5a2a2a'));
+  if (key === 'hacker') out.push(box(-4.6, -3.2, -2, 2, 5, 10, '#3a3d40'), box(-4.2, -3.6, -0.3, 0.3, 10, 15, '#9aa3ab'), box(1, 4, -2, 2, 7, 7.6, '#78ff96', { light: true }));
   if (key === 'commando') out.push(box(0, 9, 1.5, 2.3, 7, 8, '#1b1c1a'), box(-1.2, 1.4, -1.6, 1.4, 11.6, 12.6, T.color));
   return out;
 }
@@ -420,6 +423,7 @@ const SPRITE_FOR = {
   harvester: 'harvester_vox', mcv: 'mcv_vox', heli: 'heli_vox', jet: 'jet_vox',
   rifle: 'rifle_vox', rocket: 'rocket_vox', engineer: 'engineer_vox',
   sniper: 'sniper_vox', shock: 'shock_vox', commando: 'commando_vox', flak: 'flak_vox', tos: 'tos_vox', iskander: 'iskander_vox', drone: 'drone_vox', kirov: 'kirov_vox',
+  sas: 'sas_vox', hacker: 'hacker_vox', aegis: 'aegis_vox', raijin: 'raijin_vox', demotruck: 'demotruck_vox',
 };
 if (typeof location !== 'undefined') {
   const q = new URLSearchParams(location.search);
@@ -594,6 +598,24 @@ const BLD_MODELS = {
       box(16, 28, 26, 38, 20, 20.6, '#e8e8e8'), box(20, 24, 22, 42, 20.6, 21, '#c33'), box(12, 32, 30, 34, 20.6, 21, '#c33'),
       box(40, 58, 8, 58, 2, 3, '#2b2b26'), box(54, 57, 10, 13, 3, 34, '#d9ad2b')];
   },
+  thaad(T) {
+    return [...foundation(64, 64), box(8, 56, 10, 54, 2, 6, '#5d6347'), box(10, 26, 12, 30, 6, 14, '#6b7152', { topColor: T.color })];
+  },
+  koksan(T) {
+    return [box(0, 64, 0, 64, 0, 6, '#7d7a5c'), box(6, 58, 6, 58, 0, 16, '#8e8c84', { topColor: '#77756d' }), box(24, 40, 24, 40, 16, 17, tone(T.color, -0.1))];
+  },
+  gchq(T) {
+    return [...foundation(64, 64), cyl(32, 32, 26, 2, 22, '#cfd4d8', 22, 16), cyl(32, 32, 14, 22, 26, T.color, 12, 14), box(46, 50, 10, 14, 2, 40, '#9aa3ab')];
+  },
+  robotics(T) {
+    return [...foundation(64, 64), box(6, 58, 8, 56, 2, 26, '#b9bfc4', { topColor: T.color }), box(12, 52, 55.6, 56.8, 4, 20, '#2d4a66'), box(44, 52, 14, 22, 26, 40, '#8a8f94')];
+  },
+  krasukha(T) {
+    return [...foundation(64, 64), box(8, 40, 14, 50, 2, 14, '#6e7048', { topColor: T.color }), cyl(46, 30, 12, 14, 18, '#cfd4d8', 14, 12), box(44, 48, 28, 32, 2, 16, '#4d545b')];
+  },
+  propaganda(T) {
+    return [box(2, 30, 2, 30, 0, 3, '#5b5e60'), box(12, 20, 12, 20, 3, 44, '#7d7a6a'), box(8, 24, 8, 24, 40, 46, T.color), box(22, 26, 12, 20, 36, 42, '#2b2b26')];
+  },
   bunker(T) {
     return [box(0, 32, 0, 32, 0, 4, '#a8956a'),
       box(3, 29, 3, 29, 0, 13, '#8e8c84', { topColor: '#77756d' }),
@@ -634,6 +656,8 @@ const BLD_MODELS = {
 
 // rotating weapons on defensive structures (pivot at the footprint centre)
 const BLD_TURRETS = {
+  koksan: { z: 16, parts: T => [box(-10, 8, -9, 9, 0, 8, tone(T.color, -0.2)), box(8, 36, -1.6, 1.6, 4, 7, '#3a3d40')] },
+  thaad: { z: 14, parts: T => [box(-12, 12, -9, 9, 0, 4, '#4d545b'), box(-10, 10, -8, 8, 4, 12, tone(T.color, -0.15)), box(10, 10.6, -7, 7, 5, 11, '#e8e8e8')] },
   laser: { z: 18, parts: T => [cyl(0, 0, 6, 0, 6, tone(T.color, -0.1), 6, 10), box(2, 22, -1, 1, 3, 5, '#3a3d40'), box(21, 24, -2, 2, 2.5, 5.5, '#e03a2e', { light: true })] },
   turret: { z: 7, parts: T => [box(-5, 4, -4.5, 4.5, 0, 5, tone(T.color, -0.15)), box(4, 16, -2.2, -1.2, 2, 3, GUN), box(4, 17, -0.5, 0.5, 2, 3, GUN), box(4, 16, 1.2, 2.2, 2, 3, GUN)] },
   railturret: {
@@ -711,7 +735,20 @@ function flagpole(ctx, x, y, faction, t) {
   }
 }
 
+// a pulsing ring on the ground around a structure with an aura (footprint-local centre)
+function auraRing(ctx, P, b, t, rgb, low) {
+  if (low && b.def.needsPower) return;
+  const R = b.def.aura.radius * TILE, cx = b.w * TILE / 2, cy = b.h * TILE / 2, k = (t * 0.5) % 1;
+  ctx.strokeStyle = `rgba(${rgb},${0.35 * (1 - k)})`; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i <= 32; i++) { const a = i / 32 * Math.PI * 2, [x, y] = P(cx + Math.cos(a) * R * k, cy + Math.sin(a) * R * k, 1); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+  ctx.stroke();
+}
+
 const BLD_LIVE = {
+  krasukha(ctx, P, b, team, t, low) { auraRing(ctx, P, b, t, '255,90,90', low); const [x, y] = P(46, 30, 20); blink(ctx, x, y, !low && Math.sin(t * 7) > 0, '#ff5050'); },
+  propaganda(ctx, P, b, team, t, low) { auraRing(ctx, P, b, t, '255,200,80', low); const [x, y] = P(8, 8, 3); flagpole(ctx, x, y, team.faction, t); },
+  gchq(ctx, P, b, team, t, low) { const [x, y] = P(48, 12, 41); blink(ctx, x, y, !low && Math.sin(t * 3) > 0, '#60e0ff'); },
   cc(ctx, P, b, team, t) {
     let [x, y] = P(64.7, 10.7, 74); blink(ctx, x, y, Math.sin(t * 4) > 0, '#ff4040');
     [x, y] = P(28, 58, 25.2);
@@ -918,7 +955,10 @@ function treeSprite(theme, v) {
 // Units and structures shown in the style mock use its artwork; everything else gets a
 // rendered cameo in the same dark style.
 const CAMEO_ART = { tank: 1, ifv: 1, heli: 1, jet: 1, rifle: 1, sam: 1, cc: 1, barracks: 1, factory: 1, power: 1, radar: 1, airfield: 1 };
-function cameoUrl(key, faction) { return CAMEO_ART[key] ? `assets/cameos/${faction}/${key}.webp` : null; }
+// countries without their own artwork borrow a close ally's
+const CAMEO_FROM = { uk: 'eu', japan: 'usa', northkorea: 'russia' };
+function cameoFaction(faction) { return CAMEO_FROM[faction] || faction; }
+function cameoUrl(key, faction) { return CAMEO_ART[key] ? `assets/cameos/${cameoFaction(faction)}/${key}.webp` : null; }
 
 // a sprite as a standalone canvas (sheet sprites reference a cell of a larger image)
 function spriteCanvas(s) {

@@ -2,21 +2,26 @@
 
 *Same rivals. New world.* A base-building real-time strategy game in the spirit of *Command & Conquer: Red Alert 2*, set in the year 2030.
 
-Five nations in two blocs fight over rare-earth ore fields. Each bloc fields its own special infantry,
-light vehicle and artillery, and each nation adds a signature unit or structure nobody else can build:
+Two factions, the Allies and the Axis, fight over rare-earth ore fields with four countries each. Each faction
+fields its own special infantry, light vehicle and artillery:
 
-| Bloc | Special infantry | Light vehicle | Artillery |
+| Faction | Special infantry | Light vehicle | Artillery |
 | --- | --- | --- | --- |
-| West | Sniper: out-ranges infantry, useless vs armor | Recon IFV: fast scout, hits air and ground | MLRS: long-range rocket barrages |
-| East | Flame Trooper: short-range, burns infantry and structures | Flak Track: shreds aircraft and infantry | Thermobaric Launcher: armored, huge blast |
+| Allies | Sniper: out-ranges infantry, useless vs armor | Recon IFV: fast scout, hits air and ground | MLRS: long-range rocket barrages |
+| Axis | Flame Trooper: short-range, burns infantry and structures | Flak Track: shreds aircraft and infantry | Thermobaric Launcher: armored, huge blast |
 
-| Nation | Bloc | Bonus | Signature | Special tank / superweapon |
-| --- | --- | --- | --- | --- |
-| USA | West | Aircraft +25% armor | MQ-9 Reaper drone: sees far, Hellfire strikes | Railgun Tank / Orbital Lance |
-| EU | West | Defenses +30% armor, +20% firepower | Laser Defense Tower: hits ground and air | Railgun Tank / Orbital Lance |
-| Russia | East | Armor +15% firepower | Iskander-M: missile strikes from 16 tiles | Titan Tank / Hypersonic Silo |
-| China | East | Structures build 25% faster | Support Hub: heals nearby units | Railgun Tank / Orbital Lance |
-| Soviet Union | East | Infantry 25% cheaper | Kirov Airship: armored flying bomber | Titan Tank / Hypersonic Silo |
+Every country adds a unit with a special ability (◆) and an edge structure (■) that nobody else can build:
+
+| Country | Faction | Bonus | ◆ Special unit | ■ Edge structure | Special tank / superweapon |
+| --- | --- | --- | --- | --- | --- |
+| USA | Allies | Aircraft +25% armor | MQ-9 Reaper: targets it hits take 25% more damage for 6 s | THAAD Battery: shoots down incoming artillery, missiles and rockets | Railgun Tank / Orbital Lance |
+| EU | Allies | Defenses +30% armor, +20% firepower | Aegis Shield Carrier: nearby friendly units take 35% less damage | Laser Defense Tower: hits ground and air | Railgun Tank / Orbital Lance |
+| United Kingdom | Allies | Infantry +25% armor | SAS Operative: hidden until it fires, C4 on structures | GCHQ Listening Post: shows every enemy unit on the map | Railgun Tank / Orbital Lance |
+| Japan | Allies | Vehicles +15% armor | Raijin EMP Walker: EMP bolts shut down vehicles, helicopters and defenses | Robotics Plant: vehicles and aircraft build 50% faster | Railgun Tank / Orbital Lance |
+| Russia | Axis | Armor +15% firepower | Iskander-M: missile strikes from 16 tiles | Krasukha EW Station: enemies nearby move and fire 35% slower | Titan Tank / Hypersonic Silo |
+| China | Axis | Structures build 25% faster | Cyber Warfare Unit: hacks enemy vehicles over to your side | Support Hub: heals nearby units | Railgun Tank / Orbital Lance |
+| Soviet Union | Axis | Infantry 25% cheaper | Kirov Airship: armored flying bomber | Propaganda Tower: nearby friendly units fire 30% faster | Titan Tank / Hypersonic Silo |
+| North Korea | Axis | Defenses 25% cheaper | Demolition Truck: drives in and detonates, also blows up when destroyed | Koksan Gun Emplacement: 15-tile artillery, needs no power | Titan Tank / Hypersonic Silo |
 
 Battles take place in five theaters: Temperate, Desert, Arctic, Steppe and Jungle.
 
@@ -30,7 +35,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Deploy your MCV into a Command Center and grow a base with a classic sidebar: build queues, hold/cancel, READY-to-place structures.
 - Economy: harvesters mine gold ore and lithium crystals; fields slowly regrow.
 - Power grid: low power slows production, disables the radar minimap and shuts off powered defenses.
-- 18 unit types: infantry, engineers (capture buildings), bloc-specific infantry, scouts and artillery, main battle tanks, super-tanks, nation signature units, attack helicopters and fighter jets.
+- 23 unit types: infantry, engineers (capture buildings), faction-specific infantry, scouts and artillery, main battle tanks, super-tanks, a special unit for every country, attack helicopters and fighter jets.
 - Defenses: gatling turrets, rail turrets, SAM sites, battle bunkers. Superweapons on a five-minute charge.
 - Garrisons, Red Alert 2 style: villages of civilian buildings dot the map, and infantry can move into them (or into your own
   Battle Bunker) to fire out of the windows with extra range and punch, untouchable until the building falls. A held building
@@ -47,7 +52,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
 - Campaign, *Operation Northwind*: four missions with briefings, radio chatter, objectives and a mission select screen
   (each mission unlocks when you win the one before; add `?unlock` to the URL to open them all, or `?mission=<id>` to jump straight in).
-  The West takes on General Volkov's revived Soviet Union:
+  The Allies take on General Volkov's revived Soviet Union:
   1. **Thin Ice** (Arctic): Raven alone with a few Marines sneaks into a listening post, blows up its radar and runs for extraction.
   2. **Holdfast** (Temperate): as the EU, deploy, garrison the village and hold out against 8 waves. Raven arrives as reinforcement; the last wave brings a Kirov.
   3. **Countdown** (Steppe): a Russian base guards a Hypersonic Silo on a launch clock. Destroy it, steal it with an Engineer, or cut their power to stall the clock.

@@ -43,6 +43,23 @@ const FLAG_SVG = {
     }
     return `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><rect width="150" height="100" fill="#003399"/><path fill="#ffcc00" d="${d}"/></svg>`;
   },
+  uk() {
+    // Union Jack: saltires (St Andrew, St Patrick offset) under the St George cross
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 60 30">' +
+      '<clipPath id="u"><path d="M0 0v30h60V0z"/></clipPath><clipPath id="t"><path d="M30 15h30v15zv15H0zH0V0zV0h30z"/></clipPath>' +
+      '<g clip-path="url(#u)"><path d="M0 0v30h60V0z" fill="#012169"/><path d="M0 0l60 30m0-30L0 30" stroke="#fff" stroke-width="6"/>' +
+      '<path d="M0 0l60 30m0-30L0 30" clip-path="url(#t)" stroke="#C8102E" stroke-width="4"/>' +
+      '<path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/><path d="M30 0v30M0 15h60" stroke="#C8102E" stroke-width="6"/></g></svg>';
+  },
+  japan() {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><rect width="150" height="100" fill="#fff"/>' +
+      '<circle cx="75" cy="50" r="30" fill="#bc002d"/></svg>';
+  },
+  northkorea() {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><rect width="150" height="100" fill="#024fa2"/>' +
+      '<rect y="16.7" width="150" height="66.6" fill="#fff"/><rect y="20" width="150" height="60" fill="#ed1c27"/>' +
+      `<circle cx="50" cy="50" r="19" fill="#fff"/><path d="${starPath(50, 50, 18.5)}" fill="#ed1c27"/></svg>`;
+  },
   soviet() {
     return '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="100" viewBox="0 0 150 100"><rect width="150" height="100" fill="#cc0000"/>' +
       `<path d="${starPath(25, 13, 6)}" fill="none" stroke="#ffd700" stroke-width="1.6"/>` +

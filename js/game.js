@@ -50,7 +50,7 @@ class ProdQueue {
     if (!producers) { this.clear(); return; }
     const key = this.items[0], def = defOf(key);
     if (!t.canBuild(key)) { this.cancel(key); return; }
-    const speed = (t.lowPower ? 0.5 : 1) * Math.min(2.5, 1 + 0.5 * (producers - 1)) * t.buildMult * t.bonus('speed', this.type);
+    const speed = (t.lowPower ? 0.5 : 1) * Math.min(2.5, 1 + 0.5 * (producers - 1)) * t.buildMult * t.bonus('speed', this.type) * t.boost(this.type);
     const rate = speed / def.time;
     const step = t.costOf(key) * rate * dt;
     if (t.credits < step) {
@@ -104,6 +104,12 @@ class Team {
     return (b && b[cat]) || 1;
   }
   costOf(key) { return Math.round(defOf(key).cost * this.bonus('cost', categoryOf(key))); }
+  // production speed-up from structures such as the Robotics Plant (whoever holds one gets it)
+  boost(type) {
+    let m = 1;
+    for (const k of BOOSTERS) if (this.countOf(k)) m *= BUILDINGS[k].boost[type] || 1;
+    return m;
+  }
 
   canBuild(key) {
     const def = defOf(key);
@@ -219,6 +225,10 @@ class Building {
   }
 }
 
+const BOOSTERS = Object.keys(BUILDINGS).filter(k => BUILDINGS[k].boost);
+// effective rate of fire from auras (Propaganda Tower up, Krasukha jamming down)
+function rofOf(e) { return (e.rofUp || 1) * (e.rofDn || 1); }
+
 // bonus category of a unit or structure key
 function categoryOf(key) {
   if (BUILDINGS[key]) return BUILDINGS[key].cat === 'defense' ? 'defense' : 'structure';
@@ -234,6 +244,11 @@ function muzzleZ(e) {
   if (e.kind === 'building') return e.def.cat === 'defense' ? 12 : e.def.height * 0.6;
   return (e.alt || 0) + (e.def.cat === 'infantry' ? 8 : e.air ? 3 : 14);
 }
+
+// a laser-designated target takes this much more damage
+const MARK_DAMAGE = 1.25;
+// uplink pulses a Cyber Warfare Unit needs to take over a vehicle
+function hackPulses(u) { return Math.ceil(u.maxHp / 350) + 1; }
 
 function armorOf(e) { return e.kind === 'building' ? 'building' : e.def.armor; }
 
@@ -376,7 +391,7 @@ class Game {
       id: NEUTRAL, name: 'Civilian', faction: 'usa', color: '#a59f90', dark: '#5f5a50', light: '#d8d2c4', camo: ['#8d877a', '#6b665c', '#a9a395'],
       isAI: true, lowPower: false, credits: 0, counts: {},
       stats: { built: 0, lost: 0, kills: 0, structuresBuilt: 0, structuresLost: 0, structuresKilled: 0, harvested: 0 },
-      bonus() { return 1; }, costOf() { return 0; }, countOf() { return 0; }, recount() {},
+      bonus() { return 1; }, boost() { return 1; }, costOf() { return 0; }, countOf() { return 0; }, recount() {},
     };
   }
   teamOf(id) { return id === NEUTRAL ? this.neutral : this.teams[id]; }
@@ -635,7 +650,7 @@ class Game {
       if ((isW2 ? u.cool2 : u.cool) > 0) continue;
       u.facing = Math.atan2(t.y - u.y, t.x - u.x);
       this.fire(u, w, t);
-      const cd = w.cooldown * (u.rank === 2 ? 0.8 : 1) * (0.9 + Math.random() * 0.2);
+      const cd = w.cooldown * (u.rank === 2 ? 0.8 : 1) * (0.9 + Math.random() * 0.2) / rofOf(b);
       if (isW2) u.cool2 = cd; else u.cool = cd;
     }
   }
@@ -666,6 +681,10 @@ class Game {
     let dmg = amount * mult;
     if (target.kind === 'unit') dmg *= RANK_ARMOR[target.rank];
     if (target.dug) dmg *= target.def.dig.armor;
+    if (target.armorMul) dmg *= target.armorMul;
+    if (target.markT > this.time) dmg *= MARK_DAMAGE;
+    const fx = attacker && attacker.def.onHit;
+    if (fx) this.onHit(target, fx);
     if (target.garrison && target.garrison.length && Math.random() < (GARRISON.clear[warhead] || 0)) this.killOccupant(target, attacker);
     target.hp -= dmg;
     target.hitT = this.time;
@@ -688,9 +707,16 @@ class Game {
     if (target.hp <= 0) this.kill(target, attacker);
   }
 
+  // special hit effects: a Reaper's laser designation, a Raijin's EMP
+  onHit(t, fx) {
+    if (fx.mark) t.markT = this.time + fx.mark;
+    if (fx.stun && (t.kind === 'building' ? t.def.weapon || t.def.intercept : t.def.cat !== 'infantry' && !t.def.jet)) t.stunT = this.time + fx.stun;
+  }
+
   kill(e, attacker) {
     if (e.dead) return;
     this.removeEntity(e);
+    if (e.def.volatile && !e.blown) { e.blown = true; this.blast(e, e.def.weapon.damage * 0.6, e.def.weapon.splash); }
     if (this.mission) this.mission.onKill(e, attacker);
     const t = this.teamOf(e.team), civ = e.def.cat === 'civilian';
     if (attacker && this.hostile(attacker.team, e.team) && !civ) {
@@ -777,13 +803,19 @@ class Game {
 
   canHit(e, target) {
     if (!target || target.dead) return false;
-    for (const w of this.weaponsOf(e)) if (target.air ? w.air : w.ground) return true;
+    for (const w of this.weaponsOf(e)) if (this.fits(w, target)) return true;
     return false;
   }
 
   weaponFor(e, target) {
-    for (const w of this.weaponsOf(e)) if (target.air ? w.air : w.ground) return w;
+    for (const w of this.weaponsOf(e)) if (this.fits(w, target)) return w;
     return null;
+  }
+
+  // whether a weapon can engage a target at all (air/ground, and 'only' for hackers)
+  fits(w, t) {
+    if (!(t.air ? w.air : w.ground)) return false;
+    return !w.only || (t.kind === 'unit' && w.only.includes(t.def.cat) && !t.def.hero);
   }
 
   maxRange(e) {
@@ -926,6 +958,8 @@ class Game {
     if (this.waves) this.waves.update(dt);
     if (this.mission) this.mission.update(dt);
     this.updateCharges(dt);
+    this.auraT = (this.auraT || 0) - dt;
+    if (this.auraT <= 0) { this.auraT = 0.25; this.updateAuras(); }
     const ents = this.entities;
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i];
@@ -991,8 +1025,39 @@ class Game {
         if (dx * dx + dy * dy <= r2) { const i = y * N + x; vis[i] = 1; exp[i] = 1; }
       }
     }
+    if (this.reveals(pid)) for (const e of this.entities) if (e.kind === 'unit' && this.hostile(e.team, pid) && !e.dead) vis[e.ty * N + e.tx] = 1;
     for (const e of this.entities) if (e.kind === 'building' && !this.allied(e.team, pid) && this.isVisibleBld(e)) e.seen = true;
     this.fogVersion = (this.fogVersion || 0) + 1;
+  }
+
+  // a GCHQ Listening Post (on power) shows its holder and allies every enemy unit
+  reveals(team) {
+    return team !== NEUTRAL && this.teams.some(t => this.allied(t.id, team) && t.countOf('gchq') && !t.lowPower);
+  }
+
+  // ---------- auras ----------
+  // Shield Carriers, Propaganda Towers and Krasukha stations change the units around them;
+  // recomputed a few times a second. The strongest effect of each kind applies, never a stack.
+  updateAuras() {
+    for (const e of this.entities) { e.armorMul = 1; e.rofUp = 1; e.rofDn = 1; e.speedMul = 1; }
+    for (const s of this.entities) {
+      const a = s.def.aura;
+      if (!a || s.dead || s.team === NEUTRAL || s.inside) continue;
+      if (s.kind === 'building' && (s.built < 1 || (s.def.needsPower && this.teams[s.team].lowPower) || s.stunT > this.time)) continue;
+      const R = a.radius * TILE;
+      for (const u of this.unitsNear(s.x, s.y, R)) {
+        if (Math.hypot(u.x - s.x, u.y - s.y) > R) continue;
+        if (a.ally && this.allied(u.team, s.team)) {
+          if (a.ally.armor) u.armorMul = Math.min(u.armorMul, a.ally.armor);
+          if (a.ally.rof) u.rofUp = Math.max(u.rofUp, a.ally.rof);
+        } else if (a.enemy && this.hostile(u.team, s.team)) {
+          u.speedMul = Math.min(u.speedMul, a.enemy.speed); u.rofDn = Math.min(u.rofDn, a.enemy.rof);
+        }
+      }
+      if (a.enemy) for (const b of this.entities) {
+        if (b.kind === 'building' && !b.dead && this.hostile(b.team, s.team) && distTo(s.x, s.y, b) < R) b.rofDn = Math.min(b.rofDn, a.enemy.rof);
+      }
+    }
   }
 
   isVisibleTile(tx, ty) {
@@ -1023,8 +1088,12 @@ class Game {
       } else if (!u.burstTarget || u.burstTarget.dead) u.burst = 0;
     }
 
+    // knocked out by an EMP: nothing moves or fires until it wears off
+    if (u.stunT > this.time) return;
     if (u.def.harvester) { this.updateHarvester(u, dt); return; }
     if (u.def.jet) { this.updateJet(u, dt); return; }
+    // the computer sends its SAS to plant C4 on whatever structure they are shooting at
+    if (u.def.demo && !u.def.hero && u.target && u.target.kind === 'building' && (!u.order || u.order.type === 'amove') && this.teams[u.team].isAI) { this.commandDemolish(u, u.target); }
     // setting up or packing the sandbags: no moving or shooting meanwhile
     if (u.digging) {
       u.digT -= dt;
@@ -1119,7 +1188,7 @@ class Game {
         const isW2 = w === u.def.weapon2;
         if (aimed && (isW2 ? u.cool2 : u.cool) <= 0 && u.burst <= 0) {
           this.fire(u, w, t);
-          const cd = w.cooldown * (u.rank === 2 ? 0.8 : 1);
+          const cd = w.cooldown * (u.rank === 2 ? 0.8 : 1) / rofOf(u);
           if (isW2) u.cool2 = cd; else u.cool = cd;
           if (w.burst > 1) { u.burst = w.burst - 1; u.burstT = 0.18; u.burstW = w; u.burstTarget = t; }
         }
@@ -1174,7 +1243,7 @@ class Game {
       u.scanT = 0.4;
       u.target = this.findTarget(u, u.def.sight);
     }
-    let gx, gy, sp = u.def.speed;
+    let gx, gy, sp = u.def.speed * (u.speedMul || 1);
     if (u.target) {
       const t = u.target;
       gx = t.x; gy = t.y;
@@ -1184,7 +1253,7 @@ class Game {
       const isW2 = w === u.def.weapon2;
       if (d < w.range * TILE && Math.abs(angDiff(u.facing, a)) < 0.4 && (isW2 ? u.cool2 : u.cool) <= 0) {
         this.fire(u, w, t);
-        if (isW2) u.cool2 = w.cooldown; else u.cool = w.cooldown;
+        if (isW2) u.cool2 = w.cooldown / rofOf(u); else u.cool = w.cooldown / rofOf(u);
       }
       // pull out past the target before looping back for the next run
       if (d < TILE * 1.5) u.passT = 0.8;
@@ -1212,7 +1281,7 @@ class Game {
     const dx = x - u.x, dy = y - u.y, d = Math.hypot(dx, dy);
     const a = Math.atan2(dy, dx);
     u.facing = turnToward(u.facing, a, 4 * dt);
-    const sp = u.def.speed * TILE * dt;
+    const sp = u.def.speed * (u.speedMul || 1) * TILE * dt;
     if (d <= sp) { u.x = x; u.y = y; return true; }
     u.x += Math.cos(a) * sp; u.y += Math.sin(a) * sp;
     u.moving = true;
@@ -1231,7 +1300,7 @@ class Game {
     const px = tx * TILE + TILE / 2, py = ty * TILE + TILE / 2;
     const dx = px - u.x, dy = py - u.y, d = Math.hypot(dx, dy);
     const a = Math.atan2(dy, dx);
-    let sp = u.def.speed * TILE * dt;
+    let sp = u.def.speed * (u.speedMul || 1) * TILE * dt;
     if (u.def.cat === 'vehicle') {
       u.facing = turnToward(u.facing, a, (u.def.turn || 4) * dt);
       const diff = Math.abs(angDiff(u.facing, a));
@@ -1414,6 +1483,8 @@ class Game {
     }
     if (b.def.heal) this.healAround(b, t, dt);
     if (b.garrison && b.garrison.length) { this.updateGarrison(b, dt); return; }
+    if (b.stunT > this.time) return;
+    if (b.def.intercept && !(b.def.needsPower && t.lowPower)) this.intercept(b, dt);
     const w = b.def.weapon;
     if (!w) return;
     if (b.def.needsPower && t.lowPower) { b.target = null; return; }
@@ -1430,10 +1501,30 @@ class Game {
       b.turret = turnToward(b.turret, a, 6 * dt);
       if (Math.abs(angDiff(b.turret, a)) < 0.12 && b.cool <= 0) {
         this.fire(b, w, b.target);
-        b.cool = w.cooldown;
+        b.cool = w.cooldown / rofOf(b);
         if (w.burst > 1) { b.burst = w.burst - 1; b.burstT = 0.2; }
       }
     }
+  }
+
+  // THAAD: shoots down the nearest hostile shell, missile or rocket in the air within range
+  intercept(b, dt) {
+    b.cool -= dt;
+    if (b.cool > 0) return;
+    const R = b.def.intercept.range * TILE;
+    let best = null, bd = R;
+    for (const p of this.projectiles) {
+      if (p.dead || p.drop || p.type === 'shell' || !this.hostile(p.team, b.team)) continue;
+      const d = Math.hypot(p.x - b.x, p.y - b.y);
+      if (d < bd) { bd = d; best = p; }
+    }
+    if (!best) return;
+    best.dead = true;
+    b.cool = b.def.intercept.cooldown / rofOf(b);
+    b.turret = Math.atan2(best.y - b.y, best.x - b.x);
+    this.effects.push({ type: 'beam', x: b.x, y: b.y, z: b.def.height, x2: best.x, y2: best.y, z2: best.z || 0, t: 0, life: 0.25, color: '255,240,200' });
+    this.effects.push({ type: 'explosion', x: best.x, y: best.y, z: best.z || 0, size: 10, t: 0, life: 0.4 });
+    if (b.team === this.player || this.isVisibleTile(Math.floor(b.x / TILE), Math.floor(b.y / TILE))) this.sound('rocket', b.x, b.y);
   }
 
   // Support Hub: patches up friendly units nearby (at half speed on low power)
@@ -1487,6 +1578,24 @@ class Game {
         if (vis) this.sound('laser', sx, sy);
         break;
       }
+      case 'emp': {
+        this.effects.push({ type: 'beam', x: sx, y: sy, z: sz, x2: tx, y2: ty, z2: tz, t: 0, life: 0.35, color: '110,190,255', zig: true });
+        this.effects.push({ type: 'flash', x: tx, y: ty, z: tz, t: 0, life: 0.2, size: 10, color: '#9cd4ff' });
+        this.damage(t, dmg, w.warhead, by);
+        if (vis) this.sound('laser', sx, sy);
+        break;
+      }
+      case 'hack': {
+        this.effects.push({ type: 'beam', x: sx, y: sy, z: sz, x2: tx, y2: ty, z2: tz, t: 0, life: 0.6, color: '120,255,150', dash: true });
+        this.hack(t, by);
+        break;
+      }
+      case 'self': { // demolition truck: the truck is the bomb
+        s.blown = true;
+        this.blast(s, dmg, w.splash);
+        this.kill(s, null);
+        break;
+      }
       case 'rail': {
         const a = Math.atan2(ty - sy, tx - sx);
         const L = w.range * TILE + 16;
@@ -1529,9 +1638,40 @@ class Game {
     }
   }
 
+  // a big explosion centred on an entity (demolition trucks)
+  blast(e, dmg, splash) {
+    this.impact({ tx: e.x, ty: e.y, splash, dmg, warhead: 'blast', team: e.team, src: e });
+    this.explosion(e.x, e.y, 60 + splash * 20, true);
+    this.decal(e.x, e.y, splash * TILE * 0.8);
+  }
+
+  // Cyber Warfare Unit: each uplink pulse brings a vehicle closer to switching sides;
+  // bigger machines take more pulses, and progress fades if the uplink breaks off.
+  hack(t, s) {
+    if (t.kind !== 'unit' || t.dead || t.def.hero || !this.hostile(t.team, s.team)) return;
+    if (t.hackTeam !== s.team || this.time - (t.hackT || -99) > 6) { t.hackTeam = s.team; t.hackP = 0; }
+    t.hackP++; t.hackT = this.time;
+    if (t.hackP < hackPulses(t)) return;
+    this.convert(t, s.team);
+  }
+
+  convert(u, team) {
+    const old = u.team;
+    u.team = team; u.order = null; u.target = null; u.path = null; u.guard = null; u.burst = 0;
+    u.hackP = 0; u.hackTeam = null; u.lastAttacker = null;
+    if (u.def.harvester) { u.hstate = 'seek'; u.dockRef = null; }
+    this.teams[old].stats.lost++; this.teams[team].stats.kills++;
+    this.eva('Vehicle hijacked', team); this.eva('Unit lost', old);
+    this.teams[old].recount(); this.teams[team].recount();
+    this.effects.push({ type: 'spark', x: u.x, y: u.y, z: aimZ(u), t: 0, life: 0.8, color: '#78ff96' });
+    this.sound('capture', u.x, u.y);
+    this.fogDirty = true;
+  }
+
   updateProjectiles(dt) {
     const keep = [];
     for (const p of this.projectiles) {
+      if (p.dead) continue; // shot down
       p.t += dt;
       if (p.type === 'arty') {
         const k = Math.min(1, p.t / p.dur);

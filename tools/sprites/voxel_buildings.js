@@ -234,3 +234,88 @@ for (const open of [false, true]) {
   g.box(27, 28, 5, 6, 2, 16, C.hazard); g.box(20, 28, 5, 6, 16, 16, C.hazard); g.box(21, 21, 5, 5, 11, 15, M.dark); // crane
   writeVox('b_hub.vox', g);
 }
+
+// ======== country edge structures added with the Axis and Allies ========
+
+// ---------- THAAD Battery (USA, 2x2): radar truck + pad; the launcher turns to fire ----------
+{
+  const g = grid(); foundation(g, 32, 32);
+  g.box(4, 27, 4, 27, 1, 1, M.asphalt); hazardStripe(g, 4, 27, 27, 2); hazardStripeX(g, 4, 27, 27, 2);
+  block(g, 3, 13, 22, 29, 1, 7, M.wall, M.roof);                                             // radar shelter
+  g.box(4, 12, 29, 29, 3, 6, C.glassDark);                                                     // AN/TPY-2 face
+  g.box(13, 13, 23, 28, 2, 6, C.glassDark);
+  writeVox('b_thaad.vox', g);
+  const t = grid(), O = 7;
+  t.box(O - 6, O + 5, O - 5, O + 5, 0, 1, C.steelDark);
+  t.box(O - 5, O + 6, O - 4, O + 4, 2, 6, TEAM);
+  for (let y = O - 3; y <= O + 3; y += 2) for (const z of [3, 5]) t.set(O + 6, y, z, C.white); // eight canisters
+  t.box(O - 6, O - 6, O - 4, O + 4, 2, 6, C.steel);
+  writeVox('b_thaad_gun.vox', t);
+}
+
+// ---------- Koksan Gun Emplacement (North Korea, 2x2): earth berm with a casemate ----------
+{
+  const g = grid();
+  for (let x = 0; x < 32; x++) for (let y = 0; y < 32; y++) {
+    const d = Math.max(Math.abs(x - 15.5), Math.abs(y - 15.5)), h = Math.round(Math.max(0, 6 - Math.max(0, d - 9) * 0.9));
+    for (let z = 0; z <= h; z++) g.set(x, y, z, (x * 7 + y * 3 + z) % 5 ? C.olive : C.camoDark);
+  }
+  g.clear(8, 23, 8, 23, 4, 9);
+  g.box(8, 23, 8, 23, 3, 3, M.concreteDark);
+  block(g, 10, 21, 10, 21, 4, 6, M.wall, M.roof);
+  writeVox('b_koksan.vox', g);
+  const t = grid(), O = 6;
+  t.box(O - 5, O + 4, O - 4, O + 4, 0, 4, TEAM);
+  t.box(O - 4, O + 3, O - 3, O + 3, 5, 5, TEAM_LIGHT);
+  t.box(O + 5, O + 22, O - 1, O + 1, 2, 3, C.gun); t.box(O + 20, O + 22, O - 1, O + 1, 1, 4, C.gunDark); // 170mm barrel + muzzle brake
+  writeVox('b_koksan_gun.vox', t);
+}
+
+// ---------- GCHQ Listening Post (UK, 2x2): the "doughnut" ring building with an aerial mast ----------
+{
+  const g = grid(); foundation(g, 32, 32);
+  cylinder(g, 15.5, 15.5, 13, 1, 8, (x, y, z) => {
+    const r = Math.hypot(x - 15.5, y - 15.5);
+    return z === 8 ? (r > 11 ? TEAM : M.roof) : z % 3 === 1 && r > 12 ? M.windowBlue : M.wall;
+  });
+  cylinder(g, 15.5, 15.5, 6, 1, 8, M.concreteDark);
+  g.clear(11, 20, 11, 20, 2, 8);
+  cylinder(g, 15.5, 15.5, 3, 1, 3, C.olive);                                                   // courtyard garden
+  g.box(24, 24, 6, 6, 9, 20, C.steel); g.box(22, 26, 6, 6, 16, 16, C.steel); g.box(24, 24, 4, 8, 13, 13, C.steel); // mast
+  writeVox('b_gchq.vox', g);
+}
+
+// ---------- Robotics Plant (Japan, 2x2): clean white hall with glazing and a robot arm ----------
+{
+  const g = grid(); foundation(g, 32, 32);
+  block(g, 3, 28, 4, 27, 1, 11, M.concrete, TEAM);
+  for (let x = 5; x <= 26; x++) for (let z = 3; z <= 8; z++) g.set(x, 27, z, M.windowBlue);    // glazed front
+  windowsX(g, 6, 25, 28, 6, 3, M.windowBlue);
+  g.box(20, 24, 8, 12, 12, 14, M.wallDark);                                                    // rooftop arm: base,
+  g.box(22, 22, 10, 10, 15, 20, C.hazard); g.box(22, 27, 10, 10, 20, 20, C.hazard); g.box(27, 27, 9, 11, 18, 19, M.dark); // boom and gripper
+  writeVox('b_robotics.vox', g);
+}
+
+// ---------- Krasukha EW Station (Russia, 2x2): shelter truck with a raised jamming dish ----------
+{
+  const g = grid(); foundation(g, 32, 32);
+  for (const x of [4, 9, 15]) for (const y of [3, 14]) { g.box(x - 1, x + 1, y, y, 1, 3, C.rubber); }
+  g.box(2, 19, 4, 13, 3, 4, C.steelDark);
+  for (let x = 2; x <= 19; x++) for (let y = 4; y <= 13; y++) for (let z = 5; z <= 10; z++) g.set(x, y, z, camoAt(x, y, z, 97)); // shelter
+  g.box(2, 19, 4, 4, 10, 10, TEAM); g.box(2, 19, 13, 13, 10, 10, TEAM);
+  g.box(23, 23, 15, 15, 1, 9, C.steel);                                                         // dish mast
+  for (let y = -6; y <= 6; y++) for (let z = -6; z <= 6; z++) if (y * y + z * z <= 36) g.set(22 - Math.round((y * y + z * z) / 14), 15 + y, 15 + z, y * y + z * z > 25 ? TEAM : M.concrete);
+  writeVox('b_krasukha.vox', g);
+}
+
+// ---------- Propaganda Tower (Soviet Union, 1x1): concrete tower with loudspeakers and a banner ----------
+{
+  const g = grid();
+  g.box(1, 14, 1, 14, 0, 1, M.wallDark);
+  g.box(6, 10, 6, 10, 2, 22, M.concrete);
+  g.box(10, 10, 7, 9, 6, 16, TEAM); g.box(7, 9, 10, 10, 6, 16, TEAM);                           // banners
+  g.box(5, 11, 5, 11, 22, 23, M.wallDark);
+  for (const [x, y] of [[12, 8], [8, 12], [4, 8]]) g.box(x - (x > 8 ? 1 : 0), x, y - (y > 8 ? 1 : 0), y, 20, 21, C.steel); // loudspeakers
+  g.set(8, 8, 24, C.red); g.set(8, 8, 25, C.red);
+  writeVox('b_propaganda.vox', g);
+}
