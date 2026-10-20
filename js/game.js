@@ -108,7 +108,7 @@ class Team {
   canBuild(key) {
     const def = defOf(key);
     if (!def || def.buildable === false) return false;
-    if (def.pkg && def.pkg !== this.pkg) return false;
+    if (!inRoster(key, this.faction)) return false;
     for (const r of def.req || []) if (!this.countOf(r)) return false;
     if (UNITS[key] && !this.countOf(def.from)) return false;
     if (BUILDINGS[key] && !this.countOf('cc')) return false;
@@ -189,7 +189,7 @@ class Unit {
     this.x = x; this.y = y;
     this.hp = this.maxHp = this.def.hp;
     this.facing = Math.random() * Math.PI * 2; this.turret = this.facing;
-    this.air = !!this.def.air; this.alt = this.air ? 26 : 0;
+    this.air = !!this.def.air; this.alt = this.air ? (this.def.alt || 26) : 0;
     this.order = null; this.path = null; this.pathI = 0;
     this.target = null; this.cool = Math.random() * 0.5; this.cool2 = 0;
     this.burst = 0; this.burstT = 0;
@@ -297,7 +297,7 @@ class Game {
       const c = (v) => v * TILE + TILE / 2;
       const mcv = this.spawnUnit('mcv', i, c(sx), c(sy));
       mcv.facing = 0;
-      const extras = ['rifle', 'rifle', 'rifle', 'rocket', 'ifv', 'tank'];
+      const extras = ['rifle', 'rifle', 'rifle', 'rocket', sideKey('ifv', this.teams[i].faction), 'tank'];
       extras.forEach((k, j) => {
         const a = j / extras.length * Math.PI * 2;
         this.spawnUnit(k, i, c(sx + Math.round(Math.cos(a) * 3)), c(sy + Math.round(Math.sin(a) * 3)));
@@ -1182,6 +1182,7 @@ class Game {
         if (t.credits >= cost) { t.credits -= cost; b.hp += hp; }
       }
     }
+    if (b.def.heal) this.healAround(b, t, dt);
     const w = b.def.weapon;
     if (!w) return;
     if (b.def.needsPower && t.lowPower) { b.target = null; return; }
@@ -1204,6 +1205,19 @@ class Game {
     }
   }
 
+  // Support Hub: patches up friendly units nearby (at half speed on low power)
+  healAround(b, t, dt) {
+    b.healT = (b.healT || 0) - dt;
+    if (b.healT > 0) return;
+    b.healT = 0.5;
+    const h = b.def.heal, amount = h.rate * 0.5 * (t.lowPower ? 0.5 : 1);
+    for (const u of this.unitsNear(b.x, b.y, h.radius * TILE)) {
+      if (u.dead || !this.allied(u.team, b.team) || u.hp >= u.maxHp || u.def.harvester && u.hstate === 'mine') continue;
+      u.hp = Math.min(u.maxHp, u.hp + amount);
+      if (Math.random() < 0.3) this.effects.push({ type: 'spark', x: u.x, y: u.y, z: aimZ(u), t: 0, life: 0.5, color: '#7dff9a' });
+    }
+  }
+
   // ---------- weapons ----------
   fire(s, w, t) {
     const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * this.teams[s.team].bonus('dmg', s.kind === 'unit' ? s.def.cat : categoryOf(s.key));
@@ -1220,6 +1234,22 @@ class Game {
         this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.06, size: 5 });
         this.damage(t, dmg, w.warhead, s);
         if (vis) this.sound(w.warhead === 'flak' ? 'flak' : 'gun', sx, sy);
+        break;
+      }
+      case 'flame': {
+        // a gout of burning fuel: hits at once and splashes a little around the target
+        this.effects.push({ type: 'flame', x: sx, y: sy, z: sz, x2: tx, y2: ty, z2: tz, t: 0, life: 0.25 });
+        this.damage(t, dmg, w.warhead, s);
+        for (const o of this.unitsNear(tx, ty, TILE * 0.8)) if (o !== t && !o.air && this.hostile(o.team, s.team)) this.damage(o, dmg * 0.4, w.warhead, s);
+        if (Math.random() < 0.5) this.effects.push({ type: 'fire', x: tx + (Math.random() - 0.5) * 12, y: ty + (Math.random() - 0.5) * 12, z: 2, t: 0, life: 0.8 });
+        if (vis && Math.random() < 0.3) this.sound('flame', sx, sy);
+        break;
+      }
+      case 'laser': {
+        this.effects.push({ type: 'laser', x: sx, y: sy, z: sz, x2: tx, y2: ty, z2: tz, t: 0, life: 0.3 });
+        this.effects.push({ type: 'flash', x: tx, y: ty, z: tz, t: 0, life: 0.12, size: 7, color: '#ff8a7a' });
+        this.damage(t, dmg, w.warhead, s);
+        if (vis) this.sound('laser', sx, sy);
         break;
       }
       case 'rail': {
@@ -1242,9 +1272,9 @@ class Game {
         if (vis) this.sound('rail', sx, sy);
         break;
       }
-      case 'shell': case 'rocket': case 'arty': {
+      case 'shell': case 'rocket': case 'arty': case 'bomb': {
         const p = {
-          type: w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: s,
+          type: w.proj === 'bomb' ? 'arty' : w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: s,
           dmg, warhead: w.warhead, splash: w.splash || 0, speed: (w.speed || 12) * TILE, t: 0,
           ang: Math.atan2(ty - sy, tx - sx),
         };
@@ -1252,6 +1282,9 @@ class Game {
           p.tx += (Math.random() - 0.5) * TILE * 1.5; p.ty += (Math.random() - 0.5) * TILE * 1.5;
           p.dur = Math.hypot(p.tx - sx, p.ty - sy) / p.speed + 0.4;
           p.target = null; p.tz = 0;
+        } else if (w.proj === 'bomb') { // dropped straight down from an airship
+          p.tx += (Math.random() - 0.5) * TILE * 0.6; p.ty += (Math.random() - 0.5) * TILE * 0.6;
+          p.dur = 0.7; p.target = null; p.tz = 0; p.drop = true;
         }
         this.projectiles.push(p);
         this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.08, size: w.proj === 'shell' ? 9 : 6 });
@@ -1268,8 +1301,8 @@ class Game {
       if (p.type === 'arty') {
         const k = Math.min(1, p.t / p.dur);
         p.x = p.sx + (p.tx - p.sx) * k; p.y = p.sy + (p.ty - p.sy) * k;
-        p.z = p.sz * (1 - k) + Math.sin(k * Math.PI) * Math.min(160, p.dur * 90);
-        if (Math.random() < 0.5) this.effects.push({ type: 'smoke', x: p.x, y: p.y, z: p.z, t: 0, life: 0.6, size: 3 });
+        p.z = p.drop ? p.sz * (1 - k * k) : p.sz * (1 - k) + Math.sin(k * Math.PI) * Math.min(160, p.dur * 90);
+        if (!p.drop && Math.random() < 0.5) this.effects.push({ type: 'smoke', x: p.x, y: p.y, z: p.z, t: 0, life: 0.6, size: 3 });
         if (k >= 1) { this.impact(p); continue; }
         keep.push(p); continue;
       }

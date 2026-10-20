@@ -207,3 +207,30 @@ for (const open of [false, true]) {
   t.box(O - 4, O + 3, O - 5, O - 5, 1, 3, M.concrete); t.box(O - 4, O + 3, O + 5, O + 5, 1, 3, M.concrete);
   writeVox('b_sam_gun.vox', t);
 }
+
+// ---------- Laser Defense Tower (EU, 1x1): armoured pylon + rotating emitter ----------
+{
+  const g = grid();
+  g.box(1, 14, 1, 14, 0, 1, M.wallDark);
+  block(g, 3, 12, 3, 12, 2, 9, M.concrete, M.wallDark);
+  hazardStripe(g, 3, 12, 12, 3);
+  writeVox('b_laser.vox', g);
+  const t = grid(), O = 5;
+  cylinder(t, O, O, 3.5, 0, 3, TEAM);
+  t.box(O + 1, O + 11, O, O, 2, 2, C.steelDark);
+  for (let x = O + 3; x <= O + 9; x += 3) t.box(x, x, O - 1, O + 1, 1, 3, C.steel);
+  t.box(O + 11, O + 12, O - 1, O + 1, 1, 3, C.red);                                             // focusing lens
+  writeVox('b_laser_gun.vox', t);
+}
+
+// ---------- Support Hub (China, 2x2): field hospital with a crane and a helipad cross ----------
+{
+  const g = grid(); foundation(g, 32, 32);
+  block(g, 3, 18, 4, 28, 1, 9, M.wall, TEAM);
+  windowsY(g, 5, 16, 28, 5); windowsX(g, 6, 26, 18, 5);
+  g.box(8, 13, 13, 18, 9, 9, M.concrete); g.box(10, 11, 11, 20, 9, 9, C.red); g.box(6, 15, 15, 16, 9, 9, C.red); // red cross on the roof
+  g.box(20, 29, 4, 28, 1, 1, M.asphalt);                                                       // repair apron
+  for (let y = 6; y <= 26; y += 4) g.set(25, y, 1, M.mark);
+  g.box(27, 28, 5, 6, 2, 16, C.hazard); g.box(20, 28, 5, 6, 16, 16, C.hazard); g.box(21, 21, 5, 5, 11, 15, M.dark); // crane
+  writeVox('b_hub.vox', g);
+}

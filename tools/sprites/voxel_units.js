@@ -208,6 +208,102 @@ function soldier(kind, frame) {
   if (kind === 'rifle') { g.box(4, 10, Y + 2, Y + 2, 8, 8, C.gunDark); g.set(5, Y + 2, 7, C.gunDark); }
   if (kind === 'rocket') { g.box(-0, 9, Y + 2, Y + 3, 11, 12, C.olive); g.set(9, Y + 2, 11, C.gunDark); g.set(9, Y + 3, 12, C.gunDark); }
   if (kind === 'engineer') { g.box(4, 6, Y + 2, Y + 3, 4, 6, C.red); g.set(5, Y + 2, 7, C.steelDark); }
+  if (kind === 'sniper') { g.box(3, 13, Y + 2, Y + 2, 9, 9, C.gunDark); g.box(5, 7, Y + 2, Y + 2, 10, 10, C.steelDark); g.set(6, Y + 2, 8, C.gunDark); } // long rifle + scope
+  if (kind === 'shock') {
+    for (const y of [Y - 2, Y + 2]) { g.box(0, 0, y, y, 5, 11, C.hazard); g.set(0, y, 12, C.steelDark); }                            // fuel tanks either side of the pack
+    g.box(4, 8, Y + 2, Y + 2, 7, 7, C.steelDark); g.set(9, Y + 2, 7, C.flame);                                                       // flame lance
+  }
   return g;
 }
-for (const kind of ['rifle', 'rocket', 'engineer']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
+for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
+
+// ======== bloc and nation specials ========
+
+// ---------- Flak Track (East): tracked hull, radar-topped turret with twin autocannons ----------
+{
+  const h = grid();
+  trackRun(h, 1, 26, 0, 3); trackRun(h, 1, 26, 14, 17);
+  h.camo(2, 25, 3, 14, 2, 7, 53);
+  slopeFront(h, 21, 25, 3, 14, 7);
+  for (let x = 2; x <= 25; x++) { h.set(x, 3, 7, TEAM_DARK); h.set(x, 14, 7, TEAM_DARK); }
+  h.box(3, 7, 5, 12, 8, 8, C.grille);
+  h.set(25, 5, 4, C.light); h.set(25, 12, 4, C.light);
+  writeVox('flak_hull.vox', h);
+  const t = grid(), O = 7;
+  t.camo(O - 5, O + 4, O - 5, O + 5, 0, 4, 59);
+  t.band(2, TEAM);
+  for (const y of [O - 4, O + 4]) { t.box(O + 4, O + 15, y, y, 3, 3, C.gun); t.box(O + 14, O + 15, y, y, 2, 4, C.gunDark); } // twin cannons
+  t.box(O - 4, O - 2, O - 1, O + 1, 5, 7, C.steelDark); t.box(O - 5, O - 1, O - 3, O + 3, 8, 8, C.steel);                          // radar mast + dish
+  writeVox('flak_turret.vox', t);
+}
+
+// ---------- Thermobaric Launcher (East): heavy tracked chassis, slab of rocket tubes ----------
+{
+  const h = grid();
+  trackRun(h, 1, 31, 0, 4); trackRun(h, 1, 31, 17, 21);
+  h.camo(2, 30, 4, 17, 2, 7, 61);
+  slopeFront(h, 26, 30, 4, 17, 7);
+  for (let x = 2; x <= 30; x++) { h.set(x, 4, 7, TEAM_DARK); h.set(x, 17, 7, TEAM_DARK); }
+  h.box(24, 28, 6, 15, 8, 9, C.camoDark);
+  h.set(30, 6, 4, C.light); h.set(30, 15, 4, C.light);
+  writeVox('tos_hull.vox', h);
+  const t = grid(), O = 10;
+  t.camo(O - 10, O + 8, O - 6, O + 6, 0, 7, 67);
+  for (let y = O - 5; y <= O + 5; y += 2) for (let z = 1; z <= 6; z += 2) t.set(O + 8, y, z, C.gunDark);                             // 24 tube mouths
+  t.band(4, TEAM);
+  t.box(O - 10, O - 8, O - 6, O + 6, 0, 2, C.steelDark);
+  writeVox('tos_turret.vox', t);
+}
+
+// ---------- Iskander-M (Russia): 8x8 transporter with one huge missile ----------
+{
+  const h = grid();
+  for (const x of [4, 9, 23, 28]) { wheel(h, x, 0, 1); wheel(h, x, 14, 15); }
+  h.box(1, 33, 2, 13, 2, 3, C.steelDark);
+  h.camo(26, 33, 1, 14, 4, 10, 71);                                  // cab
+  slopeFront(h, 31, 33, 1, 14, 10);
+  h.box(33, 33, 3, 12, 6, 8, C.glassDark);
+  h.camo(1, 25, 1, 14, 4, 6, 73);                                    // erector bed
+  for (let x = 26; x <= 33; x++) { h.set(x, 1, 8, TEAM_DARK); h.set(x, 14, 8, TEAM_DARK); }
+  h.set(33, 2, 5, C.light); h.set(33, 13, 5, C.light);
+  writeVox('iskander_hull.vox', h);
+  const t = grid(), O = 4;
+  t.box(O - 3, O + 21, O - 2, O + 2, 0, 4, C.camoDark);              // missile cradle
+  for (let x = O - 2; x <= O + 22; x++) for (let y = O - 1; y <= O + 1; y++) for (let z = 1; z <= 3; z++) t.set(x, y, z + 2, x > O + 19 ? C.red : C.white); // missile
+  t.box(O - 3, O - 3, O - 2, O + 2, 4, 6, TEAM);                     // fins
+  writeVox('iskander_turret.vox', t);
+}
+
+// ---------- MQ-9 Reaper (USA): long thin wings, V-tail, sensor ball ----------
+{
+  const h = grid(), Y = 14;
+  for (let x = 2; x <= 22; x++) {
+    const half = x > 19 ? 0 : 1, top = x > 17 ? 3 : 2;
+    for (let y = Y - half; y <= Y + half; y++) for (let z = 1; z <= top; z++) h.set(x, y, z, C.jetGrey);
+  }
+  for (let y = Y - 14; y <= Y + 14; y++) h.box(11, 13, y, y, 2, 2, C.jetGrey);                 // straight high wing
+  for (const y of [Y - 13, Y - 12, Y + 12, Y + 13]) h.set(12, y, 2, TEAM);                       // wingtips
+  for (const s of [-1, 1]) for (let i = 0; i <= 3; i++) h.set(2, Y + s * i, 3 + i, TEAM);       // V tail
+  h.box(0, 1, Y, Y, 1, 2, C.gunDark);                                                          // pusher prop
+  h.box(19, 20, Y, Y, 0, 0, C.glassDark);                                                      // sensor ball
+  for (const y of [Y - 6, Y + 6]) h.box(10, 14, y, y, 1, 1, C.olive);                          // Hellfires
+  writeVox('drone.vox', h);
+}
+
+// ---------- Kirov Airship (Soviet): huge red-banded envelope, gondola underneath ----------
+{
+  const h = grid(), Y = 10, Z = 12;
+  for (let x = 0; x <= 46; x++) {
+    const t = (x - 23) / 23, r = 9 * Math.sqrt(Math.max(0, 1 - t * t));
+    for (let y = Math.floor(Y - r); y <= Math.ceil(Y + r); y++) for (let z = Math.floor(Z - r * 0.85); z <= Math.ceil(Z + r * 0.85); z++) {
+      if (((y - Y) / (r || 1)) ** 2 + ((z - Z) / ((r || 1) * 0.85)) ** 2 > 1) continue;
+      h.set(x, y, z, x === 12 || x === 34 ? TEAM : x === 13 || x === 35 ? TEAM_DARK : C.camo);                   // two team bands
+    }
+  }
+  for (const s of [-1, 1]) h.box(1, 6, Y + s * 9, Y + s * 11, Z, Z, TEAM);                      // tail fins
+  h.box(1, 6, Y, Y, Z + 8, Z + 11, TEAM);
+  h.box(16, 30, Y - 2, Y + 2, 1, 4, C.steelDark);                                              // gondola
+  h.box(16, 30, Y - 2, Y + 2, 3, 3, C.light);
+  for (const y of [Y - 6, Y + 6]) h.box(18, 22, y, y, 6, 7, C.gunDark);                        // engine pods
+  writeVox('kirov.vox', h);
+}

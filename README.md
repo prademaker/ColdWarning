@@ -2,15 +2,21 @@
 
 *Same rivals. New world.* A base-building real-time strategy game in the spirit of *Command & Conquer: Red Alert 2*, set in the year 2030.
 
-Five factions fight over rare-earth ore fields, each with its own roster, flag, colours and a small bonus:
+Five nations in two blocs fight over rare-earth ore fields. Each bloc fields its own special infantry,
+light vehicle and artillery, and each nation adds a signature unit or structure nobody else can build:
 
-| Faction | Style | Bonus | Special tank / superweapon |
+| Bloc | Special infantry | Light vehicle | Artillery |
 | --- | --- | --- | --- |
-| USA | Technology / Mobility / Air Power | Aircraft +25% armor | Railgun Tank / Orbital Lance |
-| Russia | Power / Endurance / Heavy Firepower | Armor +15% firepower | Titan Tank / Hypersonic Silo |
-| China | Expansion / Innovation / Discipline | Structures build 25% faster | Railgun Tank / Orbital Lance |
-| EU | Cooperation / Sustainability / Advanced Defense | Defenses +30% armor, +20% firepower | Railgun Tank / Orbital Lance |
-| Soviet Union | Tradition / Strength / Revival | Infantry 25% cheaper | Titan Tank / Hypersonic Silo |
+| West | Sniper: out-ranges infantry, useless vs armor | Recon IFV: fast scout, hits air and ground | MLRS: long-range rocket barrages |
+| East | Flame Trooper: short-range, burns infantry and structures | Flak Track: shreds aircraft and infantry | Thermobaric Launcher: armored, huge blast |
+
+| Nation | Bloc | Bonus | Signature | Special tank / superweapon |
+| --- | --- | --- | --- | --- |
+| USA | West | Aircraft +25% armor | MQ-9 Reaper drone: sees far, Hellfire strikes | Railgun Tank / Orbital Lance |
+| EU | West | Defenses +30% armor, +20% firepower | Laser Defense Tower: hits ground and air | Railgun Tank / Orbital Lance |
+| Russia | East | Armor +15% firepower | Iskander-M: missile strikes from 16 tiles | Titan Tank / Hypersonic Silo |
+| China | East | Structures build 25% faster | Support Hub: heals nearby units | Railgun Tank / Orbital Lance |
+| Soviet Union | East | Infantry 25% cheaper | Kirov Airship: armored flying bomber | Titan Tank / Hypersonic Silo |
 
 Battles take place in five theaters: Temperate, Desert, Arctic, Steppe and Jungle.
 
@@ -24,7 +30,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Deploy your MCV into a Command Center and grow a base with a classic sidebar: build queues, hold/cancel, READY-to-place structures.
 - Economy: harvesters mine gold ore and lithium crystals; fields slowly regrow.
 - Power grid: low power slows production, disables the radar minimap and shuts off powered defenses.
-- 11 unit types: infantry, engineers (capture buildings), IFVs, main battle tanks, MLRS artillery, faction super-tanks, attack helicopters and fighter jets.
+- 18 unit types: infantry, engineers (capture buildings), bloc-specific infantry, scouts and artillery, main battle tanks, super-tanks, nation signature units, attack helicopters and fighter jets.
 - Defenses: gatling turrets, rail turrets, SAM sites. Superweapons on a five-minute charge.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.

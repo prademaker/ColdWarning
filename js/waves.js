@@ -66,7 +66,7 @@ class WaveDirector {
       const boss = t.pkg === 'tech' ? 'railtank' : 'titan';
       for (let i = 0; i < n / 5 + 1; i++) { keys.push(boss); budget -= t.costOf(boss); }
     }
-    const pool = DEFENSE.pool.filter(([k, from]) => n >= from && (!UNITS[k].pkg || UNITS[k].pkg === t.pkg));
+    const pool = DEFENSE.pool.map(([k, from, w]) => [sideKey(k, t.faction), from, w]).filter(([k, from]) => n >= from && inRoster(k, t.faction));
     const sum = pool.reduce((s, [, , w]) => s + w, 0);
     while (budget > 0 && keys.length < 40) {
       let r = Math.random() * sum, k = pool[0][0];

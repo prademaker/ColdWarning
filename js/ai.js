@@ -7,9 +7,10 @@
 // how much the AI wants a known enemy structure gone (or captured)
 const AI_TARGET_VALUE = {
   super_lance: 14, super_silo: 14, factory: 10, refinery: 9, tech: 8, power: 7, cc: 7,
-  airfield: 6, barracks: 5, radar: 5, railturret: 3, turret: 3, sam: 2,
+  airfield: 6, hub: 6, barracks: 5, radar: 5, laser: 3, railturret: 3, turret: 3, sam: 2,
 };
-const AI_CAPTURE = ['super_lance', 'super_silo', 'cc', 'factory', 'tech', 'refinery', 'airfield', 'radar'];
+const AI_RAIDERS = ['heli', 'drone'];
+const AI_CAPTURE = ['super_lance', 'super_silo', 'cc', 'factory', 'tech', 'hub', 'refinery', 'airfield', 'radar'];
 
 function aiWorth(e) {
   const base = e.def.cost * Math.max(0.2, e.hp / e.maxHp);
@@ -22,9 +23,10 @@ class AI {
     this.d = DIFFICULTY[difficulty] || DIFFICULTY.normal;
     this.thinkT = 1 + team.id * 0.35;
     const sup = team.superKey();
+    // nation-only structures (Support Hub, Laser Tower) drop out for everyone else
     this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret',
-      'airfield', 'power', 'tech', 'sam', 'power', 'turret', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
-      'railturret', 'factory', 'turret', 'sam', 'power'];
+      'hub', 'airfield', 'power', 'tech', 'laser', 'sam', 'power', 'turret', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
+      'laser', 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => inRoster(k, team.faction));
     this.nextAttack = this.d.firstAttack;
     this.waves = 0;
     this.wave = null;          // the attack wave in the field: { ids, foe, state, stage, t, start, target }
@@ -317,25 +319,32 @@ class AI {
       Q.infantry.add('engineer');
     }
 
+    // always keep a few of the nation's signature unit in the field
+    const sig = FACTIONS[t.faction].signature, sq = UNITS[sig] && Q[queueTypeOf(sig)];
+    if (sq && t.canBuild(sig) && !sq.items.length && t.credits > 800 + reserve &&
+      units.filter(u => u.key === sig).length < 2 + Math.floor(this.waves / 2)) sq.add(sig);
+
     const army = units.filter(u => u.def.weapon).length;
     const cap = 18 + this.waves * 4 + Math.floor(t.credits / 2500) * 3; // spend surplus
     if (army > cap) return;
 
     // lean the mix toward whatever counters the enemy army we have seen
-    let inf = { rifle: 5, rocket: 5 };
-    let veh = { ifv: 2, tank: 5, mlrs: 1.5, railtank: 3, titan: 3 };
-    let air = { heli: 6, jet: 4 };
+    // (pick() skips whatever this nation can't build, so both blocs share one table)
+    let inf = { rifle: 5, rocket: 5, sniper: 1.5, shock: 2.5 };
+    let veh = { ifv: 2, flak: 2, tank: 5, mlrs: 1.5, tos: 1.5, railtank: 3, titan: 3, iskander: 1 };
+    let air = { heli: 6, drone: 4, kirov: 3, jet: 4 };
     const mix = this.enemyMix();
     if (d.counter && mix.total > 1500) {
       const f = k => mix[k] / mix.total, armor = f('light') + f('heavy');
       const def = Math.min(1, mix.defense / 6000);
-      inf = { rifle: 2 + f('infantry') * 8, rocket: 2 + (armor + f('air')) * 8 };
-      veh = { ifv: 1 + f('air') * 5 + f('infantry') * 2, tank: 3 + f('light') * 4 + f('heavy') * 2, mlrs: 1 + f('infantry') * 3 + def * 3,
-        railtank: 2 + f('heavy') * 4, titan: 2 + f('heavy') * 3 + f('air') * 3 };
-      air = { heli: 3 + armor * 6, jet: 2 + f('air') * 10 };
+      inf = { rifle: 2 + f('infantry') * 8, rocket: 2 + (armor + f('air')) * 8, sniper: f('infantry') * 4, shock: 1 + f('infantry') * 4 + def * 2 };
+      veh = { ifv: 1 + f('air') * 5 + f('infantry') * 2, flak: 1 + f('air') * 7 + f('infantry') * 2, tank: 3 + f('light') * 4 + f('heavy') * 2,
+        mlrs: 1 + f('infantry') * 3 + def * 3, tos: 1 + f('infantry') * 3 + def * 3, railtank: 2 + f('heavy') * 4, titan: 2 + f('heavy') * 3 + f('air') * 3,
+        iskander: def * 3 };
+      air = { heli: 3 + armor * 6, drone: 3 + armor * 4, kirov: 2 + def * 3 + f('infantry') * 2, jet: 2 + f('air') * 10 };
     }
-    // helicopters for the raiding party: they fly over defenses and don't hold up the war factory
-    if (d.raid && units.filter(u => u.key === 'heli').length < d.raid) air.heli += 10;
+    // helicopters (or Reaper drones) for the raiding party: they fly over defenses and don't hold up the war factory
+    if (d.raid && units.filter(u => AI_RAIDERS.includes(u.key)).length < d.raid) { air.heli += 5; air.drone += 5; }
     // with a factory up and money in the bank, armour is a better buy than another trooper
     const armyUnits = units.filter(u => u.def.weapon && !u.def.harvester);
     const infShare = armyUnits.filter(u => u.def.cat === 'infantry').length / Math.max(1, armyUnits.length);
@@ -349,7 +358,7 @@ class AI {
       const k = this.pick(veh);
       if (k) Q.vehicle.add(k);
     }
-    if (Q.air.items.length < 1 && t.credits > 2200 + reserve && t.canBuild('heli')) {
+    if (Q.air.items.length < 1 && t.credits > 1600 + reserve && t.canBuild('heli')) {
       const k = this.pick(air);
       if (k) Q.air.add(k);
     }
@@ -546,7 +555,7 @@ class AI {
     const stale = G.teams.filter(t => G.hostile(t.id, this.team.id) && !t.defeated && !t.waves &&
       G.time - (this.startSeen[t.id] ?? -1e9) > 100);
     if (!stale.length) { this.nextScout = G.time + 30; return; }
-    const cand = fighters.filter(u => u.key === 'ifv' || u.key === 'heli' || u.key === 'rifle')
+    const cand = fighters.filter(u => ['ifv', 'flak', 'drone', 'heli', 'rifle'].includes(u.key))
       .sort((a, b) => b.def.speed - a.def.speed);
     const u = cand[0];
     if (!u) { this.nextScout = G.time + 20; return; }
@@ -581,7 +590,7 @@ class AI {
       return;
     }
     if (G.time < this.nextRaid) return;
-    const fast = fighters.filter(u => u.key === 'heli' && (!this.scout || u.id !== this.scout.id));
+    const fast = fighters.filter(u => AI_RAIDERS.includes(u.key) && (!this.scout || u.id !== this.scout.id));
     if (fast.length < Math.min(2, size)) return;
     const party = fast.slice(0, size);
     const px = party[0].x, py = party[0].y;

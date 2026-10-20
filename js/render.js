@@ -338,6 +338,28 @@ const Render = {
         ctx.restore();
         break;
       }
+      case 'laser': {
+        const [x2, y2] = this.P(f.x2, f.y2, f.z2 || 0);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(255,70,60,${0.75 * (1 - p)})`; ctx.lineWidth = 4 * (1 - p) + 1;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.strokeStyle = `rgba(255,230,220,${1 - p})`; ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.restore();
+        break;
+      }
+      case 'flame': {
+        const [x2, y2] = this.P(f.x2, f.y2, f.z2 || 0);
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        for (let i = 1; i <= 6; i++) {
+          const k = i / 6 * Math.min(1, p * 4 + 0.3), r = 1.5 + k * 5;
+          const fx = x + (x2 - x) * k + Math.sin(f.t * 40 + i) * k * 3, fy = y + (y2 - y) * k - k * 3;
+          ctx.fillStyle = `rgba(255,${200 - k * 120 | 0},40,${0.75 * (1 - p)})`;
+          ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+        break;
+      }
       case 'spark':
         ctx.fillStyle = f.color; ctx.globalAlpha = 1 - p;
         for (let i = 0; i < 3; i++) ctx.fillRect(x + Math.sin(i * 7 + f.t * 20) * 6 * p, y - p * 8 - i * 2, 2, 2);

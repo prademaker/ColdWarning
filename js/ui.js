@@ -373,7 +373,7 @@ const UI = {
     const tab = TABS.find(t => t.id === this.tab);
     for (const key of tab.list) {
       const def = defOf(key);
-      if (def.key && def.key.toLowerCase() === lower && (!def.pkg || def.pkg === G.playerTeam.pkg)) { this.clickBuild(key, false, e.shiftKey); return; }
+      if (def.key && def.key.toLowerCase() === lower && inRoster(key, G.playerTeam.faction)) { this.clickBuild(key, false, e.shiftKey); return; }
     }
   },
 
@@ -504,7 +504,7 @@ const UI = {
   buildGrid() {
     const t = G.playerTeam;
     const tab = TABS.find(x => x.id === this.tab);
-    const list = tab.list.filter(k => !defOf(k).pkg || defOf(k).pkg === t.pkg);
+    const list = tab.list.filter(k => inRoster(k, t.faction));
     const grid = document.getElementById('build-grid');
     grid.innerHTML = '';
     this.buttons = {};
