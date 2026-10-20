@@ -1,6 +1,8 @@
 // Cold War 2: 2030 — campaign: Operation Northwind.
 // Each mission is data (map, teams, briefing) plus a small script: setup() places the forces,
-// tick() runs triggers, and objectives decide victory and defeat. Mission is the runtime the
+// tick() runs triggers, and objectives decide victory and defeat. Objective checks and timed
+// events live in the mission's objectives and events tables, looked up by id when they run, so
+// a saved game (save.js) can carry them without storing functions; script state goes in M.vars. Mission is the runtime the
 // scripts talk to; it knows nothing about the screen (ui.js and render.js read its state).
 'use strict';
 
@@ -57,25 +59,30 @@ const CAMPAIGN = {
         M.vars.route = [M.toward([ex, ey], c, 12), M.toward(c, [px, py], 4)];
         for (const b of M.civNear(ex, ey).slice(0, 2)) M.garrison(b, 1, 'rifle', 2);
         M.vars.lz = M.freeCorner([px, py], [ex, ey]);
-        M.objective('radar', 'Destroy the Radar Station', {
-          check: () => M.vars.radar.dead,
-          done: () => {
-            M.say('hale', "Radar's down! Volkov is blind. Get to the extraction point, Raven.");
-            M.say('volkov', 'An American ghost on my ice? Find her. Bring me that beret.');
-            M.marker('lz', ...M.vars.lz, 'EXTRACTION');
-            M.objective('lz', 'Get Raven to the extraction point', { check: () => M.heroNear(...M.vars.lz, 2.5) });
-            // a reaction force drives out of the village to cut off the extraction
-            const [hx, hy] = M.rel(1, 14, 0);
-            const hunters = [...M.spawn('rifle', 1, hx, hy, 4), ...M.spawn('shock', 1, hx + 1, hy, 2), ...M.spawn('flak', 1, hx - 1, hy + 1)];
-            G.commandMove(hunters, ...M.vars.lz, true, true);
-          },
-        });
-        M.objective('power', 'Knock out both Power Plants', { optional: true, check: () => M.vars.power.every(b => b.dead) });
+        M.objective('radar', 'Destroy the Radar Station');
+        M.objective('power', 'Knock out both Power Plants', { optional: true });
         M.survive();
         M.say('hale', "Raven, you're on the ice. The listening post is on the far side of the shelf. The Radar Station is the target.", 1);
         M.say('raven', 'Copy. Nobody sees me until I want them to.');
         M.say('hale', "They can't pick you out unless you're right on top of them or shooting. Right-click a structure to plant C4.");
         M.say('hale', 'Their rail turret runs on power. Take out the power plants and it goes dark.');
+      },
+      objectives: {
+        radar: {
+          check: M => M.vars.radar.dead,
+          done(M) {
+            M.say('hale', "Radar's down! Volkov is blind. Get to the extraction point, Raven.");
+            M.say('volkov', 'An American ghost on my ice? Find her. Bring me that beret.');
+            M.marker('lz', ...M.vars.lz, 'EXTRACTION');
+            M.objective('lz', 'Get Raven to the extraction point');
+            // a reaction force drives out of the village to cut off the extraction
+            const [hx, hy] = M.rel(1, 14, 0);
+            const hunters = [...M.spawn('rifle', 1, hx, hy, 4), ...M.spawn('shock', 1, hx + 1, hy, 2), ...M.spawn('flak', 1, hx - 1, hy + 1)];
+            G.commandMove(hunters, ...M.vars.lz, true, true);
+          },
+        },
+        lz: { check: M => M.heroNear(...M.vars.lz, 2.5) },
+        power: { check: M => M.vars.power.every(b => b.dead) },
       },
       tick(M) {
         // the patrol walks its beat
@@ -115,16 +122,20 @@ const CAMPAIGN = {
         M.focusOn(px, py);
         M.startingForces(0);
         M.spawn('engineer', 0, px + 2, py - 2);
-        M.objective('deploy', 'Deploy the MCV to set up a base', { check: () => G.playerTeam.countOf('cc') > 0 });
-        M.objective('hold', `Hold out against all ${G.waves.total} attack waves`, { check: () => G.waves.won });
-        M.objective('town', 'Garrison two houses in the village', {
-          optional: true,
-          check: () => G.entities.filter(b => b.kind === 'building' && b.def.cat === 'civilian' && b.team === 0).length >= 2,
-          done: () => M.say('lund', "Good. They'll have to dig every one of those out of the windows."),
-        });
+        M.objective('deploy', 'Deploy the MCV to set up a base');
+        M.objective('hold', `Hold out against all ${G.waves.total} attack waves`);
+        M.objective('town', 'Garrison two houses in the village', { optional: true });
         M.say('lund', 'Commander, Lund here. Deploy that MCV and get power up. Scouts give us about four minutes.', 1);
         M.say('lund', 'The village toward the crossroads is empty. Riflemen in those houses will hold anything on foot.');
         M.say('lund', 'Once you have a Radar Station, build Laser Towers. Nothing in Volkov\'s army likes them.');
+      },
+      objectives: {
+        deploy: { check: () => G.playerTeam.countOf('cc') > 0 },
+        hold: { check: () => G.waves.won },
+        town: {
+          check: () => G.entities.filter(b => b.kind === 'building' && b.def.cat === 'civilian' && b.team === 0).length >= 2,
+          done: M => M.say('lund', "Good. They'll have to dig every one of those out of the windows."),
+        },
       },
       onWave(M, n, units) {
         if (n === 1) M.say('lund', 'Contact! Columns on the road.');
@@ -182,19 +193,23 @@ const CAMPAIGN = {
         M.vars.silo = G.entities.find(b => b.key === 'super_silo' && b.team === 1);
         const mins = SILO_MINUTES[M.opts.difficulty] || SILO_MINUTES.normal;
         M.countdown('Silo launch', mins * 60);
-        M.objective('silo', 'Destroy or capture the Hypersonic Silo before it launches', {
-          check: () => M.vars.silo.dead || M.vars.silo.team === 0,
-          done: () => {
-            M.clock = null;
-            if (M.vars.silo.dead) M.say('hale', 'Silo destroyed! Northwind HQ breathes again.');
-            else M.say('hale', 'We own their silo? Volkov is going to hate this.');
-          },
-        });
+        M.objective('silo', 'Destroy or capture the Hypersonic Silo before it launches');
         M.survive();
         M.say('hale', 'The clock is running, Commander. Every minute counts.', 1);
         M.say('raven', 'That silo eats power. Cut their power plants and the countdown freezes.');
         M.say('hale', 'Russian Iskander launchers are in the area. Keep your base spread out.');
       },
+      objectives: {
+        silo: {
+          check: M => M.vars.silo.dead || M.vars.silo.team === 0,
+          done(M) {
+            M.clock = null;
+            if (M.vars.silo.dead) M.say('hale', 'Silo destroyed! Northwind HQ breathes again.');
+            else M.say('hale', 'We own their silo? Volkov is going to hate this.');
+          },
+        },
+      },
+      events: { launched: M => M.lose() },
       tick(M, dt) {
         const foe = G.teams[1], silo = M.vars.silo;
         if (!M.clock) return;
@@ -216,7 +231,7 @@ const CAMPAIGN = {
           M.say('volkov', 'Launch.');
           if (hq) { foe.superReady = true; G.fireSuper(1, hq.x, hq.y); }
           M.doomed = true;
-          M.after(5, () => M.lose());
+          M.after(5, 'launched');
         }
       },
     },
@@ -262,26 +277,34 @@ const CAMPAIGN = {
         }
         M.squad('kirov', 2, ...M.start(2), 1);
         M.squad('iskander', 3, ...M.start(3), 1);
-        M.objective('volkov', "Destroy Volkov's base", {
-          check: () => G.teams[2].defeated,
-          done: () => { M.say('volkov', 'This is not... the end of the Union.'); M.say('hale', "Volkov's headquarters is rubble!"); },
-        });
-        M.objective('russia', 'Drive out the Russian Expeditionary Force', {
-          check: () => G.teams[3].defeated,
-          done: () => M.say('hale', 'The Russians are pulling out!'),
-        });
+        M.objective('volkov', "Destroy Volkov's base");
+        M.objective('russia', 'Drive out the Russian Expeditionary Force');
         M.survive();
         M.say('hale', 'All units, Operation Northwind is go.', 1);
         M.say('lund', 'Northern Brigade landing on your flank. Good hunting, Commander.');
         M.say('volkov', 'You bring Europe to my door? I have an airship for every one of you.');
-        M.after(240, () => {
+        M.after(240, 'vanguard');
+      },
+      objectives: {
+        volkov: {
+          check: () => G.teams[2].defeated,
+          done: M => { M.say('volkov', 'This is not... the end of the Union.'); M.say('hale', "Volkov's headquarters is rubble!"); },
+        },
+        russia: {
+          check: () => G.teams[3].defeated,
+          done: M => M.say('hale', 'The Russians are pulling out!'),
+        },
+        kirov: { check: M => M.vars.vanguard.every(u => u.dead) },
+      },
+      events: {
+        vanguard(M) {
           if (G.teams[2].defeated) return;
           const [sx, sy] = M.start(2), hq = M.playerHQ();
           M.vars.vanguard = M.spawn('kirov', 2, sx, sy, 2);
           if (hq) G.commandMove(M.vars.vanguard, hq.tx + 1, hq.ty + 1, true, true);
           M.say('hale', 'Kirov vanguard inbound! Get your anti-air up!');
-          M.objective('kirov', 'Shoot down the Kirov vanguard', { optional: true, check: () => M.vars.vanguard.every(u => u.dead) });
-        });
+          M.objective('kirov', 'Shoot down the Kirov vanguard', { optional: true });
+        },
       },
     },
   ],
@@ -478,7 +501,8 @@ class Mission {
     if (near.length) G.commandMove(near, attacker.tx, attacker.ty, true, true);
   }
 
-  after(sec, fn) { this.timers.push({ t: G.time + sec, fn }); }
+  // run the mission's events[name] after sec seconds
+  after(sec, name) { this.timers.push({ t: G.time + sec, name }); }
   countdown(label, sec) { this.clock = { label, end: G.time + sec, paused: false }; }
   marker(id, tx, ty, label) { this.markers = this.markers.filter(m => m.id !== id); this.markers.push({ id, x: tx * TILE + TILE / 2, y: ty * TILE + TILE / 2, label }); }
   unmark(id) { this.markers = this.markers.filter(m => m.id !== id); }
@@ -487,9 +511,10 @@ class Mission {
   say(who, text, wait = 0.6) { this.radio.push({ who, text, wait }); }
 
   // ---------- objectives ----------
-  // opts: check() -> true when achieved, done() runs once then; optional ones don't block victory
+  // The mission's objectives[id] gives check(M) -> true when achieved and done(M), run once then.
+  // Optional ones don't block victory.
   objective(id, text, opts = {}) {
-    this.objectives.push({ id, text, state: 'active', optional: !!opts.optional, survive: !!opts.survive, check: opts.check, done: opts.done });
+    this.objectives.push({ id, text, state: 'active', optional: !!opts.optional, survive: !!opts.survive });
     if (G.time > 1) G.eva(opts.optional ? 'Bonus objective' : 'New objective', G.player);
   }
 
@@ -524,10 +549,11 @@ class Mission {
       return;
     }
     for (const o of [...this.objectives]) {
-      if (o.state !== 'active' || !o.check || !o.check()) continue;
+      const h = (this.def.objectives || {})[o.id];
+      if (o.state !== 'active' || !h || !h.check(this)) continue;
       o.state = 'done';
       G.eva(o.optional ? 'Bonus objective complete' : 'Objective complete', G.player);
-      if (o.done) o.done(this);
+      if (h.done) h.done(this);
     }
     const left = this.objectives.filter(o => !o.optional && !o.survive && o.state !== 'done');
     if (!left.length && this.objectives.length) this.win();
@@ -538,13 +564,13 @@ class Mission {
     this.def.setup(this);
     // the starting setup isn't anyone's achievement
     for (const t of G.teams) {
-      t.stats = { built: 0, lost: 0, kills: 0, structuresBuilt: 0, structuresLost: 0, structuresKilled: 0, harvested: 0 };
+      t.stats = blankStats();
       t.recount();
     }
   }
 
   update(dt) {
-    for (const tm of this.timers) if (!tm.fired && G.time >= tm.t) { tm.fired = true; tm.fn(this); }
+    for (const tm of this.timers) if (!tm.fired && G.time >= tm.t) { tm.fired = true; this.def.events[tm.name](this); }
     this.timers = this.timers.filter(tm => !tm.fired);
     if (this.def.tick) this.def.tick(this, dt);
     // radio: one transmission at a time, long enough to read
