@@ -155,8 +155,58 @@ const Art = {
     if (!s) { s = fn(); this.cache.set(id, s); }
     return s;
   },
-  blit(ctx, s, x, y) { ctx.drawImage(s.c, x - s.ox, y - s.oy, s.w, s.h); },
+  blit(ctx, s, x, y) {
+    if (s.sw) ctx.drawImage(s.c, s.sx, s.sy, s.sw, s.sh, x - s.ox, y - s.oy, s.w, s.h);
+    else ctx.drawImage(s.c, x - s.ox, y - s.oy, s.w, s.h);
+  },
 };
+
+// ---------- pre-rendered 3D model sprites (see tools/sprites) ----------
+// Sheets hold 32 facings; a mask sheet marks the paintable hull, which gets the faction's
+// camouflage tint and the team colour. Units without sheets fall back to the prism models.
+const SHEETS = {};
+if (typeof SPRITE_META !== 'undefined') {
+  for (const [key, m] of Object.entries(SPRITE_META)) {
+    for (const part of Object.keys(m.parts)) {
+      const base = new Image(), mask = new Image();
+      base.src = `assets/sprites/${key}_${part}.png`; mask.src = `assets/sprites/${key}_${part}_mask.png`;
+      SHEETS[key + '_' + part] = { base, mask };
+    }
+  }
+}
+const CAMO_TINT = { usa: '#e6dcc4', russia: '#a9b480', china: '#98b78b', eu: '#a4ad98', soviet: '#b3ae7c' };
+const loaded = img => img.complete && img.naturalWidth > 0;
+
+function teamSheet(key, part, team) {
+  const sh = SHEETS[key + '_' + part];
+  if (!sh || !loaded(sh.base) || !loaded(sh.mask)) return null;
+  return Art.get(`S|${key}|${part}|${team.faction}|${team.color}`, () => {
+    const w = sh.base.naturalWidth, h = sh.base.naturalHeight;
+    const layer = color => {
+      const l = document.createElement('canvas'); l.width = w; l.height = h;
+      const lx = l.getContext('2d');
+      lx.drawImage(sh.mask, 0, 0);
+      lx.globalCompositeOperation = 'source-in'; lx.fillStyle = color; lx.fillRect(0, 0, w, h);
+      return l;
+    };
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    x.drawImage(sh.base, 0, 0);
+    x.globalCompositeOperation = 'multiply';
+    x.drawImage(layer(CAMO_TINT[team.faction] || '#ffffff'), 0, 0);
+    // a light wash of team colour keeps sides recognisable without hiding the camouflage
+    x.globalCompositeOperation = 'color'; x.globalAlpha = 0.2;
+    x.drawImage(layer(team.color), 0, 0);
+    return c;
+  });
+}
+
+function modelSprite(key, part, team, ang) {
+  const m = SPRITE_META[key], c = teamSheet(key, part, team);
+  if (!c) return null;
+  const f = facingIndex(ang), C = m.cell * m.res;
+  return { c, sx: (f % m.cols) * C, sy: Math.floor(f / m.cols) * C, sw: C, sh: C, ox: m.ax, oy: m.ay, w: m.cell, h: m.cell };
+}
 
 // ---------- unit models ----------
 const TRACK = '#2b2b26', STEEL = '#7a848e', DARKSTEEL = '#3a4047', GUN = '#3a3c38', GLASS = '#2d5476';
@@ -340,23 +390,36 @@ function unitSprite(u, team, part) {
 // draw a unit whose ground point projects to (sx, sy)
 function drawUnitArt(ctx, u, team, sx, sy) {
   const m = UNIT_MODELS[u.key];
+  const meta = typeof SPRITE_META !== 'undefined' ? SPRITE_META[u.key] : null;
   const lift = u.alt || 0;
-  Art.blit(ctx, unitSprite(u, team, 'hull'), sx, sy - lift);
-  if (m && m.turret) {
-    const rec = (u.recoil || 0) * 2.5;
-    const tx = -Math.cos(u.turret) * rec, ty = -Math.sin(u.turret) * rec;
-    Art.blit(ctx, unitSprite(u, team, 'turret'), sx + isoX(tx, ty), sy - lift + isoY(tx, ty, 0));
-    if (u.recoil) u.recoil = Math.max(0, u.recoil - 0.08);
+  const rec = (u.recoil || 0) * 2.5;
+  const hull = meta && modelSprite(u.key, 'hull', team, u.facing);
+  if (hull) {
+    Art.blit(ctx, hull, sx, sy - lift);
+    if (meta.parts.turret) {
+      const off = meta.turretOffset || 0;
+      const tx = Math.cos(u.facing) * off - Math.cos(u.turret) * rec, ty = Math.sin(u.facing) * off - Math.sin(u.turret) * rec;
+      const tur = modelSprite(u.key, 'turret', team, u.turret);
+      if (tur) Art.blit(ctx, tur, sx + isoX(tx, ty), sy - lift + isoY(tx, ty, 0));
+    }
+  } else {
+    Art.blit(ctx, unitSprite(u, team, 'hull'), sx, sy - lift);
+    if (m && m.turret) {
+      const tx = -Math.cos(u.turret) * rec, ty = -Math.sin(u.turret) * rec;
+      Art.blit(ctx, unitSprite(u, team, 'turret'), sx + isoX(tx, ty), sy - lift + isoY(tx, ty, 0));
+    }
   }
+  if (u.recoil) u.recoil = Math.max(0, u.recoil - 0.08);
   if (u.key === 'heli') {
-    // rotor disc in the horizontal plane
-    const ry = sy - lift - 11 * 1.3;
+    // rotor disc in the horizontal plane (a world circle projects to a 2:1 ellipse)
+    const rz = hull && meta.rotor ? meta.rotor.z * 1.22 : 11 * 1.3, R = hull && meta.rotor ? meta.rotor.r : 17;
+    const ry = sy - lift - rz;
     ctx.fillStyle = 'rgba(220,225,230,0.10)';
-    ctx.beginPath(); ctx.ellipse(sx, ry, 25, 12.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx, ry, R * 1.41, R * 0.71, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(25,25,25,0.75)'; ctx.lineWidth = 1.6;
     const a = u.anim * 28;
     ctx.beginPath();
-    for (let i = 0; i < 4; i++) { const b = a + i * Math.PI / 2, bx = Math.cos(b) * 22, by = Math.sin(b) * 22; ctx.moveTo(sx, ry); ctx.lineTo(sx + isoX(bx, by), ry + isoY(bx, by, 0)); }
+    for (let i = 0; i < 4; i++) { const b = a + i * Math.PI / 2, bx = Math.cos(b) * R, by = Math.sin(b) * R; ctx.moveTo(sx, ry); ctx.lineTo(sx + isoX(bx, by), ry + isoY(bx, by, 0)); }
     ctx.stroke();
   }
   if (u.key === 'jet') {

@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+<body style="margin:0">
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+<script type="module">
+// Renders a glTF model into isometric sprite sheets matching the game's projection:
+// 32 facings, a lit "base" sheet and a "mask" sheet marking paintable hull areas.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const FACINGS = 32, COLS = 8, ROWS = FACINGS / COLS, RES = 2;
+const loader = new GLTFLoader();
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0x000000, 0);
+
+// camera looks from the screen's lower edge (+x, +z in three) down 30 degrees, like the game
+const VIEW = new THREE.Vector3(Math.cos(Math.PI / 6) / Math.SQRT2, 0.5, Math.cos(Math.PI / 6) / Math.SQRT2);
+
+function lights(scene) {
+  scene.add(new THREE.HemisphereLight(0xdfe7f5, 0x3c4430, 0.95));
+  const sun = new THREE.DirectionalLight(0xfff1dc, 1.9);
+  sun.position.set(-0.5, 1, 0.65); // same light direction as the game's procedural art
+  scene.add(sun);
+}
+
+// Mask texture for a palette/atlas material: white where a swatch is body paint.
+function maskTexture(tex, rule) {
+  const img = tex.image, c = document.createElement('canvas');
+  c.width = img.width; c.height = img.height;
+  const x = c.getContext('2d');
+  x.drawImage(img, 0, 0);
+  const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+  for (let i = 0; i < p.length; i += 4) {
+    const r = p[i] / 255, g = p[i + 1] / 255, b = p[i + 2] / 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), lum = 0.3 * r + 0.59 * g + 0.11 * b;
+    const sat = mx ? (mx - mn) / mx : 0;
+    const blue = b > r + 0.08 && b > g;
+    let on;
+    if (rule === 'all') on = true;
+    else if (rule === 'dark') on = !blue && lum > 0.12 && lum < 0.55;
+    else on = !blue && sat > 0.12 && lum > 0.28 && lum < 0.95;
+    const v = on ? 255 : 0;
+    p[i] = p[i + 1] = p[i + 2] = v; p[i + 3] = 255;
+  }
+  x.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.flipY = tex.flipY; t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = tex.wrapS; t.wrapT = tex.wrapT;
+  return t;
+}
+
+function maskMaterials(root, rules) {
+  const saved = new Map();
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    saved.set(o, o.material);
+    const m = o.material;
+    const rule = rules[m.name] || rules['*'] || 'paint';
+    o.material = m.map ? new THREE.MeshBasicMaterial({ map: maskTexture(m.map, rule) })
+      : new THREE.MeshBasicMaterial({ color: rule === 'all' ? 0xffffff : 0x000000 });
+  });
+  return () => saved.forEach((m, o) => { o.material = m; });
+}
+
+async function renderSheet(cfg) {
+  const gltf = await loader.loadAsync('/models/' + cfg.file);
+  const root = gltf.scene;
+  const C = cfg.cell * RES;                 // cell size in pixels
+  const s = RES * cfg.k * Math.SQRT2;       // pixels per model unit
+  const ay = Math.round(C * (cfg.anchor || 0.66));
+  const cam = new THREE.OrthographicCamera(-C / 2 / s, C / 2 / s, ay / s, -(C - ay) / s, -1000, 1000);
+  cam.position.copy(VIEW).multiplyScalar(100); cam.lookAt(0, 0, 0);
+  renderer.setSize(C, C);
+
+  root.updateMatrixWorld(true);
+  for (const name of cfg.hide || []) root.getObjectByName(name).visible = false;
+  const meta = { cell: cfg.cell, cols: COLS, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {} };
+  const turretNode = cfg.turret ? root.getObjectByName(cfg.turret) : null;
+  if (cfg.rotor) {
+    const blade = root.getObjectByName(cfg.rotor);
+    const box = new THREE.Box3().setFromObject(blade), size = box.getSize(new THREE.Vector3());
+    meta.rotor = { z: box.max.y * cfg.k, r: Math.max(size.x, size.z) / 2 * cfg.k };
+  }
+
+  const parts = { hull: root };
+  if (turretNode) {
+    // render the turret on its own, pivot at the origin but at its real height
+    const wp = turretNode.getWorldPosition(new THREE.Vector3());
+    turretNode.visible = false;
+    const t = turretNode.clone(); t.visible = true;
+    t.position.set(0, wp.y, 0);
+    const g = new THREE.Group(); g.add(t);
+    parts.turret = g;
+    meta.turretOffset = wp.z * cfg.k;   // forward offset of the turret pivot from the hull pivot (world px)
+  }
+
+  const out = {};
+  for (const [part, obj] of Object.entries(parts)) {
+    const scene = new THREE.Scene();
+    lights(scene);
+    const holder = new THREE.Group(); holder.add(obj); scene.add(holder);
+    const sheets = {};
+    for (const pass of ['base', 'mask']) {
+      const restore = pass === 'mask' ? maskMaterials(obj, cfg.mask || {}) : () => {};
+      const sheet = document.createElement('canvas');
+      sheet.width = C * COLS; sheet.height = C * ROWS;
+      const sx = sheet.getContext('2d');
+      for (let f = 0; f < FACINGS; f++) {
+        // game facing a (0 = +x, towards +y) -> rotate the model's +Z forward onto it
+        holder.rotation.y = Math.PI / 2 - f / FACINGS * Math.PI * 2;
+        renderer.render(scene, cam);
+        sx.drawImage(renderer.domElement, (f % COLS) * C, Math.floor(f / COLS) * C);
+      }
+      restore();
+      if (pass === 'mask') {
+        // luminance -> alpha, limited by the base sheet's coverage
+        const base = sheets.base.getContext('2d').getImageData(0, 0, sheet.width, sheet.height).data;
+        const d = sx.getImageData(0, 0, sheet.width, sheet.height), p = d.data;
+        for (let i = 0; i < p.length; i += 4) {
+          const a = Math.min(p[i], base[i + 3]);
+          p[i] = p[i + 1] = p[i + 2] = 255; p[i + 3] = a;
+        }
+        sx.putImageData(d, 0, 0);
+      }
+      sheets[pass] = sheet;
+    }
+    out[part] = { base: sheets.base.toDataURL('image/png'), mask: sheets.mask.toDataURL('image/png') };
+    meta.parts[part] = true;
+  }
+  return { meta, images: out };
+}
+
+window.renderSheet = renderSheet;
+window.ready = true;
+</script>
+</body>
+</html>

@@ -79,3 +79,19 @@ The battlefield uses a Red Alert 2 style isometric view. Units, structures, tree
 3D models built from shaded prisms in `js/art.js` (camouflage, team colours, lit windows), rendered
 in 32 facings and cached as sprites. The game logic still runs on a square tile grid; only the view
 is projected.
+
+### Model sprites
+
+Units can also use real 3D models. `tools/sprites/render.js` renders glTF/.glb models with three.js
+into 32-facing sprite sheets at the game's camera angle, plus a mask of the paintable hull that the
+game tints with the faction camouflage and team colour. The tank, IFV and attack helicopter currently
+use models from ITHappy Studios' free *Military Free* pack.
+
+```
+cd tools/sprites && npm install
+node render.js /path/to/Separate_Assets_glb    # writes assets/sprites/
+```
+
+The model files are not in this repository: the pack's licence allows using them in a game but not
+redistributing the files. Keep your download elsewhere and point the tool at it. Which model plays
+which unit (and its size) is configured at the top of `render.js`.

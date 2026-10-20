@@ -1,0 +1,10 @@
+{
+  "name": "cw2-sprite-renderer",
+  "private": true,
+  "description": "Renders glTF models into isometric sprite sheets for Cold War 2: 2030",
+  "scripts": { "render": "node render.js" },
+  "dependencies": {
+    "playwright": "1.56.1",
+    "three": "0.169.0"
+  }
+}

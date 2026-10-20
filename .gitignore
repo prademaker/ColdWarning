@@ -1,0 +1,4 @@
+tools/sprites/node_modules/
+# third-party 3D models may not be redistributed; keep them outside git
+*.glb
+*.gltf
