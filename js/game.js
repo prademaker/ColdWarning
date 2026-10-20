@@ -76,10 +76,11 @@ class ProdQueue {
 }
 
 class Team {
-  constructor(id, faction, isAI, difficulty, useAlt) {
+  constructor(id, faction, isAI, difficulty, pal, ally = id) {
     this.id = id; this.faction = faction; this.isAI = isAI;
+    this.ally = ally;
     const f = FACTIONS[faction];
-    const pal = useAlt ? f.alt : f;
+    pal = pal || f;
     this.color = pal.color; this.dark = pal.dark; this.light = pal.light; this.name = f.name;
     this.pkg = f.pkg; this.camo = f.camo;
     this.credits = START_CREDITS;
@@ -263,22 +264,18 @@ class Game {
     NEXT_ID = 1;
     this.opts = opts;
     this.time = 0;
-    this.map = new GameMap(opts.mapSize || 88, opts.seed, opts.theater || 'temperate');
+    this.mode = opts.mode === 'defense' ? 'defense' : 'skirmish';
+    // alliance number per team, the human first; defense is the player against the waves
+    const lineup = this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
+    const size = typeof opts.mapSize === 'number' ? opts.mapSize : (MAP_SIZES[opts.mapSize] || MAP_SIZES.medium).tiles;
+    this.map = new GameMap(size, opts.seed, opts.theater || 'temperate', this.mode === 'defense' ? 4 : lineup.length);
     this.pf = new PathFinder(this.map);
     this.entities = []; this.byId = new Map();
     this.projectiles = []; this.effects = []; this.decals = [];
     this.messages = [];
     this.pendingStrikes = [];
     this.shake = 0;
-    const pf = opts.faction;
-    let ef = opts.enemy;
-    if (!ef || !FACTIONS[ef]) {
-      const others = Object.keys(FACTIONS).filter(k => k !== pf);
-      ef = others[Math.floor(Math.random() * others.length)];
-    }
-    // give the enemy its alternate colours when both sides share a colour family
-    const clash = FACTIONS[pf].side === FACTIONS[ef].side;
-    this.teams = [new Team(0, pf, !!opts.autoplay, opts.difficulty), new Team(1, ef, true, opts.difficulty, clash)];
+    this.teams = Game.makeTeams(opts, lineup);
     this.player = 0;
     this.ai = {};
     this.over = null;
@@ -295,6 +292,7 @@ class Game {
 
     // starting forces
     this.teams.forEach((t, i) => {
+      if (t.waves) return;
       const [sx, sy] = this.map.starts[i];
       const c = (v) => v * TILE + TILE / 2;
       const mcv = this.spawnUnit('mcv', i, c(sx), c(sy));
@@ -306,10 +304,41 @@ class Game {
       });
     });
     for (const t of this.teams) t.recount();
-    if (opts.autoplay) this.ai[0] = new AI(this.teams[0], opts.difficulty);
-    this.ai[1] = new AI(this.teams[1], opts.difficulty);
+    for (const t of this.teams) {
+      if (t.waves || (t.id === this.player && !opts.autoplay)) continue;
+      this.ai[t.id] = new AI(t, opts.difficulty);
+    }
+    this.waves = this.mode === 'defense' ? new WaveDirector(this.teams[1], opts.difficulty) : null;
     this.updateFog();
   }
+
+  // Factions and colours for a line-up. The player keeps their pick, the first opponent gets the
+  // chosen enemy and everyone else a random faction, distinct while there are enough to go round.
+  // Each team then takes its faction colour, or the alternate, or a spare, so no two look alike.
+  static makeTeams(opts, lineup) {
+    const factions = [opts.faction];
+    const pickFrom = list => list[Math.floor(Math.random() * list.length)];
+    lineup.forEach((ally, i) => {
+      if (i === 0) return;
+      if (ally !== lineup[0] && FACTIONS[opts.enemy] && !factions.includes(opts.enemy)) { factions.push(opts.enemy); return; }
+      const free = Object.keys(FACTIONS).filter(k => !factions.includes(k) && k !== opts.enemy);
+      factions.push(pickFrom(free.length ? free : Object.keys(FACTIONS)));
+    });
+    const used = new Set();
+    return lineup.map((ally, i) => {
+      const f = FACTIONS[factions[i]];
+      const options = [[f.side, f], [f.side + '-alt', f.alt], ...EXTRA_COLORS.map((c, k) => ['x' + k, c])];
+      const [fam, pal] = options.find(([fam]) => !used.has(fam)) || options[0];
+      used.add(fam);
+      const t = new Team(i, factions[i], i !== 0 || !!opts.autoplay, opts.difficulty, pal, ally);
+      if (opts.mode === 'defense' && i === 1) { t.waves = true; t.name = f.name + ' strike force'; }
+      return t;
+    });
+  }
+
+  // teams at war with each other (allies and a team itself are not)
+  hostile(a, b) { return a !== b && this.teams[a].ally !== this.teams[b].ally; }
+  allied(a, b) { return !this.hostile(a, b); }
 
   on(ev, fn) { this.listeners[ev].push(fn); }
   eva(msg, team) {
@@ -364,7 +393,7 @@ class Game {
       h.hstate = 'seek';
     }
     if (b.def.superweapon) {
-      for (const o of this.teams) if (o.id !== team) this.eva('Warning: enemy ' + b.def.name + ' detected', o.id);
+      for (const o of this.teams) if (this.hostile(o.id, team)) this.eva('Warning: enemy ' + b.def.name + ' detected', o.id);
     }
     this.fogDirty = true;
     return b;
@@ -406,7 +435,7 @@ class Game {
       if (Math.max(dx, dy) <= BUILD_RADIUS) {
         // block if an enemy ground unit stands there
         for (const u of this.entities) {
-          if (u.kind === 'unit' && !u.air && !u.dead && u.team !== team &&
+          if (u.kind === 'unit' && !u.air && !u.dead && this.hostile(u.team, team) &&
               u.tx >= tx && u.tx < tx + def.w && u.ty >= ty && u.ty < ty + def.h) return false;
         }
         return true;
@@ -475,7 +504,7 @@ class Game {
     if (target.kind === 'unit') dmg *= RANK_ARMOR[target.rank];
     target.hp -= dmg;
     target.hitT = this.time;
-    if (attacker && !attacker.dead && attacker.team !== target.team) {
+    if (attacker && !attacker.dead && this.hostile(attacker.team, target.team)) {
       target.lastAttacker = attacker;
       if (target.team === this.player || attacker.team === this.player) this.heat += 1; // drives the music
       if (target.team === this.player) {
@@ -497,7 +526,7 @@ class Game {
     if (e.dead) return;
     this.removeEntity(e);
     const t = this.teams[e.team];
-    if (attacker && attacker.team !== e.team) {
+    if (attacker && this.hostile(attacker.team, e.team)) {
       const at = this.teams[attacker.team];
       if (e.kind === 'building') at.stats.structuresKilled++; else at.stats.kills++;
       if (attacker.kind === 'unit' && !attacker.dead) {
@@ -599,7 +628,7 @@ class Game {
     let best = null, bs = 1e9;
     const cand = this.unitsNear(e.x, e.y, R + 32);
     for (const o of cand) {
-      if (o.team === e.team || o.dead) continue;
+      if (!this.hostile(o.team, e.team) || o.dead) continue;
       if (!this.canHit(e, o)) continue;
       const d = Math.hypot(o.x - e.x, o.y - e.y);
       if (d > R) continue;
@@ -609,7 +638,7 @@ class Game {
     }
     if (best) return best;
     for (const o of this.entities) {
-      if (o.kind !== 'building' || o.team === e.team || o.dead || !o.built) continue;
+      if (o.kind !== 'building' || !this.hostile(o.team, e.team) || o.dead || !o.built) continue;
       if (!this.canHit(e, o)) continue;
       const d = distTo(e.x, e.y, o);
       if (d > R) continue;
@@ -711,6 +740,7 @@ class Game {
     this.rebuildCells();
     for (const t of this.teams) t.update(dt);
     for (const id in this.ai) this.ai[id].update(dt);
+    if (this.waves) this.waves.update(dt);
     const ents = this.entities;
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i];
@@ -738,7 +768,7 @@ class Game {
 
   checkVictory() {
     for (const t of this.teams) {
-      if (t.defeated) continue;
+      if (t.defeated || t.waves) continue;
       const alive = this.entities.some(e => e.team === t.id && !e.dead && (e.kind === 'building' || e.def.mcv));
       if (!alive) {
         t.defeated = true;
@@ -748,7 +778,8 @@ class Game {
     }
     const p = this.playerTeam;
     if (p.defeated) this.over = { win: false, time: this.time };
-    else if (this.teams.every(t => t.id === this.player || t.defeated)) this.over = { win: true, time: this.time };
+    else if (this.waves) { if (this.waves.won) this.over = { win: true, time: this.time }; }
+    else if (this.teams.every(t => !this.hostile(t.id, this.player) || t.defeated)) this.over = { win: true, time: this.time };
     if (this.over) this.eva(this.over.win ? 'Mission accomplished' : 'Mission failed', this.player);
   }
 
@@ -758,7 +789,7 @@ class Game {
     vis.fill(0);
     const pid = this.player;
     for (const e of this.entities) {
-      if (e.team !== pid || e.dead) continue;
+      if (!this.allied(e.team, pid) || e.dead) continue;
       const r = e.def.sight;
       const cx = e.x / TILE, cy = e.y / TILE;
       const rr = r + (e.kind === 'building' ? Math.max(e.w, e.h) / 2 : 0);
@@ -770,7 +801,7 @@ class Game {
         if (dx * dx + dy * dy <= r2) { const i = y * N + x; vis[i] = 1; exp[i] = 1; }
       }
     }
-    for (const e of this.entities) if (e.kind === 'building' && e.team !== pid && this.isVisibleBld(e)) e.seen = true;
+    for (const e of this.entities) if (e.kind === 'building' && !this.allied(e.team, pid) && this.isVisibleBld(e)) e.seen = true;
     this.fogVersion = (this.fogVersion || 0) + 1;
   }
 
@@ -784,7 +815,7 @@ class Game {
   }
   isVisibleTo(e, team) {
     if (team !== this.player || this.teams[team].isAI) return true;
-    if (e.team === team) return true;
+    if (this.allied(e.team, team)) return true;
     if (e.kind === 'building') return e.seen;
     return this.isVisibleTile(e.tx, e.ty);
   }
@@ -810,7 +841,7 @@ class Game {
       const b = o.target;
       if (b.dead) { u.order = null; return; }
       if (distTo(u.x, u.y, b) < 14) {
-        if (b.team === u.team) { b.hp = b.maxHp; this.eva('Structure repaired', u.team); }
+        if (!this.hostile(b.team, u.team)) { b.hp = b.maxHp; this.eva('Structure repaired', u.team); }
         else {
           const old = b.team;
           b.team = u.team;
@@ -831,7 +862,7 @@ class Game {
     }
 
     // engage current target
-    if (u.target && (u.target.dead || (u.target.team === u.team))) u.target = null;
+    if (u.target && (u.target.dead || !this.hostile(u.target.team, u.team))) u.target = null;
     if (u.target && !this.canHit(u, u.target)) u.target = null;
     if (u.target && u.order && u.order.type === 'move') u.target = null;
 
@@ -908,7 +939,7 @@ class Game {
   // Jets never hover: they fly at speed, make attack runs and orbit when idle.
   updateJet(u, dt) {
     const o = u.order;
-    if (u.target && (u.target.dead || u.target.team === u.team || !this.canHit(u, u.target))) u.target = null;
+    if (u.target && (u.target.dead || !this.hostile(u.target.team, u.team) || !this.canHit(u, u.target))) u.target = null;
     if (u.target && o && o.type === 'move') u.target = null;
     u.scanT -= dt;
     if (!u.target && u.scanT <= 0 && (!o || o.type === 'amove')) {
@@ -1011,7 +1042,7 @@ class Game {
         const d2 = dx * dx + dy * dy;
         if (d2 >= min * min) continue;
         // tanks crush enemy infantry
-        if (!u.air && u.team !== o.team) {
+        if (!u.air && this.hostile(u.team, o.team)) {
           const crusher = u.def.armor === 'heavy' && u.moving ? u : o.def.armor === 'heavy' && o.moving ? o : null;
           const victim = crusher === u ? o : u;
           if (crusher && victim.def.cat === 'infantry') { this.kill(victim, crusher); this.sound('crush', victim.x, victim.y); continue; }
@@ -1159,7 +1190,7 @@ class Game {
       b.burstT -= dt;
       if (b.burstT <= 0 && b.target && !b.target.dead) { this.fire(b, w, b.target); b.burst--; b.burstT = 0.2; }
     }
-    if (b.target && (b.target.dead || b.target.team === b.team || distTo(b.x, b.y, b.target) > w.range * TILE + 8)) b.target = null;
+    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || distTo(b.x, b.y, b.target) > w.range * TILE + 8)) b.target = null;
     b.scanT -= dt;
     if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, w.range); }
     if (b.target) {
@@ -1199,7 +1230,7 @@ class Game {
         if (w.pierce) {
           const hit = this.unitsNear((sx + ex) / 2, (sy + ey) / 2, L / 2 + 20);
           for (const o of hit) {
-            if (o.team === s.team || o.air) continue;
+            if (!this.hostile(o.team, s.team) || o.air) continue;
             const px = o.x - sx, py = o.y - sy;
             const along = px * Math.cos(a) + py * Math.sin(a);
             const perp = Math.abs(-px * Math.sin(a) + py * Math.cos(a));
@@ -1260,12 +1291,12 @@ class Game {
     if (p.splash > 0) {
       const R = p.splash * TILE;
       for (const o of this.unitsNear(p.tx, p.ty, R + 16)) {
-        if (o.team === p.team || o.air) continue;
+        if (!this.hostile(o.team, p.team) || o.air) continue;
         const d = Math.hypot(o.x - p.tx, o.y - p.ty);
         if (d < R) this.damage(o, p.dmg * (1 - d / R * 0.6), p.warhead, p.src);
       }
       for (const o of this.entities) {
-        if (o.kind !== 'building' || o.team === p.team || o.dead) continue;
+        if (o.kind !== 'building' || !this.hostile(o.team, p.team) || o.dead) continue;
         if (distTo(p.tx, p.ty, o) < R * 0.6) this.damage(o, p.dmg, p.warhead, p.src);
       }
       this.explosion(p.tx, p.ty, 22, false);

@@ -454,7 +454,7 @@ const Render = {
       if (e.kind === 'building' && isSel) this.drawBuildingSelection(ctx, e);
       if (e.kind === 'unit' && e.air && isSel) {
         const [x, y] = this.P(e.x, e.y, e.alt + 6);
-        ctx.strokeStyle = e.team === G.player ? '#fff' : '#f66'; ctx.lineWidth = 1.5;
+        ctx.strokeStyle = G.hostile(e.team, G.player) ? '#f66' : '#fff'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.ellipse(x, y, 18, 9, 0, 0, Math.PI * 2); ctx.stroke();
       }
       if (isSel || hover || recent || ui.showBars) this.drawHealth(ctx, e, isSel);
@@ -471,7 +471,7 @@ const Render = {
   drawBuildingSelection(ctx, b) {
     const X = b.tx * TILE, Y = b.ty * TILE, W = b.w * TILE, H = b.h * TILE;
     const c = [this.P(X, Y), this.P(X + W, Y), this.P(X + W, Y + H), this.P(X, Y + H)];
-    ctx.strokeStyle = b.team === G.player ? 'rgba(255,255,255,0.9)' : 'rgba(255,110,110,0.9)'; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = G.hostile(b.team, G.player) ? 'rgba(255,110,110,0.9)' : 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5;
     // corner brackets along the footprint diamond
     ctx.beginPath();
     for (let i = 0; i < 4; i++) {

@@ -28,6 +28,7 @@ const UI = {
     document.getElementById('sb-fname').textContent = pt.name;
     document.getElementById('sidebar').style.setProperty('--team', pt.color);
     G.on('eva', msg => { Sfx.say(msg); this.flashMessages(); });
+    document.getElementById('wave-call').onclick = () => { if (G.waves) { G.waves.callEarly(); Sfx.play('click'); } };
     G.on('sound', (name, x, y) => {
       if (x === undefined) { Sfx.play(name); return; }
       // pan by screen position; fade out with distance beyond the screen edge
@@ -165,7 +166,7 @@ const UI = {
     if (this.mode === 'sell') cur = 'cell';
     else if (this.mode === 'repair') cur = 'help';
     else if (this.mode === 'amove' || this.superTargeting) cur = 'crosshair';
-    else if (this.hover && this.hover.team !== G.player && this.ownUnits().length) cur = 'crosshair';
+    else if (this.hover && G.hostile(this.hover.team, G.player) && this.ownUnits().length) cur = 'crosshair';
     else if (this.hover && this.hover.team === G.player) cur = 'pointer';
     this.canvas.style.cursor = cur;
   },
@@ -210,7 +211,7 @@ const UI = {
     }
     if (this.mode === 'amove') {
       const units = this.ownUnits();
-      if (ent && ent.team !== G.player) G.commandAttack(units, ent);
+      if (ent && G.hostile(ent.team, G.player)) G.commandAttack(units, ent);
       else G.commandMove(units, Math.floor(w.x / TILE), Math.floor(w.y / TILE), true);
       this.mark(w.x, w.y, '#f84');
       this.mode = null; this.updateCursor();
@@ -286,7 +287,7 @@ const UI = {
       else this.selection = [];
       return;
     }
-    if (ent && ent.team !== G.player) {
+    if (ent && G.hostile(ent.team, G.player)) {
       G.commandAttack(units, ent);
       this.mark(ent.x, ent.y, '#f44');
       return;
@@ -629,7 +630,7 @@ const UI = {
     }
     // enemy superweapon timer
     const ebox = document.getElementById('enemy-super');
-    const foe = G.teams.find(o => o.id !== G.player && o.countOf(o.superKey()) > 0 &&
+    const foe = G.teams.find(o => G.hostile(o.id, G.player) && o.countOf(o.superKey()) > 0 &&
       G.entities.some(e => e.team === o.id && e.key === o.superKey() && e.seen));
     if (foe) {
       const sw = BUILDINGS[foe.superKey()].superweapon;
@@ -637,6 +638,17 @@ const UI = {
       ebox.hidden = false;
       ebox.textContent = 'Enemy ' + BUILDINGS[foe.superKey()].name + ': ' + (foe.superReady ? 'READY' : Math.floor(left / 60) + ':' + String(Math.floor(left % 60)).padStart(2, '0'));
     } else ebox.hidden = true;
+    // defense mode wave counter
+    const wbox = document.getElementById('wave-info'), W = G.waves;
+    wbox.hidden = !W;
+    if (W) {
+      const left = W.countdown;
+      const txt = left === null ? `Final wave · ${W.units().length} attackers left` :
+        `Wave ${W.wave}/${W.total} · next in ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+      const el = document.getElementById('wave-text');
+      if (el.textContent !== txt) el.textContent = txt;
+      document.getElementById('wave-call').hidden = left === null;
+    }
     document.getElementById('btn-sell').classList.toggle('on', this.mode === 'sell');
     document.getElementById('btn-repair').classList.toggle('on', this.mode === 'repair');
     this.updateSelInfo();

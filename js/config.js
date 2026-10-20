@@ -237,3 +237,39 @@ const DIFFICULTY = {
 
 const START_CREDITS = 10000;
 const BUILD_RADIUS = 5; // tiles from an existing structure
+
+// Skirmish line-ups: one alliance number per player, the human first.
+const LINEUPS = {
+  '1v1':  { label: '1 vs 1', teams: [0, 1] },
+  '1v2':  { label: '1 vs 2', teams: [0, 1, 1] },
+  '2v2':  { label: '2 vs 2', teams: [0, 0, 1, 1] },
+  '2v1':  { label: '2 vs 1', teams: [0, 0, 1] },
+  'ffa3': { label: 'Free for all (3)', teams: [0, 1, 2] },
+  'ffa4': { label: 'Free for all (4)', teams: [0, 1, 2, 3] },
+};
+
+const MAP_SIZES = {
+  small: { label: 'Small', tiles: 72 },
+  medium: { label: 'Medium', tiles: 88 },
+  large: { label: 'Large', tiles: 112 },
+};
+
+// Extra team colours for when the faction colours and their alternates are all taken.
+const EXTRA_COLORS = [
+  { color: '#a35cff', dark: '#552a9e', light: '#d6b8ff' },
+  { color: '#e8c22a', dark: '#8a7010', light: '#fff09a' },
+  { color: '#e65fb4', dark: '#8c2a68', light: '#ffb8e3' },
+];
+
+// Defense mode: hold out against waves that march in from the map's other corners.
+const DEFENSE = {
+  waves: 15,
+  firstWave: 150,   // seconds to build up before the first wave
+  interval: 60,     // seconds between waves
+  bounty: 400,      // credits for clearing a wave, plus 100 per wave number
+  // units a wave can field, by the wave they first appear in
+  pool: [
+    ['rifle', 1, 1], ['rocket', 1, 1], ['ifv', 2, 1.2], ['tank', 3, 2], ['heli', 4, 0.8],
+    ['mlrs', 5, 0.7], ['railtank', 7, 1], ['titan', 7, 1], ['jet', 9, 0.6],
+  ],
+};
