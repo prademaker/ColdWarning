@@ -593,6 +593,39 @@ const BLD_MODELS = {
       box(16, 28, 26, 38, 20, 20.6, '#e8e8e8'), box(20, 24, 22, 42, 20.6, 21, '#c33'), box(12, 32, 30, 34, 20.6, 21, '#c33'),
       box(40, 58, 8, 58, 2, 3, '#2b2b26'), box(54, 57, 10, 13, 3, 34, '#d9ad2b')];
   },
+  bunker(T) {
+    return [box(0, 32, 0, 32, 0, 4, '#a8956a'),
+      box(3, 29, 3, 29, 0, 13, '#8e8c84', { topColor: '#77756d' }),
+      box(3, 29, 28.6, 29.8, 6.5, 8.5, '#151617'), box(28.6, 29.8, 3, 29, 6.5, 8.5, '#151617'),
+      box(8, 24, 8, 24, 13, 14, tone(T.color, -0.1))];
+  },
+  // civilian buildings: plain, weathered, the same for everyone
+  civ_house() {
+    const out = [...foundation(64, 64), box(8, 56, 10, 54, 2, 22, '#cdbb9a'),
+      box(5, 59, 7, 57, 22, 25, '#7e3a2c'), box(10, 54, 12, 52, 25, 29, '#8a4030'), box(16, 48, 18, 46, 29, 33, '#7e3a2c'), box(23, 41, 25, 39, 33, 36, '#8a4030'),
+      box(40, 45, 14, 19, 26, 40, '#76695b'),
+      box(28, 36, 53.6, 54.8, 2, 14, '#4a3a2a')];
+    for (const x of [13, 42]) out.push(box(x, x + 8, 53.6, 54.8, 9, 16, '#2d4a66'));
+    for (const y of [18, 38]) out.push(box(55.6, 56.8, y, y + 8, 9, 16, '#2d4a66'));
+    return out;
+  },
+  civ_flats() {
+    const out = [...foundation(64, 64), box(6, 58, 6, 58, 2, 62, '#b8b2a6', { topColor: '#77736c' }),
+      box(18, 30, 18, 30, 62, 68, '#6b6760'), box(38, 44, 36, 42, 62, 72, '#8a8f94')];
+    let n = 0;
+    for (let z = 8; z < 58; z += 10) {
+      for (const x of [10, 22, 34, 46]) out.push(box(x, x + 7, 57.6, 58.8, z, z + 6, (n++ * 7) % 5 === 0 ? '#ffd27a' : '#2d4a66', (n * 7) % 5 === 1 ? { light: true } : undefined));
+      for (const y of [10, 22, 34, 46]) out.push(box(57.6, 58.8, y, y + 7, z, z + 6, (n++ * 5) % 7 === 0 ? '#ffd27a' : '#2d4a66'));
+    }
+    return out;
+  },
+  civ_office() {
+    const out = [...foundation(96, 64), box(6, 90, 6, 58, 2, 50, '#8d9aa5', { topColor: '#5d6770' }),
+      box(56, 80, 14, 32, 50, 56, '#7a848e'), box(24, 30, 20, 26, 50, 60, '#c9ced2')];
+    for (let z = 8; z < 48; z += 9) out.push(box(8, 88, 57.6, 58.8, z, z + 5, GLASS), box(89.6, 90.8, 8, 56, z, z + 5, GLASS));
+    out.push(box(40, 56, 57.8, 59, 2, 8, '#1b1f22'));
+    return out;
+  },
   sam() {
     return [box(2, 30, 4, 28, 0, 4, '#3d4247'), box(2, 30, 27.6, 28.6, 1, 3, '#d9ad2b'), cyl(16, 16, 6, 4, 8, '#4d545b', 5, 10)];
   },

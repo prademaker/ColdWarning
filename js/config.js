@@ -89,7 +89,8 @@ const UNITS = {
     name: 'Rifle Trooper', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks'],
     cost: 200, time: 4, hp: 125, speed: 1.25, sight: 6, radius: 5, key: 'Q',
     weapon: { warhead: 'bullet', damage: 16, range: 5, cooldown: 0.9, proj: 'tracer', ground: true, air: true },
-    desc: 'Cheap all-purpose infantry. Good against infantry.',
+    dig: { weapon: { warhead: 'bullet', damage: 24, range: 6.5, cooldown: 0.8, proj: 'tracer', ground: true, air: true }, armor: 0.5, time: 0.8, pack: 0.5 },
+    desc: 'Cheap all-purpose infantry. Good against infantry. Press D to dig in behind sandbags.',
   },
   rocket: {
     name: 'Rocket Trooper', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks'],
@@ -264,6 +265,24 @@ const BUILDINGS = {
     heal: { rate: 14, radius: 7 },
     desc: 'China only. Field hospital and repair yard: nearby units heal over time.',
   },
+  bunker: {
+    name: 'Battle Bunker', cat: 'defense', w: 1, h: 1, hp: 1100, cost: 500, time: 6, power: 0, sight: 7, height: 18, req: ['barracks'], key: 'T', garrison: 4,
+    desc: 'Concrete bunker for up to 4 infantry, who fire out of it with extra range. Needs no power.',
+  },
+  // Civilian buildings stand on the map from the start. They belong to nobody until infantry
+  // garrison them, then to whoever holds them until the last occupant leaves.
+  civ_house: {
+    name: 'Farmhouse', cat: 'civilian', w: 2, h: 2, hp: 900, cost: 0, time: 0, power: 0, sight: 6, height: 40, buildable: false, garrison: 4,
+    desc: 'Civilian building. Infantry can garrison it.',
+  },
+  civ_flats: {
+    name: 'Apartment Block', cat: 'civilian', w: 2, h: 2, hp: 1400, cost: 0, time: 0, power: 0, sight: 7, height: 66, buildable: false, garrison: 6,
+    desc: 'Civilian building. Infantry can garrison it.',
+  },
+  civ_office: {
+    name: 'Office Building', cat: 'civilian', w: 3, h: 2, hp: 1800, cost: 0, time: 0, power: 0, sight: 7, height: 54, buildable: false, garrison: 8,
+    desc: 'Civilian building. Infantry can garrison it.',
+  },
   sam: {
     name: 'SAM Site', cat: 'defense', w: 1, h: 1, hp: 650, cost: 750, time: 7, power: -30, sight: 9, height: 20, req: ['radar'], key: 'E', needsPower: true,
     weapon: { warhead: 'flak', damage: 55, range: 9, cooldown: 1.1, proj: 'rocket', speed: 14, ground: false, air: true, burst: 2 },
@@ -271,11 +290,17 @@ const BUILDINGS = {
   },
 };
 
+// Infantry inside a structure fire out of it with extra reach and punch, and take no damage
+// until the structure falls. Flame and thermobaric weapons burn them out: each hit has this
+// chance to kill one occupant.
+const GARRISON = { range: 1, dmg: 1.25, clear: { fire: 0.2, thermo: 0.7, blast: 0.5 }, civilian: ['civ_house', 'civ_flats', 'civ_office'] };
+const NEUTRAL = -1;
+
 const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory', air: 'airfield' };
 
 const TABS = [
   { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'super_lance', 'super_silo'] },
-  { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser'] },
+  { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser', 'bunker'] },
   { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'engineer'] },
   { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'harvester', 'mcv'] },
   { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet'] },
