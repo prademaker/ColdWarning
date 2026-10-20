@@ -340,7 +340,7 @@ class AI {
     // lean the mix toward whatever counters the enemy army we have seen
     // (pick() skips whatever this nation can't build, so both blocs share one table)
     let inf = { rifle: 5, rocket: 5, sniper: 1.5, shock: 2.5, sas: 1, hacker: 1 };
-    let veh = { ifv: 2, flak: 2, tank: 5, mlrs: 1.5, tos: 1.5, railtank: 3, titan: 3, iskander: 1, aegis: 1.5, raijin: 2, demotruck: 1.5 };
+    let veh = { ifv: 2, flak: 2, tank: 5, mlrs: 1.5, tos: 1.5, railtank: 3, titan: 3, iskander: 1, aegis: 1, raijin: 2, demotruck: 1.5 };
     let air = { heli: 6, drone: 4, kirov: 3, jet: 4 };
     const mix = this.enemyMix();
     if (d.counter && mix.total > 1500) {
@@ -350,7 +350,7 @@ class AI {
         sas: 0.5 + def * 2, hacker: armor * 3 };
       veh = { ifv: 1 + f('air') * 5 + f('infantry') * 2, flak: 1 + f('air') * 7 + f('infantry') * 2, tank: 3 + f('light') * 4 + f('heavy') * 2,
         mlrs: 1 + f('infantry') * 3 + def * 3, tos: 1 + f('infantry') * 3 + def * 3, railtank: 2 + f('heavy') * 4, titan: 2 + f('heavy') * 3 + f('air') * 3,
-        iskander: def * 3, aegis: 1.5, raijin: 1 + armor * 2 + f('air') * 2 + def, demotruck: 1 + def * 2 + f('heavy') * 2 };
+        iskander: def * 3, aegis: 1, raijin: 1 + armor * 2 + f('air') * 2 + def, demotruck: 1 + def * 2 + f('heavy') * 2 };
       air = { heli: 3 + armor * 6, drone: 3 + armor * 4, kirov: 2 + def * 3 + f('infantry') * 2, jet: 2 + f('air') * 10 };
     }
     // helicopters (or Reaper drones) for the raiding party: they fly over defenses and don't hold up the war factory

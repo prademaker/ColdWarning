@@ -151,7 +151,7 @@ const UNITS = {
   hacker: {
     name: 'Cyber Warfare Unit', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks', 'radar'], nation: 'china',
     cost: 900, time: 9, hp: 140, speed: 1.3, sight: 8, radius: 5, key: 'T',
-    weapon: { warhead: 'hack', damage: 0, range: 7, cooldown: 1.5, proj: 'hack', only: ['vehicle'], ground: true, air: false },
+    weapon: { warhead: 'hack', damage: 0, range: 7, cooldown: 2, proj: 'hack', only: ['vehicle'], ground: true, air: false },
     desc: 'China only. Hacks into enemy vehicles: a few seconds of uplink and the vehicle joins your side.',
   },
   // Campaign hero: never on a build list, she arrives with the mission. Enemies can't pick her out
@@ -202,10 +202,10 @@ const UNITS = {
   },
   aegis: {
     name: 'Aegis Shield Carrier', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory', 'radar'], nation: 'eu',
-    cost: 1100, time: 11, hp: 380, speed: 2.4, sight: 8, radius: 11, turn: 5, key: 'U',
-    weapon: { warhead: 'bullet', damage: 14, range: 5, cooldown: 0.4, proj: 'tracer', ground: true, air: true },
-    aura: { radius: 4.5, ally: { armor: 0.65 } },
-    desc: 'EU only. Projects an energy shield: friendly units within 4 tiles take 35% less damage.',
+    cost: 1100, time: 11, hp: 460, speed: 2.4, sight: 8, radius: 11, turn: 5, key: 'U',
+    weapon: { warhead: 'rocket', damage: 24, range: 6, cooldown: 1.2, proj: 'rocket', speed: 11, ground: true, air: true },
+    aura: { radius: 4.5, ally: { armor: 0.6 } },
+    desc: 'EU only. Projects an energy shield: friendly units within 4 tiles take 40% less damage.',
   },
   raijin: {
     name: 'Raijin EMP Walker', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'radar'], nation: 'japan',
