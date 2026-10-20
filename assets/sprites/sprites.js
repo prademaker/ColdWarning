@@ -49,5 +49,233 @@ const SPRITE_META = {
     "style": "voxel",
     "turretOffset": -1.5,
     "camo": true
+  },
+  "ifv_vox": {
+    "cell": 60,
+    "cols": 8,
+    "res": 2,
+    "ax": 30,
+    "ay": 39.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 0,
+    "camo": true
+  },
+  "mlrs_vox": {
+    "cell": 64,
+    "cols": 8,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -4,
+    "camo": true
+  },
+  "railtank_vox": {
+    "cell": 80,
+    "cols": 8,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1.5,
+    "camo": true
+  },
+  "titan_vox": {
+    "cell": 96,
+    "cols": 8,
+    "res": 2,
+    "ax": 48,
+    "ay": 63.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -2,
+    "camo": true
+  },
+  "harvester_vox": {
+    "cell": 72,
+    "cols": 8,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "harvester_vox_full": {
+    "cell": 72,
+    "cols": 8,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "mcv_vox": {
+    "cell": 84,
+    "cols": 8,
+    "res": 2,
+    "ax": 42,
+    "ay": 60.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "heli_vox": {
+    "cell": 72,
+    "cols": 8,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "rotor": {
+      "z": 12.075000000000001,
+      "r": 17.85
+    },
+    "camo": true
+  },
+  "jet_vox": {
+    "cell": 72,
+    "cols": 8,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_0": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_1": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_2": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_0": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_1": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_2": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_0": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_1": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_2": {
+    "cell": 40,
+    "cols": 8,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
   }
 };

@@ -152,7 +152,8 @@ async function renderSheet(cfg) {
   for (const name of cfg.hide || []) root.getObjectByName(name).visible = false;
   const meta = { cell: cfg.cell, cols: COLS, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {}, style: cfg.vox ? 'voxel' : 'model' };
   const turretNode = cfg.turret ? root.getObjectByName(cfg.turret) : null;
-  if (cfg.rotor) {
+  if (cfg.rotor && typeof cfg.rotor === 'object') meta.rotor = { z: cfg.rotor.z * cfg.k, r: cfg.rotor.r * cfg.k };
+  else if (cfg.rotor) {
     const blade = root.getObjectByName(cfg.rotor);
     const box = new THREE.Box3().setFromObject(blade), size = box.getSize(new THREE.Vector3());
     meta.rotor = { z: box.max.y * cfg.k, r: Math.max(size.x, size.z) / 2 * cfg.k };

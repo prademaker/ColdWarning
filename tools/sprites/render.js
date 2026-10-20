@@ -19,6 +19,18 @@ const MODELS = {
   ifv: { file: 'Hummer_003.glb', k: 6.4, cell: 88, mask: { Color: 'paint' } },
   // RA2-style voxel tank made for this game (tools/sprites/voxel_tank.js)
   tank_vox: { vox: { hull: 'tank_hull.vox', turret: 'tank_turret.vox' }, pivot: [15.5, 10], turretPivot: [8.5, 8.5], mount: [14, 10, 8], turret: 'turret', k: 1.0, cell: 104 },
+  // the rest of the voxel roster (tools/sprites/voxel_units.js)
+  ifv_vox: { vox: { hull: 'ifv_hull.vox', turret: 'ifv_turret.vox' }, pivot: [13, 8], turretPivot: [6.5, 6.5], mount: [13, 8, 9], turret: 'turret', k: 1.0, cell: 60 },
+  mlrs_vox: { vox: { hull: 'mlrs_hull.vox', turret: 'mlrs_turret.vox' }, pivot: [14, 7], turretPivot: [9.5, 9.5], mount: [10, 7, 6], turret: 'turret', k: 1.0, cell: 64 },
+  railtank_vox: { vox: { hull: 'railtank_hull.vox', turret: 'railtank_turret.vox' }, pivot: [15.5, 10], turretPivot: [8.5, 8.5], mount: [14, 10, 7], turret: 'turret', k: 1.0, cell: 80 },
+  titan_vox: { vox: { hull: 'titan_hull.vox', turret: 'titan_turret.vox' }, pivot: [19, 14], turretPivot: [10.5, 10.5], mount: [17, 14, 10], turret: 'turret', k: 1.0, cell: 96 },
+  harvester_vox: { vox: { hull: 'harvester.vox' }, pivot: [17, 11], k: 1.0, cell: 72 },
+  harvester_vox_full: { vox: { hull: 'harvester_full.vox' }, pivot: [17, 11], k: 1.0, cell: 72 },
+  mcv_vox: { vox: { hull: 'mcv.vox' }, pivot: [18, 11], k: 1.0, cell: 84, anchor: 0.72 },
+  heli_vox: { vox: { hull: 'heli.vox' }, pivot: [17.5, 9.5], k: 1.05, cell: 72, rotor: { z: 11.5, r: 17 } },
+  jet_vox: { vox: { hull: 'jet.vox' }, pivot: [16, 12.5], k: 1.0, cell: 72 },
+  ...Object.fromEntries(['rifle', 'rocket', 'engineer'].flatMap(kind => [0, 1, 2].map(f =>
+    [`${kind}_vox_${f}`, { vox: { hull: `${kind}_${f}.vox` }, pivot: [2.5, 3.5], k: 1.25, cell: 40, anchor: 0.75 }]))),
   heli: { file: 'Helicopter_001.glb', k: 2.8, cell: 120, anchor: 0.7, hide: ['Blade_001'], rotor: 'Blade_001', mask: { Color: 'dark' } },
 };
 

@@ -177,6 +177,8 @@ if (typeof SPRITE_META !== 'undefined') {
   }
 }
 const CAMO_TINT = { usa: '#e6dcc4', russia: '#a9b480', china: '#98b78b', eu: '#a4ad98', soviet: '#b3ae7c' };
+// voxel camouflage is stored as greys and painted in these faction colours
+const VOX_CAMO = { usa: '#d8c39a', russia: '#97a06a', china: '#86a273', eu: '#9aa390', soviet: '#aaa26c' };
 const loaded = img => img.complete && img.naturalWidth > 0;
 
 function teamSheet(key, part, team) {
@@ -197,7 +199,7 @@ function teamSheet(key, part, team) {
     if (SPRITE_META[key].style === 'voxel') {
       // voxel units: faction-tinted camouflage on the armour, solid team colour on the accent
       // parts (fender edges, turret band, rear plate), keeping the voxels' shading
-      if (sh.camo) { x.globalCompositeOperation = 'multiply'; x.drawImage(layer(CAMO_TINT[team.faction] || '#ffffff', sh.camo), 0, 0); }
+      if (sh.camo) { x.globalCompositeOperation = 'multiply'; x.drawImage(layer(VOX_CAMO[team.faction] || '#c8b48c', sh.camo), 0, 0); }
       x.globalCompositeOperation = 'color'; x.globalAlpha = 0.85;
       x.drawImage(layer(team.color), 0, 0);
       x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.2;
@@ -400,14 +402,31 @@ function unitSprite(u, team, part) {
 }
 
 // draw a unit whose ground point projects to (sx, sy)
-// Which sprite set draws a unit type. Tanks use the camouflaged voxel model by default;
-// '?tank=model' in the URL switches back to the ITHappy model.
-const SPRITE_FOR = { tank: 'tank_vox' };
-if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('tank') === 'model') delete SPRITE_FOR.tank;
+// Which sprite set draws each unit type: the camouflaged voxel models by default.
+// '?style=model' in the URL (or the older '?tank=model') uses the ITHappy models for the
+// tank, IFV and helicopter instead.
+const SPRITE_FOR = {
+  tank: 'tank_vox', ifv: 'ifv_vox', mlrs: 'mlrs_vox', railtank: 'railtank_vox', titan: 'titan_vox',
+  harvester: 'harvester_vox', mcv: 'mcv_vox', heli: 'heli_vox', jet: 'jet_vox',
+  rifle: 'rifle_vox', rocket: 'rocket_vox', engineer: 'engineer_vox',
+};
+if (typeof location !== 'undefined') {
+  const q = new URLSearchParams(location.search);
+  if (q.get('style') === 'model' || q.get('tank') === 'model') for (const k of ['tank', 'ifv', 'heli']) delete SPRITE_FOR[k];
+}
+
+function spriteKeyFor(u) {
+  if (u.spriteKey) return u.spriteKey;
+  let k = SPRITE_FOR[u.key];
+  if (!k) return u.key;
+  if (u.def.harvester && u.cargo > u.def.capacity * 0.4) k += '_full';
+  if (u.def.cat === 'infantry') k += '_' + (u.moving ? [1, 0, 2, 0][Math.floor(u.anim * 8) % 4] : 0);
+  return k;
+}
 
 function drawUnitArt(ctx, u, team, sx, sy) {
   const m = UNIT_MODELS[u.key];
-  const sk = u.spriteKey || SPRITE_FOR[u.key] || u.key;
+  const sk = spriteKeyFor(u);
   const meta = typeof SPRITE_META !== 'undefined' ? SPRITE_META[sk] : null;
   const lift = u.alt || 0;
   const rec = (u.recoil || 0) * 2.5;

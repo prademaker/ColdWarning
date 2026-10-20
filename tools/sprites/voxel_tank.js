@@ -3,47 +3,10 @@
 //
 //   node voxel_tank.js
 //
-// Palette convention used by render.js: indices 1-8 are the TEAM COLOUR ramp (stored as
-// greys so they read well in an editor); the game recolours them per player.
-// Indices 9-11 are CAMOUFLAGE (stored as desert tan); the game tints them per faction.
+// Palette and helpers are shared with the other units (voxel_lib.js).
 'use strict';
-const fs = require('fs');
-const path = require('path');
 
-const PALETTE = [];
-// 1-8: team colour ramp (greys, dark to light)
-for (let i = 0; i < 8; i++) { const v = 70 + i * 22; PALETTE.push([v, v, v]); }
-const C = {}; // named colours -> palette index
-function col(name, rgb) { PALETTE.push(rgb); C[name] = PALETTE.length; }
-col('camo', [176, 150, 112]); col('camoDark', [120, 98, 70]); col('camoLight', [204, 184, 146]); // 9-11
-col('track', [44, 44, 40]); col('link', [64, 63, 57]); col('wheel', [96, 94, 86]); col('hub', [140, 136, 122]);
-col('steel', [92, 96, 92]); col('steelDark', [58, 60, 58]); col('grille', [40, 42, 40]);
-col('gun', [74, 76, 72]); col('gunDark', [44, 46, 44]); col('light', [255, 236, 160]);
-col('glass', [90, 160, 210]); col('olive', [104, 110, 74]);
-const TEAM = 6, TEAM_LIGHT = 7, TEAM_DARK = 4;
-
-// three-tone camouflage: soft blobs in 3D so the pattern wraps over edges
-const BLOBS = Array.from({ length: 26 }, (_, i) => {
-  const r = Math.sin(i * 12.9898) * 43758.5453, f = n => (Math.sin(r * (n + 1)) * 0.5 + 0.5);
-  return [f(1) * 34 - 2, f(2) * 22 - 2, f(3) * 10, 2.2 + f(4) * 2.6, i % 3 === 0 ? 'camoLight' : 'camoDark'];
-});
-function camoAt(x, y, z, shift = 0) {
-  for (const [bx, by, bz, r, c] of BLOBS) {
-    const dx = x - bx - shift, dy = y - by, dz = (z - bz) * 0.6;
-    if (dx * dx + dy * dy + dz * dz < r * r) return C[c];
-  }
-  return C.camo;
-}
-
-function grid() {
-  const v = new Map();
-  return {
-    v,
-    set(x, y, z, c) { v.set(`${x},${y},${z}`, [x, y, z, c]); },
-    del(x, y, z) { v.delete(`${x},${y},${z}`); },
-    box(x0, x1, y0, y1, z0, z1, c) { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) this.set(x, y, z, c); },
-  };
-}
+const { C, TEAM, TEAM_LIGHT, TEAM_DARK, camoAt, grid, writeVox } = require('./voxel_lib');
 
 // ---- hull: 32 long (x), 20 wide (y), x forward ----
 const hull = grid();
@@ -90,28 +53,5 @@ tur.box(-5 + T0, -3 + T0, -4 + T0, -2 + T0, 5, 5, C.steelDark);     // gunner si
 tur.set(-4 + T0, -3 + T0, 6, C.glass);
 tur.box(-9 + T0, -8 + T0, -4 + T0, 4 + T0, 1, 3, C.olive);          // bustle rack
 
-// ---- .vox writer ----
-function chunk(id, content, children = Buffer.alloc(0)) {
-  const h = Buffer.alloc(12);
-  h.write(id, 0, 'ascii'); h.writeUInt32LE(content.length, 4); h.writeUInt32LE(children.length, 8);
-  return Buffer.concat([h, content, children]);
-}
-function writeVox(file, g) {
-  const vox = [...g.v.values()];
-  const sx = Math.max(...vox.map(v => v[0])) + 1, sy = Math.max(...vox.map(v => v[1])) + 1, sz = Math.max(...vox.map(v => v[2])) + 1;
-  const size = Buffer.alloc(12); size.writeUInt32LE(sx, 0); size.writeUInt32LE(sy, 4); size.writeUInt32LE(sz, 8);
-  const xyzi = Buffer.alloc(4 + vox.length * 4);
-  xyzi.writeUInt32LE(vox.length, 0);
-  vox.forEach(([x, y, z, c], i) => { xyzi[4 + i * 4] = x; xyzi[5 + i * 4] = y; xyzi[6 + i * 4] = z; xyzi[7 + i * 4] = c; });
-  const rgba = Buffer.alloc(256 * 4);
-  PALETTE.forEach(([r, g2, b], i) => { rgba[i * 4] = r; rgba[i * 4 + 1] = g2; rgba[i * 4 + 2] = b; rgba[i * 4 + 3] = 255; });
-  const children = Buffer.concat([chunk('SIZE', size), chunk('XYZI', xyzi), chunk('RGBA', rgba)]);
-  const head = Buffer.alloc(8); head.write('VOX ', 0, 'ascii'); head.writeUInt32LE(150, 4);
-  fs.writeFileSync(file, Buffer.concat([head, chunk('MAIN', Buffer.alloc(0), children)]));
-  console.log('wrote', path.relative(process.cwd(), file), `${sx}x${sy}x${sz}`, vox.length, 'voxels');
-}
-
-const OUT = path.join(__dirname, '..', '..', 'assets', 'voxels');
-fs.mkdirSync(OUT, { recursive: true });
-writeVox(path.join(OUT, 'tank_hull.vox'), hull);
-writeVox(path.join(OUT, 'tank_turret.vox'), tur);
+writeVox('tank_hull.vox', hull);
+writeVox('tank_turret.vox', tur);
