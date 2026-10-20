@@ -374,6 +374,9 @@ const UNIT_MODELS = {
   },
 };
 
+// bloc and nation specials borrow the nearest model until their sprite sheets have loaded
+Object.assign(UNIT_MODELS, { flak: UNIT_MODELS.ifv, tos: UNIT_MODELS.mlrs, iskander: UNIT_MODELS.mlrs, drone: UNIT_MODELS.jet, kirov: UNIT_MODELS.heli });
+
 // infantry: little voxel soldiers with a walk cycle
 function infantryParts(key, T, C, frame) {
   const p = [0, 1.4, 0, -1.4][frame];
@@ -386,6 +389,8 @@ function infantryParts(key, T, C, frame) {
   if (key === 'rifle') out.push(box(0, 8, 1.5, 2.3, 6.5, 7.6, '#1b1c1a'));
   if (key === 'rocket') out.push(box(-4.5, 8, -2.7, -1.2, 9, 10.7, tone(C[1], -0.2)), box(7.4, 8.2, -2.8, -1.1, 8.8, 10.9, '#111'));
   if (key === 'engineer') out.push(box(-1, 2.5, 2.6, 4.2, 3, 5.5, '#c9a43a'));
+  if (key === 'sniper') out.push(box(0, 11, 1.5, 2.3, 7.5, 8.4, '#1b1c1a'));
+  if (key === 'shock') out.push(box(-4.5, -3.2, -2, 2, 5, 10, '#d6ac2c'), box(0, 7, 1.5, 2.3, 6, 7, '#3a3c38'));
   return out;
 }
 
@@ -413,6 +418,7 @@ const SPRITE_FOR = {
   tank: 'tank_vox', ifv: 'ifv_vox', mlrs: 'mlrs_vox', railtank: 'railtank_vox', titan: 'titan_vox',
   harvester: 'harvester_vox', mcv: 'mcv_vox', heli: 'heli_vox', jet: 'jet_vox',
   rifle: 'rifle_vox', rocket: 'rocket_vox', engineer: 'engineer_vox',
+  sniper: 'sniper_vox', shock: 'shock_vox', flak: 'flak_vox', tos: 'tos_vox', iskander: 'iskander_vox', drone: 'drone_vox', kirov: 'kirov_vox',
 };
 if (typeof location !== 'undefined') {
   const q = new URLSearchParams(location.search);
@@ -578,6 +584,15 @@ const BLD_MODELS = {
   railturret() {
     return [box(3, 29, 3, 29, 0, 10, STEEL, { topColor: ROOF }), box(3, 29, 28.6, 29.6, 3, 6, '#d9ad2b')];
   },
+  laser() {
+    return [box(2, 30, 2, 30, 0, 3, '#5b5e60'), box(6, 26, 6, 26, 3, 18, '#cfd4d8', { topColor: '#9aa3ab' })];
+  },
+  hub(T) {
+    return [...foundation(64, 64),
+      box(6, 38, 8, 58, 2, 20, '#cfd4d8', { topColor: T.color }),
+      box(16, 28, 26, 38, 20, 20.6, '#e8e8e8'), box(20, 24, 22, 42, 20.6, 21, '#c33'), box(12, 32, 30, 34, 20.6, 21, '#c33'),
+      box(40, 58, 8, 58, 2, 3, '#2b2b26'), box(54, 57, 10, 13, 3, 34, '#d9ad2b')];
+  },
   sam() {
     return [box(2, 30, 4, 28, 0, 4, '#3d4247'), box(2, 30, 27.6, 28.6, 1, 3, '#d9ad2b'), cyl(16, 16, 6, 4, 8, '#4d545b', 5, 10)];
   },
@@ -585,6 +600,7 @@ const BLD_MODELS = {
 
 // rotating weapons on defensive structures (pivot at the footprint centre)
 const BLD_TURRETS = {
+  laser: { z: 18, parts: T => [cyl(0, 0, 6, 0, 6, tone(T.color, -0.1), 6, 10), box(2, 22, -1, 1, 3, 5, '#3a3d40'), box(21, 24, -2, 2, 2.5, 5.5, '#e03a2e', { light: true })] },
   turret: { z: 7, parts: T => [box(-5, 4, -4.5, 4.5, 0, 5, tone(T.color, -0.15)), box(4, 16, -2.2, -1.2, 2, 3, GUN), box(4, 17, -0.5, 0.5, 2, 3, GUN), box(4, 16, 1.2, 2.2, 2, 3, GUN)] },
   railturret: {
     z: 10, parts: T => {

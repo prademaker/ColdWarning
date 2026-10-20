@@ -7,47 +7,49 @@ const TICK = 1 / 60;
 // Each faction has a theme colour, an alternate used when both sides would look alike,
 // a vehicle camouflage palette, display names for its line units and a small bonus.
 // pkg selects the faction's special tank and superweapon: 'tech' (railgun + Orbital Lance)
-// or 'heavy' (Titan + Hypersonic Silo).
+// or 'heavy' (Titan + Hypersonic Silo). side puts the nation in the West or East bloc, which
+// decides part of its roster (see SIDES), and signature names the one unit or structure only
+// that nation can build.
 const FACTIONS = {
   usa: {
     name: 'USA', tagline: 'Technology / Mobility / Air Power', pkg: 'tech', side: 'west',
     color: '#3d8bff', dark: '#1d4e9e', light: '#9cc6ff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#a08f68', '#7a6b4b', '#c2b088'],
-    names: { rifle: 'Rifleman', tank: 'M1A3 Abrams', ifv: 'Stryker IFV', heli: 'AH-64E Apache', jet: 'F-35 Lightning II', sam: 'Patriot SAM' },
-    bonus: { hp: { air: 1.25 } }, bonusText: 'Aircraft +25% armor',
+    names: { rifle: 'Rifleman', tank: 'M1A3 Abrams', ifv: 'Stryker IFV', mlrs: 'M142 HIMARS', sniper: 'Marine Sniper', heli: 'AH-64E Apache', jet: 'F-35 Lightning II', sam: 'Patriot SAM' },
+    bonus: { hp: { air: 1.25 } }, bonusText: 'Aircraft +25% armor', signature: 'drone',
   },
   russia: {
     name: 'Russia', tagline: 'Power / Endurance / Heavy Firepower', pkg: 'heavy', side: 'east',
     color: '#e8413a', dark: '#8c1f1b', light: '#ff9e98',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6e7048', '#4f5134', '#8c8d60'],
-    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', ifv: 'BMP-3', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf' },
-    bonus: { dmg: { vehicle: 1.15 } }, bonusText: 'Armor +15% firepower',
+    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', flak: 'Pantsir-SM', tos: 'TOS-2 Tosochka', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf' },
+    bonus: { dmg: { vehicle: 1.15 } }, bonusText: 'Armor +15% firepower', signature: 'iskander',
   },
   china: {
     name: 'China', tagline: 'Expansion / Innovation / Discipline', pkg: 'tech', side: 'east',
     color: '#e5322d', dark: '#86160f', light: '#ff9a92',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#566f48', '#3e5235', '#71895e'],
-    names: { rifle: 'PLA Trooper', tank: 'Type 99A', ifv: 'ZBD-09 IFV', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM' },
-    bonus: { speed: { structure: 1.25, defense: 1.25 } }, bonusText: 'Structures build 25% faster',
+    names: { rifle: 'PLA Trooper', tank: 'Type 99A', flak: 'PGZ-09 SPAAG', tos: 'PCH-191 Thermobaric', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM' },
+    bonus: { speed: { structure: 1.25, defense: 1.25 } }, bonusText: 'Structures build 25% faster', signature: 'hub',
   },
   eu: {
     name: 'EU', tagline: 'Cooperation / Sustainability / Advanced Defense', pkg: 'tech', side: 'west',
     color: '#4a72ff', dark: '#22379c', light: '#a9bcff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#5f6a55', '#454d3e', '#7b8670'],
-    names: { rifle: 'Special Forces', tank: 'Leopard 2A7', ifv: 'Boxer IFV', heli: 'NH90 TTH', jet: 'Eurofighter Typhoon', sam: 'IRIS-T SLM' },
-    bonus: { hp: { defense: 1.3 }, dmg: { defense: 1.2 } }, bonusText: 'Defenses +30% armor, +20% firepower',
+    names: { rifle: 'Special Forces', tank: 'Leopard 2A7', ifv: 'Boxer IFV', mlrs: 'MARS II', sniper: 'Designated Marksman', heli: 'NH90 TTH', jet: 'Eurofighter Typhoon', sam: 'IRIS-T SLM' },
+    bonus: { hp: { defense: 1.3 }, dmg: { defense: 1.2 } }, bonusText: 'Defenses +30% armor, +20% firepower', signature: 'laser',
   },
   soviet: {
     name: 'Soviet Union', tagline: 'Tradition / Strength / Revival', pkg: 'heavy', side: 'east',
     color: '#d92b2b', dark: '#7d1212', light: '#ff9a9a',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6a6a3e', '#4c4c2c', '#86865a'],
-    names: { rifle: 'Motor Rifle', tank: 'T-90M', ifv: 'BTR-82A IFV', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM' },
-    bonus: { cost: { infantry: 0.75 } }, bonusText: 'Infantry 25% cheaper',
+    names: { rifle: 'Motor Rifle', tank: 'T-90M', flak: '2S6 Tunguska', tos: 'TOS-1A Solntsepyok', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM' },
+    bonus: { cost: { infantry: 0.75 } }, bonusText: 'Infantry 25% cheaper', signature: 'kirov',
   },
 };
 
@@ -74,6 +76,11 @@ const WARHEADS = {
   rail:      { infantry: 0.8,  light: 1.1,  heavy: 1.0,  building: 0.7,  air: 0 },
   flak:      { infantry: 0.1,  light: 0.1,  heavy: 0.05, building: 0,    air: 1.0 },
   blast:     { infantry: 1.0,  light: 1.0,  heavy: 1.0,  building: 1.0,  air: 1.0 },
+  sniper:    { infantry: 1.0,  light: 0.12, heavy: 0.06, building: 0.04, air: 0 },
+  fire:      { infantry: 1.25, light: 0.55, heavy: 0.3,  building: 0.9,  air: 0 },
+  thermo:    { infantry: 1.2,  light: 0.9,  heavy: 0.55, building: 1.1,  air: 0 },
+  laser:     { infantry: 0.9,  light: 1.0,  heavy: 0.75, building: 0,    air: 1.2 },
+  missile:   { infantry: 0.8,  light: 0.9,  heavy: 0.8,  building: 1.2,  air: 0 },
 };
 
 // speed & ranges are in tiles (per second), times in seconds.
@@ -95,11 +102,30 @@ const UNITS = {
     cost: 500, time: 6, hp: 80, speed: 1.4, sight: 5, radius: 5, key: 'E', engineer: true,
     desc: 'Captures enemy structures. Fully repairs friendly ones.',
   },
+  sniper: {
+    name: 'Sniper', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks'], side: 'west',
+    cost: 600, time: 7, hp: 90, speed: 1.2, sight: 10, radius: 5, key: 'R',
+    weapon: { warhead: 'sniper', damage: 110, range: 9, cooldown: 2.4, proj: 'tracer', ground: true, air: false },
+    desc: 'West only. Picks off infantry from far beyond their range. Useless against armor.',
+  },
+  shock: {
+    name: 'Flame Trooper', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks'], side: 'east',
+    cost: 350, time: 5, hp: 170, speed: 1.3, sight: 6, radius: 5, key: 'R',
+    weapon: { warhead: 'fire', damage: 20, range: 3, cooldown: 0.3, proj: 'flame', ground: true, air: false },
+    desc: 'East only. Short-range flamethrower that clears infantry and burns down structures.',
+  },
   ifv: {
-    name: 'Recon IFV', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory'],
+    name: 'Recon IFV', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory'], side: 'west',
     cost: 600, time: 7, hp: 260, speed: 3.3, sight: 8, radius: 9, turn: 7, key: 'Q',
     weapon: { warhead: 'rocket', damage: 26, range: 6, cooldown: 1.1, proj: 'rocket', speed: 11, ground: true, air: true },
-    desc: 'Fast scout with dual missiles. Hits air and ground.',
+    desc: 'West only. Fast scout with dual missiles. Hits air and ground.',
+  },
+  flak: {
+    name: 'Flak Track', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory'], side: 'east',
+    cost: 700, time: 7, hp: 320, speed: 2.8, sight: 8, radius: 10, turn: 6, key: 'Q',
+    weapon: { warhead: 'flak', damage: 45, range: 7, cooldown: 0.9, proj: 'tracer', burst: 2, ground: false, air: true },
+    weapon2: { warhead: 'bullet', damage: 18, range: 5, cooldown: 0.35, proj: 'tracer', ground: true, air: false },
+    desc: 'East only. Tracked twin autocannons: shreds aircraft and chews through infantry.',
   },
   tank: {
     name: 'Battle Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory'],
@@ -108,10 +134,22 @@ const UNITS = {
     desc: 'Main battle tank. The backbone of any assault.',
   },
   mlrs: {
-    name: 'MLRS Artillery', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory', 'radar'],
+    name: 'MLRS Artillery', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory', 'radar'], side: 'west',
     cost: 1100, time: 11, hp: 220, speed: 1.9, sight: 7, radius: 11, turn: 4, key: 'E',
     weapon: { warhead: 'artillery', damage: 70, range: 11, minRange: 3, cooldown: 4, proj: 'arty', speed: 8, splash: 1.4, burst: 3, ground: true, air: false },
-    desc: 'Long-range saturation rockets. Devastating vs infantry and bases.',
+    desc: 'West only. Long-range saturation rockets. Devastating vs infantry and bases.',
+  },
+  tos: {
+    name: 'Thermobaric Launcher', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'radar'], side: 'east',
+    cost: 1200, time: 12, hp: 420, speed: 1.6, sight: 7, radius: 12, turn: 3, key: 'E',
+    weapon: { warhead: 'thermo', damage: 120, range: 8, minRange: 2, cooldown: 6, proj: 'arty', speed: 9, splash: 2.2, burst: 2, ground: true, air: false },
+    desc: 'East only. Armored launcher whose thermobaric rockets flatten everything in a wide blast.',
+  },
+  iskander: {
+    name: 'Iskander-M', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory', 'tech'], nation: 'russia',
+    cost: 1600, time: 16, hp: 360, speed: 1.8, sight: 7, radius: 12, turn: 3, key: 'U',
+    weapon: { warhead: 'missile', damage: 420, range: 16, minRange: 5, cooldown: 12, proj: 'arty', speed: 11, splash: 1.5, ground: true, air: false },
+    desc: 'Russia only. Ballistic missile launcher that hits structures from far outside their range.',
   },
   railtank: {
     name: 'Railgun Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], pkg: 'tech',
@@ -141,6 +179,18 @@ const UNITS = {
     cost: 1000, time: 10, hp: 260, speed: 3.8, sight: 8, radius: 13, key: 'Q', air: true,
     weapon: { warhead: 'rocket', damage: 42, range: 5, cooldown: 1.3, proj: 'rocket', speed: 12, ground: true, air: false },
     desc: 'Hovers over the battlefield firing anti-armor missiles. Crosses water and cliffs.',
+  },
+  drone: {
+    name: 'MQ-9 Reaper', cat: 'air', armor: 'air', from: 'airfield', req: ['airfield', 'radar'], nation: 'usa',
+    cost: 800, time: 9, hp: 260, speed: 4.6, sight: 13, radius: 12, key: 'E', air: true,
+    weapon: { warhead: 'rocket', damage: 60, range: 7, cooldown: 2.8, proj: 'rocket', speed: 13, ground: true, air: false },
+    desc: 'USA only. Long-endurance drone that sees far and strikes with Hellfire missiles.',
+  },
+  kirov: {
+    name: 'Kirov Airship', cat: 'air', armor: 'air', from: 'airfield', req: ['airfield', 'tech'], nation: 'soviet',
+    cost: 2500, time: 24, hp: 2400, speed: 0.9, sight: 8, radius: 20, key: 'E', air: true, alt: 44,
+    weapon: { warhead: 'blast', damage: 170, range: 1.4, cooldown: 1.6, proj: 'bomb', splash: 1.8, ground: true, air: false },
+    desc: 'Soviet only. Slow, massively armored airship that carpet-bombs whatever it floats over.',
   },
   jet: {
     name: 'Fighter Jet', cat: 'air', armor: 'air', from: 'airfield', req: ['airfield', 'radar'],
@@ -204,6 +254,16 @@ const BUILDINGS = {
     weapon: { warhead: 'rail', damage: 110, range: 7.5, cooldown: 2.2, proj: 'rail', ground: true, air: false },
     desc: 'Anti-armor railgun emplacement. Requires power.',
   },
+  laser: {
+    name: 'Laser Defense Tower', cat: 'defense', w: 1, h: 1, hp: 950, cost: 1300, time: 11, power: -80, sight: 9, height: 30, req: ['radar'], key: 'R', needsPower: true, nation: 'eu',
+    weapon: { warhead: 'laser', damage: 40, range: 8.5, cooldown: 0.8, proj: 'laser', ground: true, air: true },
+    desc: 'EU only. High-energy laser that burns down vehicles and aircraft alike. Requires power.',
+  },
+  hub: {
+    name: 'Support Hub', cat: 'building', w: 2, h: 2, hp: 1100, cost: 1200, time: 10, power: -40, sight: 7, height: 38, req: ['factory'], key: 'O', nation: 'china',
+    heal: { rate: 14, radius: 7 },
+    desc: 'China only. Field hospital and repair yard: nearby units heal over time.',
+  },
   sam: {
     name: 'SAM Site', cat: 'defense', w: 1, h: 1, hp: 650, cost: 750, time: 7, power: -30, sight: 9, height: 20, req: ['radar'], key: 'E', needsPower: true,
     weapon: { warhead: 'flak', damage: 55, range: 9, cooldown: 1.1, proj: 'rocket', speed: 14, ground: false, air: true, burst: 2 },
@@ -214,14 +274,33 @@ const BUILDINGS = {
 const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory', air: 'airfield' };
 
 const TABS = [
-  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'super_lance', 'super_silo'] },
-  { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam'] },
-  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'engineer'] },
-  { id: 'vehicle', label: 'Armor', list: ['ifv', 'tank', 'mlrs', 'railtank', 'titan', 'harvester', 'mcv'] },
-  { id: 'air', label: 'Air', list: ['heli', 'jet'] },
+  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'super_lance', 'super_silo'] },
+  { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser'] },
+  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'engineer'] },
+  { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'harvester', 'mcv'] },
+  { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet'] },
 ];
 
+// The two blocs. Each fields its own scout vehicle, artillery and special infantry; SIDE_SWAP
+// maps a West unit to its East counterpart where code needs "the light vehicle" of either side.
+const SIDES = {
+  west: { name: 'West', tagline: 'Precision and mobility', units: ['sniper', 'ifv', 'mlrs'] },
+  east: { name: 'East', tagline: 'Mass and firepower', units: ['shock', 'flak', 'tos'] },
+};
+const SIDE_SWAP = { east: { sniper: 'shock', ifv: 'flak', mlrs: 'tos' }, west: { shock: 'sniper', flak: 'ifv', tos: 'mlrs' } };
+function sideKey(key, faction) { const sw = SIDE_SWAP[FACTIONS[faction].side]; return (sw && sw[key]) || key; }
+
 function defOf(key) { return UNITS[key] || BUILDINGS[key]; }
+
+// whether a faction's roster includes a unit or structure at all (tech package, bloc, nation)
+function inRoster(key, faction) {
+  const def = defOf(key), f = FACTIONS[faction];
+  if (!def || !f) return false;
+  if (def.pkg && def.pkg !== f.pkg) return false;
+  if (def.side && def.side !== f.side) return false;
+  if (def.nation && def.nation !== faction) return false;
+  return true;
+}
 
 function queueTypeOf(key) {
   if (BUILDINGS[key]) return BUILDINGS[key].cat === 'defense' ? 'defense' : 'structure';
@@ -229,10 +308,13 @@ function queueTypeOf(key) {
   return u.cat === 'infantry' ? 'infantry' : u.cat === 'air' ? 'air' : 'vehicle';
 }
 
+// AI tactics per difficulty: counter = adapt unit mix to what scouts have seen,
+// raid = harvester raiding party size, engineers = how many ride along with attack waves,
+// retreat = pull a wave back once it drops below this share of its starting strength.
 const DIFFICULTY = {
-  easy:   { label: 'Easy',   build: 0.7, income: 0.8, firstAttack: 420, waveBase: 5, waveGrow: 1 },
-  normal: { label: 'Normal', build: 1.0, income: 1.0, firstAttack: 300, waveBase: 7, waveGrow: 2 },
-  hard:   { label: 'Brutal', build: 1.35, income: 1.35, firstAttack: 200, waveBase: 9, waveGrow: 3 },
+  easy:   { label: 'Easy',   build: 0.7, income: 0.8, firstAttack: 420, waveBase: 5, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0 },
+  normal: { label: 'Normal', build: 1.0, income: 1.0, firstAttack: 300, waveBase: 7, waveGrow: 2, counter: true, raid: 3, engineers: 1, retreat: 0.35 },
+  hard:   { label: 'Brutal', build: 1.35, income: 1.35, firstAttack: 200, waveBase: 9, waveGrow: 3, counter: true, raid: 4, engineers: 2, retreat: 0.4 },
 };
 
 const START_CREDITS = 10000;

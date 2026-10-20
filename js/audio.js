@@ -126,7 +126,7 @@ const Sfx = {
   play(name, vol = 1, pan = 0) {
     if (!this.ctx || this.muted || this.ctx.state !== 'running') return;
     const now = performance.now();
-    const gap = { gun: 55, flak: 80, pop: 45, cannon: 60, rocket: 70, boom: 80, rail: 90, crush: 80, click: 30, ack: 60 }[name] || 0;
+    const gap = { gun: 55, flak: 80, pop: 45, cannon: 60, rocket: 70, boom: 80, rail: 90, laser: 90, flame: 120, crush: 80, click: 30, ack: 60 }[name] || 0;
     if (gap && this.last[name] && now - this.last[name] < gap) return;
     this.last[name] = now;
     const t = this.ctx.currentTime + 0.005, r = 0.9 + Math.random() * 0.2; // small pitch jitter
@@ -170,6 +170,18 @@ const Sfx = {
         car.start(t); mod.start(t); car.stop(t + 0.45); mod.stop(t + 0.45);
         this.osc(o, 'sine', 80, 35, t, 0.5, 0.7);
         this.hiss(o, 'highpass', 5000, 2500, t, 0.25, 0.25);
+        break;
+      }
+      case 'flame': { // roaring burst of burning fuel
+        const o = this.voiceOut(0.4 * vol, pan, 0.15);
+        this.hiss(o, 'bandpass', 500 * r, 900, t, 0.35, 0.8, 0.8);
+        this.hiss(o, 'lowpass', 300, 150, t, 0.4, 0.5);
+        break;
+      }
+      case 'laser': { // bright descending whine
+        const o = this.voiceOut(0.3 * vol, pan, 0.3);
+        this.osc(o, 'sawtooth', 3200 * r, 900, t, 0.22, 0.25);
+        this.osc(o, 'sine', 1600 * r, 1200, t, 0.3, 0.3);
         break;
       }
       case 'pop': { // small explosion
