@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cold War 2: 2030</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="menu">
+  <header class="m-head">
+    <img class="logo" src="assets/ui/logo.webp" alt="Cold War 2: 2030">
+    <div class="m-sep"></div>
+    <div class="m-tag">
+      <div class="t1">SAME RIVALS. NEW WORLD.</div>
+      <div class="t2">STRATEGY &nbsp;/&nbsp; TECHNOLOGY &nbsp;/&nbsp; GLOBAL POWER</div>
+    </div>
+    <div class="m-map"></div>
+  </header>
+  <main class="menu-inner">
+    <h3>Choose your faction</h3>
+    <div id="factions"></div>
+    <div class="m-row">
+      <section class="m-box">
+        <h3>Opponent</h3>
+        <div id="enemy" class="opts"></div>
+      </section>
+      <section class="m-box grow">
+        <h3>Theater</h3>
+        <div id="theaters"></div>
+      </section>
+    </div>
+    <div class="m-row">
+      <section class="m-box"><h3>Difficulty</h3><div id="difficulty" class="opts"></div></section>
+      <section class="m-box"><h3>Game speed</h3><div id="speed" class="opts"></div></section>
+      <section class="m-box"><h3>Map seed</h3><div class="opts"><input id="seed" type="number"><button id="reroll" class="opt" title="Random seed">⟳</button></div></section>
+      <button id="start">DEPLOY</button>
+    </div>
+    <details class="help">
+      <summary>How to play</summary>
+      <ul>
+        <li><b>Start:</b> select your MCV and press <kbd>D</kbd> (or click it again) to deploy your Command Center.</li>
+        <li><b>Build:</b> pick a structure from the sidebar. When it says READY, click it again and place it near your base.</li>
+        <li><b>Economy:</b> Ore Refineries come with a Harvester. Gold ore and cyan lithium crystals are credits.</li>
+        <li><b>Power:</b> keep the power bar green. Low power slows production, kills your minimap and shuts down defenses.</li>
+        <li><b>Units:</b> left-click/drag to select, right-click to move/attack. <kbd>Ctrl</kbd>+right-click or <kbd>A</kbd> = attack-move.</li>
+        <li><kbd>S</kbd> stop · <kbd>Ctrl</kbd>+<kbd>1-9</kbd> make group · <kbd>1-9</kbd> recall (twice to jump) · double-click selects all of a type.</li>
+        <li><kbd>Tab</kbd> cycles build tabs · <kbd>Q</kbd>…<kbd>I</kbd> build hotkeys · <kbd>Z</kbd> sell · <kbd>X</kbd> repair · <kbd>F</kbd> superweapon.</li>
+        <li><kbd>H</kbd> jump to base · <kbd>Space</kbd> jump to last alert · <kbd>P</kbd> pause · <kbd>M</kbd> mute · arrows / screen edges / middle-drag scroll.</li>
+        <li>Engineers capture enemy buildings. Heavy tanks crush infantry. Units promote to Veteran and Elite with kills.</li>
+      </ul>
+    </details>
+  </main>
+  <footer class="m-banner"></footer>
+</div>
+
+<div id="game" hidden>
+  <canvas id="view"></canvas>
+  <div id="messages"></div>
+  <div id="enemy-super" hidden></div>
+  <div id="sidebar">
+    <div id="sb-head">
+      <div id="sb-faction"><img id="sb-flag" alt=""><span id="sb-fname"></span></div>
+      <div class="sb-icons">
+        <button id="btn-pause" title="Pause (P)">❚❚</button>
+        <button id="btn-sound" title="Sound (M)">♪</button>
+      </div>
+    </div>
+    <div id="credits">$ 0</div>
+    <div id="radar-row">
+      <canvas id="minimap" width="228" height="228"></canvas>
+      <div id="power" title="Power used / produced">
+        <div id="power-fill"></div>
+        <div id="power-use"></div>
+      </div>
+    </div>
+    <div id="power-text"></div>
+    <div id="sb-buttons">
+      <button id="btn-repair" title="Repair mode (X)">Repair</button>
+      <button id="btn-sell" title="Sell mode (Z)">Sell</button>
+    </div>
+    <button id="btn-super" hidden></button>
+    <div id="tabs"></div>
+    <div id="build-grid"></div>
+    <div id="sel-info"></div>
+  </div>
+  <div id="tooltip" hidden></div>
+  <div id="pause-overlay" hidden><div>PAUSED<small>Press P to resume</small></div></div>
+  <div id="end" hidden></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/flags.js"></script>
+<script src="assets/sprites/sprites.js"></script>
+<script src="js/map.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/art.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
