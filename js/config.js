@@ -1,20 +1,68 @@
-// ColdWarning — game data: factions, units, structures, damage tables.
+// Cold War 2: 2030 — game data: factions, units, structures, damage tables.
 'use strict';
 
 const TILE = 32;
 const TICK = 1 / 60;
 
+// Each faction has a theme colour, an alternate used when both sides would look alike,
+// a vehicle camouflage palette, display names for its line units and a small bonus.
+// pkg selects the faction's special tank and superweapon: 'tech' (railgun + Orbital Lance)
+// or 'heavy' (Titan + Hypersonic Silo).
 const FACTIONS = {
-  coalition: {
-    name: 'Atlantic Coalition',
+  usa: {
+    name: 'USA', tagline: 'Technology / Mobility / Air Power', pkg: 'tech', side: 'west',
     color: '#3d8bff', dark: '#1d4e9e', light: '#9cc6ff',
-    blurb: 'High-tech western alliance. Railgun armor and the Orbital Lance satellite strike.',
+    alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
+    camo: ['#a08f68', '#7a6b4b', '#c2b088'],
+    names: { rifle: 'Rifleman', tank: 'M1A3 Abrams', ifv: 'Stryker IFV', heli: 'AH-64E Apache', jet: 'F-35 Lightning II', sam: 'Patriot SAM' },
+    bonus: { hp: { air: 1.25 } }, bonusText: 'Aircraft +25% armor',
   },
-  bloc: {
-    name: 'Eurasian Bloc',
+  russia: {
+    name: 'Russia', tagline: 'Power / Endurance / Heavy Firepower', pkg: 'heavy', side: 'east',
     color: '#e8413a', dark: '#8c1f1b', light: '#ff9e98',
-    blurb: 'Massed heavy armor. Titan tanks and the Hypersonic Silo.',
+    alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
+    camo: ['#6e7048', '#4f5134', '#8c8d60'],
+    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', ifv: 'BMP-3', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf' },
+    bonus: { dmg: { vehicle: 1.15 } }, bonusText: 'Armor +15% firepower',
   },
+  china: {
+    name: 'China', tagline: 'Expansion / Innovation / Discipline', pkg: 'tech', side: 'east',
+    color: '#e5322d', dark: '#86160f', light: '#ff9a92',
+    alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
+    camo: ['#566f48', '#3e5235', '#71895e'],
+    names: { rifle: 'PLA Trooper', tank: 'Type 99A', ifv: 'ZBD-09 IFV', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM' },
+    bonus: { speed: { structure: 1.25, defense: 1.25 } }, bonusText: 'Structures build 25% faster',
+  },
+  eu: {
+    name: 'EU', tagline: 'Cooperation / Sustainability / Advanced Defense', pkg: 'tech', side: 'west',
+    color: '#4a72ff', dark: '#22379c', light: '#a9bcff',
+    alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
+    camo: ['#5f6a55', '#454d3e', '#7b8670'],
+    names: { rifle: 'Special Forces', tank: 'Leopard 2A7', ifv: 'Boxer IFV', heli: 'NH90 TTH', jet: 'Eurofighter Typhoon', sam: 'IRIS-T SLM' },
+    bonus: { hp: { defense: 1.3 }, dmg: { defense: 1.2 } }, bonusText: 'Defenses +30% armor, +20% firepower',
+  },
+  soviet: {
+    name: 'Soviet Union', tagline: 'Tradition / Strength / Revival', pkg: 'heavy', side: 'east',
+    color: '#d92b2b', dark: '#7d1212', light: '#ff9a9a',
+    alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
+    camo: ['#6a6a3e', '#4c4c2c', '#86865a'],
+    names: { rifle: 'Motor Rifle', tank: 'T-90M', ifv: 'BTR-82A IFV', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM' },
+    bonus: { cost: { infantry: 0.75 } }, bonusText: 'Infantry 25% cheaper',
+  },
+};
+
+function nameOf(key, faction) {
+  const f = FACTIONS[faction];
+  return (f && f.names[key]) || defOf(key).name;
+}
+
+// map theaters; each previews with artwork cut from the style mock
+const THEATERS = {
+  temperate: { name: 'Temperate', art: 'forest' },
+  desert: { name: 'Desert', art: 'desert' },
+  arctic: { name: 'Arctic', art: 'snow' },
+  steppe: { name: 'Steppe', art: 'steppe' },
+  jungle: { name: 'Jungle', art: 'jungle' },
 };
 
 // Damage multipliers: warhead vs armor class.
@@ -66,13 +114,13 @@ const UNITS = {
     desc: 'Long-range saturation rockets. Devastating vs infantry and bases.',
   },
   railtank: {
-    name: 'Railgun Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], faction: 'coalition',
+    name: 'Railgun Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], pkg: 'tech',
     cost: 1500, time: 14, hp: 600, speed: 2.0, sight: 8, radius: 12, turn: 4, key: 'R',
     weapon: { warhead: 'rail', damage: 160, range: 7, cooldown: 2.6, proj: 'rail', pierce: true, ground: true, air: false },
     desc: 'Electromagnetic railgun that pierces through every target in a line.',
   },
   titan: {
-    name: 'Titan Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], faction: 'bloc',
+    name: 'Titan Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], pkg: 'heavy',
     cost: 1750, time: 15, hp: 1000, speed: 1.4, sight: 7, radius: 14, turn: 3, key: 'R', selfHeal: 6,
     weapon: { warhead: 'cannon', damage: 75, range: 6, cooldown: 1.6, proj: 'shell', speed: 16, burst: 2, ground: true, air: false },
     weapon2: { warhead: 'rocket', damage: 35, range: 7, cooldown: 1.6, proj: 'rocket', speed: 10, ground: false, air: true },
@@ -88,18 +136,18 @@ const UNITS = {
     cost: 3000, time: 20, hp: 1000, speed: 1.3, sight: 6, radius: 13, turn: 3, key: 'Y', mcv: true,
     desc: 'Deploys into a Command Center. Press D to deploy.',
   },
-  drone: {
-    name: 'Strike Drone', cat: 'air', armor: 'air', from: 'dronehub', req: ['dronehub'],
-    cost: 1000, time: 10, hp: 200, speed: 4.2, sight: 8, radius: 10, key: 'Q', air: true,
-    weapon: { warhead: 'rocket', damage: 45, range: 4.5, cooldown: 1.4, proj: 'rocket', speed: 12, ground: true, air: false },
-    desc: 'Autonomous attack drone. Flies over water and cliffs.',
+  heli: {
+    name: 'Attack Helicopter', cat: 'air', armor: 'air', from: 'airfield', req: ['airfield'],
+    cost: 1000, time: 10, hp: 260, speed: 3.8, sight: 8, radius: 13, key: 'Q', air: true,
+    weapon: { warhead: 'rocket', damage: 42, range: 5, cooldown: 1.3, proj: 'rocket', speed: 12, ground: true, air: false },
+    desc: 'Hovers over the battlefield firing anti-armor missiles. Crosses water and cliffs.',
   },
-  interceptor: {
-    name: 'Interceptor Drone', cat: 'air', armor: 'air', from: 'dronehub', req: ['dronehub', 'tech'],
-    cost: 1200, time: 11, hp: 240, speed: 5.5, sight: 9, radius: 10, key: 'W', air: true,
-    weapon: { warhead: 'flak', damage: 40, range: 5.5, cooldown: 0.6, proj: 'tracer', ground: false, air: true },
-    weapon2: { warhead: 'bullet', damage: 14, range: 4, cooldown: 0.5, proj: 'tracer', ground: true, air: false },
-    desc: 'Air superiority drone. Shreds enemy aircraft.',
+  jet: {
+    name: 'Fighter Jet', cat: 'air', armor: 'air', from: 'airfield', req: ['airfield', 'radar'],
+    cost: 1400, time: 12, hp: 240, speed: 7.5, sight: 9, radius: 13, key: 'W', air: true, jet: true,
+    weapon: { warhead: 'flak', damage: 70, range: 6, cooldown: 1.1, proj: 'rocket', speed: 18, ground: false, air: true },
+    weapon2: { warhead: 'cannon', damage: 55, range: 5, cooldown: 1.6, proj: 'rocket', speed: 16, ground: true, air: false },
+    desc: 'Supersonic multirole fighter. Wins the skies, strafes ground targets.',
   },
 };
 
@@ -109,8 +157,8 @@ const BUILDINGS = {
     desc: 'Constructs all base structures.', buildable: false, produces: 'structure',
   },
   power: {
-    name: 'Fusion Plant', cat: 'building', w: 2, h: 2, hp: 800, cost: 600, time: 6, power: 150, sight: 5, height: 18, req: [], key: 'Q',
-    desc: 'Provides 150 power. Keep your grid supplied!',
+    name: 'Power Plant', cat: 'building', w: 2, h: 2, hp: 800, cost: 600, time: 6, power: 150, sight: 5, height: 18, req: [], key: 'Q',
+    desc: 'Fusion reactor providing 150 power. Keep your grid supplied!',
   },
   refinery: {
     name: 'Ore Refinery', cat: 'building', w: 3, h: 3, hp: 1200, cost: 2000, time: 12, power: -50, sight: 6, height: 20, req: ['power'], key: 'W',
@@ -125,24 +173,24 @@ const BUILDINGS = {
     desc: 'Builds vehicles.',
   },
   radar: {
-    name: 'Uplink Center', cat: 'building', w: 2, h: 2, hp: 1000, cost: 1000, time: 8, power: -60, sight: 10, height: 18, req: ['factory'], key: 'T',
+    name: 'Radar Station', cat: 'building', w: 2, h: 2, hp: 1000, cost: 1000, time: 8, power: -60, sight: 10, height: 18, req: ['factory'], key: 'T',
     desc: 'Enables the tactical minimap. Unlocks advanced tech.',
   },
-  dronehub: {
-    name: 'Drone Hub', cat: 'building', w: 2, h: 2, hp: 900, cost: 1000, time: 8, power: -40, sight: 6, height: 10, req: ['radar'], key: 'Y', produces: 'air',
-    desc: 'Builds and launches drones.',
+  airfield: {
+    name: 'Airfield', cat: 'building', w: 3, h: 2, hp: 900, cost: 1000, time: 8, power: -40, sight: 6, height: 10, req: ['radar'], key: 'Y', produces: 'air',
+    desc: 'Builds helicopters and fighter jets.',
   },
   tech: {
     name: 'Tech Lab', cat: 'building', w: 2, h: 2, hp: 1200, cost: 1800, time: 14, power: -100, sight: 6, height: 22, req: ['radar'], key: 'U',
     desc: 'Unlocks faction super-units and the superweapon.',
   },
   super_lance: {
-    name: 'Orbital Lance', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 22, req: ['tech'], faction: 'coalition', key: 'I',
+    name: 'Orbital Lance', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 22, req: ['tech'], pkg: 'tech', key: 'I',
     superweapon: { charge: 300, damage: 1400, radius: 3.5, kind: 'lance' },
     desc: 'Satellite uplink. Calls down an orbital laser strike every 5 minutes.',
   },
   super_silo: {
-    name: 'Hypersonic Silo', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 16, req: ['tech'], faction: 'bloc', key: 'I',
+    name: 'Hypersonic Silo', cat: 'building', w: 3, h: 3, hp: 2000, cost: 5000, time: 30, power: -150, sight: 6, height: 16, req: ['tech'], pkg: 'heavy', key: 'I',
     superweapon: { charge: 300, damage: 1600, radius: 4, kind: 'missile' },
     desc: 'Launches a hypersonic warhead every 5 minutes.',
   },
@@ -163,14 +211,14 @@ const BUILDINGS = {
   },
 };
 
-const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory', air: 'dronehub' };
+const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory', air: 'airfield' };
 
 const TABS = [
-  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'dronehub', 'tech', 'super_lance', 'super_silo'] },
+  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'super_lance', 'super_silo'] },
   { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam'] },
   { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'engineer'] },
   { id: 'vehicle', label: 'Armor', list: ['ifv', 'tank', 'mlrs', 'railtank', 'titan', 'harvester', 'mcv'] },
-  { id: 'air', label: 'Air', list: ['drone', 'interceptor'] },
+  { id: 'air', label: 'Air', list: ['heli', 'jet'] },
 ];
 
 function defOf(key) { return UNITS[key] || BUILDINGS[key]; }

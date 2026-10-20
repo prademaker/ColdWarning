@@ -8,7 +8,7 @@ class AI {
     this.thinkT = 1 + team.id * 0.35;
     const sup = team.superKey();
     this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret',
-      'dronehub', 'power', 'tech', 'sam', 'power', 'turret', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
+      'airfield', 'power', 'tech', 'sam', 'power', 'turret', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
       'railturret', 'factory', 'turret', 'sam', 'power'];
     this.nextAttack = this.d.firstAttack;
     this.wave = 0;
@@ -187,8 +187,8 @@ class AI {
       const k = this.pick({ ifv: 2, tank: 5, mlrs: 1.5, railtank: 3, titan: 3 });
       if (k) Q.vehicle.add(k);
     }
-    if (Q.air.items.length < 1 && t.credits > 2200 + reserve && t.canBuild('drone')) {
-      const k = this.pick({ drone: 6, interceptor: 3 });
+    if (Q.air.items.length < 1 && t.credits > 2200 + reserve && t.canBuild('heli')) {
+      const k = this.pick({ heli: 6, jet: 4 });
       if (k) Q.air.add(k);
     }
   }

@@ -22,6 +22,11 @@ const UI = {
     if (!this.bound) { this.bindEvents(); this.bound = true; }
     this.buildTabs();
     this.buildGridKey = null;
+    this.selKey = null;
+    const pt = G.playerTeam;
+    document.getElementById('sb-flag').src = FLAGS[pt.faction];
+    document.getElementById('sb-fname').textContent = pt.name;
+    document.getElementById('sidebar').style.setProperty('--team', pt.color);
     G.on('eva', msg => { Sfx.say(msg); this.flashMessages(); });
     G.on('sound', (name, x, y) => {
       if (x !== undefined) {
@@ -208,7 +213,7 @@ const UI = {
           if (i >= 0) this.selection.splice(i, 1); else this.select([ent], true);
         } else this.select([ent], false);
         if (ent.kind === 'building' && ent.team === G.player) {
-          const q = { cc: 'structure', barracks: 'infantry', factory: 'vehicle', dronehub: 'air' }[ent.key];
+          const q = { cc: 'structure', barracks: 'infantry', factory: 'vehicle', airfield: 'air' }[ent.key];
           if (q) this.setTab(q);
         }
       } else if (!d.shift) this.selection = [];
@@ -338,7 +343,7 @@ const UI = {
     const tab = TABS.find(t => t.id === this.tab);
     for (const key of tab.list) {
       const def = defOf(key);
-      if (def.key && def.key.toLowerCase() === lower && (!def.faction || def.faction === G.playerTeam.faction)) { this.clickBuild(key, false, e.shiftKey); return; }
+      if (def.key && def.key.toLowerCase() === lower && (!def.pkg || def.pkg === G.playerTeam.pkg)) { this.clickBuild(key, false, e.shiftKey); return; }
     }
   },
 
@@ -390,9 +395,9 @@ const UI = {
       for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 40; img.data[i] = v; img.data[i + 1] = v + 8; img.data[i + 2] = v; img.data[i + 3] = 255; }
       ctx.putImageData(img, 0, 0);
       ctx.fillStyle = '#6a7'; ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
-      ctx.fillText(G.playerTeam.countOf('radar') ? 'LOW POWER' : 'NO UPLINK', W / 2, H / 2 - 4);
+      ctx.fillText(G.playerTeam.countOf('radar') ? 'LOW POWER' : 'NO RADAR', W / 2, H / 2 - 4);
       ctx.font = '10px monospace'; ctx.fillStyle = '#586';
-      ctx.fillText(G.playerTeam.countOf('radar') ? 'Build more Fusion Plants' : 'Build an Uplink Center', W / 2, H / 2 + 12);
+      ctx.fillText(G.playerTeam.countOf('radar') ? 'Build more Power Plants' : 'Build a Radar Station', W / 2, H / 2 + 12);
       return;
     }
     ctx.imageSmoothingEnabled = false;
@@ -435,17 +440,35 @@ const UI = {
 
   setTab(id) { this.tab = id; this.buildGridKey = null; this.updateSidebar(); },
 
-  icon(key) {
-    const team = G.playerTeam;
-    const k = key + team.faction;
-    if (!this.iconCache[k]) this.iconCache[k] = drawIcon(key, team, 88, 62);
+  icon(key, team = G.playerTeam) {
+    const k = key + team.faction + team.color;
+    if (!this.iconCache[k]) this.iconCache[k] = drawIcon(key, team, 92, 81);
     return this.iconCache[k];
+  },
+
+  // cameo picture: artwork from the style guide when available, otherwise a rendered icon
+  cameo(key, team = G.playerTeam) {
+    const wrap = document.createElement('div');
+    wrap.className = 'bpic';
+    const fallback = () => {
+      const ic = this.icon(key, team);
+      const cv = document.createElement('canvas'); cv.width = ic.width; cv.height = ic.height;
+      cv.getContext('2d').drawImage(ic, 0, 0);
+      wrap.innerHTML = ''; wrap.appendChild(cv);
+    };
+    const url = cameoUrl(key, team.faction);
+    if (url) {
+      const img = new Image();
+      img.draggable = false; img.onerror = fallback; img.src = url;
+      wrap.appendChild(img);
+    } else fallback();
+    return wrap;
   },
 
   buildGrid() {
     const t = G.playerTeam;
     const tab = TABS.find(x => x.id === this.tab);
-    const list = tab.list.filter(k => !defOf(k).faction || defOf(k).faction === t.faction);
+    const list = tab.list.filter(k => !defOf(k).pkg || defOf(k).pkg === t.pkg);
     const grid = document.getElementById('build-grid');
     grid.innerHTML = '';
     this.buttons = {};
@@ -453,12 +476,9 @@ const UI = {
       const def = defOf(key);
       const b = document.createElement('div');
       b.className = 'bitem';
-      const ic = this.icon(key);
-      const cv = document.createElement('canvas'); cv.width = ic.width; cv.height = ic.height;
-      cv.getContext('2d').drawImage(ic, 0, 0);
-      b.appendChild(cv);
-      const name = document.createElement('div'); name.className = 'bname'; name.textContent = def.name; b.appendChild(name);
-      const cost = document.createElement('div'); cost.className = 'bcost'; cost.textContent = '$' + def.cost; b.appendChild(cost);
+      b.appendChild(this.cameo(key));
+      const name = document.createElement('div'); name.className = 'bname'; name.textContent = nameOf(key, t.faction); b.appendChild(name);
+      const cost = document.createElement('div'); cost.className = 'bcost'; cost.textContent = '$' + t.costOf(key); b.appendChild(cost);
       if (def.key) { const hk = document.createElement('div'); hk.className = 'bkey'; hk.textContent = def.key; b.appendChild(hk); }
       const prog = document.createElement('div'); prog.className = 'bprog'; b.appendChild(prog);
       const status = document.createElement('div'); status.className = 'bstatus'; b.appendChild(status);
@@ -513,7 +533,8 @@ const UI = {
     if (BUILDINGS[key]) stats = `Power: ${def.power > 0 ? '+' : ''}${def.power}`;
     else if (def.weapon) stats = `HP ${def.hp} · Speed ${def.speed} · Range ${def.weapon.range}`;
     else stats = `HP ${def.hp} · Speed ${def.speed}`;
-    tip.innerHTML = `<b>${def.name}</b> <span class="tcost">$${def.cost}</span><div>${def.desc}</div><div class="tstat">${stats}</div>` +
+    const role = nameOf(key, t.faction) !== def.name ? `<div class="trole">${def.name}</div>` : '';
+    tip.innerHTML = `<b>${nameOf(key, t.faction)}</b> <span class="tcost">$${t.costOf(key)}</span>${role}<div>${def.desc}</div><div class="tstat">${stats}</div>` +
       (reqs.length ? `<div class="treq">Requires: ${[...new Set(reqs)].join(', ')}</div>` : '') +
       `<div class="thelp">Left: build${BUILDINGS[key] ? ' / place' : ' (Shift ×5)'} · Right: hold / cancel</div>`;
     tip.hidden = false;
@@ -589,7 +610,7 @@ const UI = {
   updateSelInfo() {
     const el = document.getElementById('sel-info');
     const sel = this.selection.filter(e => !e.dead);
-    if (!sel.length) { el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy · Ctrl+# group</div>'; return; }
+    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy · Ctrl+# group</div>'; return; }
     if (sel.length === 1) {
       const e = sel[0];
       const tm = G.teams[e.team];
@@ -604,13 +625,20 @@ const UI = {
         extra = `Power ${e.def.power > 0 ? '+' : ''}${e.def.power}`;
         if (e.def.produces && e.def.produces !== 'structure' && e.team === G.player) extra += ' · Right-click map to set rally';
       }
-      el.innerHTML = `<div class="sname" style="color:${tm.light}">${e.def.name}</div>
+      const html = `<div class="sname" style="color:${tm.light}">${nameOf(e.key, tm.faction)}</div>
         <div class="shp"><div style="width:${e.hp / e.maxHp * 100}%"></div></div>
         <div class="sextra">${Math.ceil(e.hp)}/${e.maxHp} · ${extra}</div>`;
+      if (this.selKey !== e.id) {
+        this.selKey = e.id;
+        el.innerHTML = '<div class="selrow"><div class="selpic"></div><div class="seltext"></div></div>';
+        el.querySelector('.selpic').appendChild(this.cameo(e.key, tm));
+      }
+      el.querySelector('.seltext').innerHTML = html;
       return;
     }
+    this.selKey = null;
     const counts = {};
-    for (const e of sel) counts[e.def.name] = (counts[e.def.name] || 0) + 1;
+    for (const e of sel) { const n = nameOf(e.key, G.teams[e.team].faction); counts[n] = (counts[n] || 0) + 1; }
     el.innerHTML = `<div class="sname">${sel.length} selected</div><div class="sextra">` +
       Object.entries(counts).map(([n, c]) => `${c}× ${n}`).join('<br>') + '</div>';
   },

@@ -1,4 +1,4 @@
-// ColdWarning — rendering of the battlefield. Everything is drawn procedurally.
+// Cold War 2: 2030 — rendering of the battlefield (artwork itself lives in art.js).
 'use strict';
 
 const Render = {
@@ -11,6 +11,10 @@ const Render = {
     this.fogCtx = this.fogCanvas.getContext('2d');
     this.fogImg = this.fogCtx.createImageData(N, N);
     this.fogVersion = -1;
+    // blurred, upsampled copy so the fog edge is soft instead of tile-stepped
+    this.fogHi = document.createElement('canvas');
+    this.fogHi.width = N * 4; this.fogHi.height = N * 4;
+    this.fogHiCtx = this.fogHi.getContext('2d');
   },
 
   updateFogCanvas() {
@@ -21,6 +25,12 @@ const Render = {
       d[i * 4 + 3] = vis[i] ? 0 : exp[i] ? 110 : 255;
     }
     this.fogCtx.putImageData(this.fogImg, 0, 0);
+    const h = this.fogHiCtx, S = this.fogHi.width;
+    h.clearRect(0, 0, S, S);
+    h.filter = 'blur(3px)';
+    h.imageSmoothingEnabled = true;
+    h.drawImage(this.fogCanvas, 0, 0, S, S);
+    h.filter = 'none';
   },
 
   draw(ctx, cam, ui) {
@@ -73,8 +83,11 @@ const Render = {
     for (const f of G.effects) if (f.type !== 'corpse' && inView(f.x, f.y)) this.drawEffect(ctx, f);
     // air
     for (const e of air) {
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath(); ctx.ellipse(e.x + 6, e.y + 6, e.def.radius, e.def.radius * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.save(); ctx.translate(e.x + 10, e.y + 12); ctx.rotate(e.facing);
+      if (e.def.jet) { poly(ctx, [[12, 0], [-2, -10], [-8, -10], [-10, 0], [-8, 10], [-2, 10]]); ctx.fill(); }
+      else { ctx.beginPath(); ctx.ellipse(0, 0, 13, 4, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fill(); }
+      ctx.restore();
     }
     for (const e of air) this.drawUnit(ctx, e);
     this.drawStrikes(ctx);
@@ -82,11 +95,29 @@ const Render = {
     // fog of war
     this.updateFogCanvas();
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(this.fogCanvas, 0, 0, m.w, m.h, 0, 0, m.w * TILE, m.h * TILE);
+    ctx.drawImage(this.fogHi, 0, 0, m.w * TILE, m.h * TILE);
 
     // overlays
     this.drawOverlays(ctx, ui, ground.concat(air));
     ctx.restore();
+    this.drawGrade(ctx, vw, vh);
+  },
+
+  // cinematic colour grade and vignette, matching the moody look of the style guide
+  drawGrade(ctx, vw, vh) {
+    if (!this.grade || this.grade.w !== vw || this.grade.h !== vh) {
+      const c = document.createElement('canvas'); c.width = vw; c.height = vh;
+      const g = c.getContext('2d');
+      const r = g.createRadialGradient(vw / 2, vh / 2, Math.min(vw, vh) * 0.35, vw / 2, vh / 2, Math.hypot(vw, vh) * 0.62);
+      r.addColorStop(0, 'rgba(4,10,20,0)'); r.addColorStop(1, 'rgba(4,10,20,0.4)');
+      g.fillStyle = r; g.fillRect(0, 0, vw, vh);
+      this.grade = { w: vw, h: vh, c };
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = 'soft-light';
+    ctx.fillStyle = 'rgba(40,70,110,0.35)'; ctx.fillRect(0, 0, vw, vh);
+    ctx.restore();
+    ctx.drawImage(this.grade.c, 0, 0);
   },
 
   baseY(e) { return e.kind === 'building' ? (e.ty + e.h) * TILE - 4 : e.y; },
@@ -145,13 +176,15 @@ const Render = {
     ctx.save();
     if (k < 1) ctx.globalAlpha = 0.35 + 0.65 * k;
     // concrete pad
-    ctx.fillStyle = '#3e3f41';
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(X, Y + 2, W, H);
+    ctx.fillStyle = '#4a4d50';
     ctx.fillRect(X + 1, Y + 1, W - 2, H - 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    for (let i = 0; i < b.w; i++) for (let j = 0; j < b.h; j++) ctx.fillRect(X + i * TILE + 2, Y + j * TILE + 2, TILE - 4, TILE - 4);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    for (let i = 0; i < b.w; i++) for (let j = 0; j < b.h; j++) ctx.strokeRect(X + i * TILE + 1.5, Y + j * TILE + 1.5, TILE - 1, TILE - 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(X + 1, Y + 1, W - 2, 1);
     const hgt = b.def.height * k;
     const lowPower = team.lowPower;
-    const fn = BLD_DRAW[b.key];
+    const fn = BLD_ART[b.key];
     if (fn) fn(ctx, b, X, Y, W, H, hgt, team, lowPower, G ? G.time : 0);
     if (k < 1) {
       ctx.strokeStyle = 'rgba(255,220,80,0.8)'; ctx.setLineDash([4, 3]);
@@ -168,14 +201,13 @@ const Render = {
   // ---------- units ----------
   drawUnit(ctx, u, opts = {}) {
     const team = opts.team || G.teams[u.team];
-    const fn = UNIT_DRAW[u.key];
     ctx.save();
-    ctx.translate(u.x, u.y - (u.alt || 0) + (u.air ? Math.sin(u.anim * 3) * 2 : 0));
+    ctx.translate(u.x, u.y - (u.alt || 0) + (u.air && !u.def.jet ? Math.sin(u.anim * 3) * 2 : 0));
     if (!u.air) {
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.beginPath(); ctx.ellipse(2, 3, u.def.radius * 1.05, u.def.radius * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.ellipse(3, 4, u.def.radius * 1.1, u.def.radius * 0.8, u.facing, 0, Math.PI * 2); ctx.fill();
     }
-    fn(ctx, u, team);
+    Art.unit(ctx, u, team);
     ctx.restore();
   },
 
@@ -417,387 +449,3 @@ const Render = {
   },
 };
 
-function shade(hex, amt) {
-  let c = hex.replace('#', '');
-  if (c.length === 3) c = c.split('').map(ch => ch + ch).join('');
-  const n = parseInt(c, 16);
-  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  const f = amt < 0 ? 0 : 255, p = Math.abs(amt);
-  r = Math.round((f - r) * p + r); g = Math.round((f - g) * p + g); b = Math.round((f - b) * p + b);
-  return `rgb(${r},${g},${b})`;
-}
-
-// ---------- per-building drawing ----------
-const WALL = '#8b8f94', ROOF = '#9da3a8';
-
-function stripe(ctx, x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); }
-
-const BLD_DRAW = {
-  cc(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 4, Y + 6, W - 8, H - 10, hgt, ROOF, WALL);
-    const ry = Y + 6, rh = H - 10 - hgt;
-    // team stripes along roof
-    stripe(ctx, X + 4, ry + rh - 5, W - 8, 4, team.color);
-    // helipad
-    ctx.fillStyle = '#555b60'; ctx.beginPath(); ctx.arc(X + W * 0.33, ry + rh * 0.45, 13, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(X + W * 0.33, ry + rh * 0.45, 10, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#ddd'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('H', X + W * 0.33, ry + rh * 0.45 + 1);
-    // command tower
-    Render.block(ctx, X + W * 0.6, ry + 4, 22, 26, 10, '#b5bcc2', '#7f858b');
-    ctx.fillStyle = '#7fd6ff'; ctx.fillRect(X + W * 0.6 + 2, ry + 22, 18, 3);
-    // antenna
-    ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(X + W * 0.6 + 16, ry + 8); ctx.lineTo(X + W * 0.6 + 16, ry - 10); ctx.stroke();
-    ctx.fillStyle = Math.sin(t * 4) > 0 ? '#f44' : '#600'; ctx.beginPath(); ctx.arc(X + W * 0.6 + 16, ry - 10, 2, 0, Math.PI * 2); ctx.fill();
-    // garage door
-    ctx.fillStyle = '#3a3d40'; ctx.fillRect(X + W / 2 - 14, Y + H - 4 - hgt + 4, 28, hgt - 4);
-    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(X + W / 2 - 14, Y + H - hgt + 4 + i * 5); ctx.lineTo(X + W / 2 + 14, Y + H - hgt + 4 + i * 5); ctx.stroke(); }
-  },
-  power(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 4, Y + 10, W - 8, H - 14, hgt * 0.6, ROOF, WALL);
-    // fusion dome
-    const cx = X + W / 2, cy = Y + H / 2 - 4;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(cx + 5, cy + 6, 16, 12, 0, 0, Math.PI * 2); ctx.fill();
-    const g = ctx.createRadialGradient(cx - 4, cy - 6, 2, cx, cy, 16);
-    g.addColorStop(0, '#e9eef2'); g.addColorStop(1, '#7c858d');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 15, 0, Math.PI * 2); ctx.fill();
-    const pulse = low ? 0.15 : 0.6 + 0.4 * Math.sin(t * 3 + b.anim);
-    ctx.fillStyle = `rgba(90,220,255,${pulse})`;
-    ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = team.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, 12, 0.3, Math.PI - 0.3); ctx.stroke();
-    // coolant pipes
-    ctx.fillStyle = '#6d757c'; ctx.fillRect(X + 6, Y + H - 12, 8, 6); ctx.fillRect(X + W - 14, Y + H - 12, 8, 6);
-  },
-  refinery(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 4, Y + 4, W * 0.62, H - 22, hgt, ROOF, WALL);
-    // silos
-    for (let i = 0; i < 2; i++) {
-      const cx = X + W * 0.8, cy = Y + 16 + i * 26;
-      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(cx + 5, cy + 5, 10, 8, 0, 0, Math.PI * 2); ctx.fill();
-      const g = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 10);
-      g.addColorStop(0, '#e2c37a'); g.addColorStop(1, '#8b6b2a');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = team.color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.stroke();
-    }
-    stripe(ctx, X + 4, Y + 4 + H - 22 - hgt - 5, W * 0.62, 4, team.color);
-    // docking pad
-    ctx.fillStyle = '#2e3134'; ctx.fillRect(X + TILE + 2, Y + H - 16, TILE - 4, 14);
-    ctx.fillStyle = (Math.floor(t * 2) % 2) ? '#fc3' : '#542'; ctx.fillRect(X + TILE + 2, Y + H - 16, TILE - 4, 2);
-    // conveyor
-    ctx.fillStyle = '#4b4f53'; ctx.fillRect(X + W * 0.6, Y + 26, W * 0.12, 6);
-  },
-  barracks(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 3, Y + 8, W - 6, H - 12, hgt, '#6f7a5a', '#59614a');
-    const rh = H - 12 - hgt;
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    for (let i = 1; i < 5; i++) { ctx.beginPath(); ctx.moveTo(X + 3 + i * (W - 6) / 5, Y + 8); ctx.lineTo(X + 3 + i * (W - 6) / 5, Y + 8 + rh); ctx.stroke(); }
-    stripe(ctx, X + 3, Y + 8 + rh - 4, W - 6, 3, team.color);
-    ctx.fillStyle = '#2a2d2f'; ctx.fillRect(X + W / 2 - 7, Y + H - 4 - hgt + 3, 14, hgt - 3);
-    // flag
-    ctx.strokeStyle = '#ccc'; ctx.beginPath(); ctx.moveTo(X + 8, Y + 10); ctx.lineTo(X + 8, Y - 8); ctx.stroke();
-    ctx.fillStyle = team.color;
-    const wv = Math.sin(t * 5) * 2;
-    ctx.beginPath(); ctx.moveTo(X + 8, Y - 8); ctx.lineTo(X + 20, Y - 6 + wv); ctx.lineTo(X + 8, Y - 2); ctx.fill();
-  },
-  factory(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 3, Y + 4, W - 6, H - 6, hgt, '#8f969c', '#767c82');
-    const rh = H - 6 - hgt;
-    // roof ribs
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    for (let i = 0; i < 6; i++) ctx.fillRect(X + 8 + i * 14, Y + 6, 6, rh - 4);
-    stripe(ctx, X + 3, Y + 4 + rh - 5, W - 6, 4, team.color);
-    // big door
-    ctx.fillStyle = '#26292c'; ctx.fillRect(X + W / 2 - 22, Y + H - 2 - hgt + 3, 44, hgt - 3);
-    ctx.strokeStyle = '#d9b234'; ctx.lineWidth = 1;
-    for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(X + W / 2 - 22 + i * 8, Y + H - 2 - hgt + 3); ctx.lineTo(X + W / 2 - 18 + i * 8, Y + H - 2 - hgt + 7); ctx.stroke(); }
-    // crane
-    ctx.strokeStyle = '#e0b830'; ctx.lineWidth = 3;
-    const ca = Math.sin(t * 0.5 + b.anim) * 0.6;
-    ctx.beginPath(); ctx.moveTo(X + 16, Y + 16); ctx.lineTo(X + 16 + Math.cos(ca) * 34, Y + 16 + Math.sin(ca) * 14); ctx.stroke();
-  },
-  radar(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 4, Y + 10, W - 8, H - 14, hgt, ROOF, WALL);
-    stripe(ctx, X + 4, Y + 10 + H - 14 - hgt - 4, W - 8, 3, team.color);
-    const cx = X + W / 2, cy = Y + 14;
-    const a = low ? 0 : t * 1.5;
-    ctx.save(); ctx.translate(cx, cy);
-    ctx.fillStyle = '#666'; ctx.fillRect(-2, 0, 4, 10);
-    ctx.scale(Math.cos(a), 1);
-    ctx.fillStyle = '#dfe5ea'; ctx.beginPath(); ctx.ellipse(0, 0, 14, 10, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#8a9298'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = '#9aa'; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  },
-  dronehub(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 2, Y + 4, W - 4, H - 6, hgt, '#555c62', '#464c51');
-    const rh = H - 6 - hgt;
-    ctx.strokeStyle = '#e8d24a'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(X + W / 2, Y + 4 + rh / 2, 16, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = team.color; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('D', X + W / 2, Y + 4 + rh / 2 + 1);
-    for (let i = 0; i < 4; i++) {
-      const a = i * Math.PI / 2 + Math.PI / 4;
-      ctx.fillStyle = (Math.floor(t * 3 + i) % 4 === 0 && !low) ? '#4f4' : '#244';
-      ctx.beginPath(); ctx.arc(X + W / 2 + Math.cos(a) * 22, Y + 4 + rh / 2 + Math.sin(a) * 18, 2, 0, Math.PI * 2); ctx.fill();
-    }
-  },
-  tech(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 3, Y + 8, W - 6, H - 12, hgt, '#c9ced2', '#9aa0a5');
-    const cx = X + W / 2, cy = Y + 18;
-    const g = ctx.createRadialGradient(cx - 3, cy - 3, 1, cx, cy, 11);
-    g.addColorStop(0, '#fff'); g.addColorStop(1, team.color);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 11, 0, Math.PI * 2); ctx.fill();
-    for (let i = 0; i < 4; i++) {
-      ctx.fillStyle = (!low && Math.floor(t * 4 + i * 1.3) % 3 === 0) ? '#7ef' : '#355';
-      ctx.fillRect(X + 8 + i * 12, Y + H - 4 - hgt + 6, 6, 4);
-    }
-  },
-  super_lance(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 4, Y + 8, W - 8, H - 12, hgt, '#9aa2a8', '#737a80');
-    const cx = X + W / 2, cy = Y + H / 2 - 6;
-    const tm = b.team !== undefined && G ? G.teams[b.team] : team;
-    const charge = tm.superReady ? 1 : Math.min(1, tm.superTimer / BUILDINGS.super_lance.superweapon.charge);
-    ctx.fillStyle = '#e3e8ec'; ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#8a9298'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.strokeStyle = `rgba(90,200,255,${0.4 + 0.6 * charge})`; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(cx, cy, 17, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * charge); ctx.stroke();
-    ctx.fillStyle = tm.superReady ? `rgba(200,240,255,${0.6 + 0.4 * Math.sin(t * 8)})` : '#567';
-    ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
-    for (let i = 0; i < 3; i++) {
-      const a = i * Math.PI * 2 / 3 + t * 0.2;
-      ctx.strokeStyle = '#aab'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * 22, cy + Math.sin(a) * 22); ctx.lineTo(cx, cy); ctx.stroke();
-    }
-    stripe(ctx, X + 4, Y + H - 4 - hgt - 4, W - 8, 3, team.color);
-  },
-  super_silo(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    Render.block(ctx, X + 4, Y + 6, W - 8, H - 10, hgt, '#7d7f74', '#5f6158');
-    const tm = b.team !== undefined && G ? G.teams[b.team] : team;
-    const charge = tm.superReady ? 1 : Math.min(1, tm.superTimer / BUILDINGS.super_silo.superweapon.charge);
-    const cx = X + W / 2, cy = Y + H / 2 - 6;
-    ctx.fillStyle = '#2b2d2a'; ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI * 2); ctx.fill();
-    const open = tm.superReady ? 8 : 0;
-    ctx.fillStyle = '#8c8f84';
-    ctx.fillRect(cx - 20, cy - 20, 20 - open, 40); ctx.fillRect(cx + open, cy - 20, 20 - open, 40);
-    ctx.strokeStyle = '#e9c400'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(cx - 18, cy - 18); ctx.lineTo(cx - open - 2, cy - 2); ctx.moveTo(cx + 18, cy - 18); ctx.lineTo(cx + open + 2, cy - 2); ctx.stroke();
-    if (tm.superReady) { ctx.fillStyle = `rgba(255,80,40,${0.5 + 0.5 * Math.sin(t * 8)})`; ctx.fillRect(cx - open, cy - 18, open * 2, 36); }
-    ctx.fillStyle = '#222'; ctx.fillRect(X + 10, Y + H - 12, W - 20, 4);
-    ctx.fillStyle = team.color; ctx.fillRect(X + 10, Y + H - 12, (W - 20) * charge, 4);
-  },
-  turret(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const cx = X + W / 2, cy = Y + H / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(cx + 3, cy + 4, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#7a8086'; ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#5b6066'; ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2); ctx.fill();
-    ctx.save(); ctx.translate(cx, cy - 2); ctx.rotate(b.turret);
-    ctx.fillStyle = team.color; ctx.fillRect(-6, -6, 12, 12);
-    ctx.fillStyle = '#333'; ctx.fillRect(4, -4, 12, 2); ctx.fillRect(4, 2, 12, 2); ctx.fillRect(4, -1, 13, 2);
-    ctx.restore();
-  },
-  railturret(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const cx = X + W / 2, cy = Y + H / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(cx + 3, cy + 4, 13, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#6b7177'; ctx.fillRect(cx - 13, cy - 13, 26, 26);
-    ctx.fillStyle = '#868d93'; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
-    ctx.save(); ctx.translate(cx, cy - 3); ctx.rotate(b.turret);
-    ctx.fillStyle = team.color; ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#3b3f43'; ctx.fillRect(2, -3, 20, 6);
-    ctx.fillStyle = low ? '#344' : '#6ef'; for (let i = 0; i < 3; i++) ctx.fillRect(6 + i * 5, -3, 2, 6);
-    ctx.restore();
-  },
-  sam(ctx, b, X, Y, W, H, hgt, team, low, t) {
-    const cx = X + W / 2, cy = Y + H / 2;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.arc(cx + 3, cy + 4, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#707a6a'; ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.save(); ctx.translate(cx, cy - 2); ctx.rotate(b.turret);
-    ctx.fillStyle = team.dark; ctx.fillRect(-8, -9, 14, 18);
-    ctx.fillStyle = '#eee';
-    for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) ctx.fillRect(-4 + j * 0, -7 + i * 8 + j * 3, 14, 2);
-    ctx.fillStyle = '#f44'; ctx.fillRect(9, -7, 2, 2); ctx.fillRect(9, 1, 2, 2);
-    ctx.restore();
-  },
-};
-
-// ---------- per-unit drawing (local coords, origin at unit) ----------
-function tracks(ctx, L, Wd, u, color) {
-  ctx.fillStyle = '#2a2b2c';
-  ctx.fillRect(-L / 2, -Wd / 2, L, 4); ctx.fillRect(-L / 2, Wd / 2 - 4, L, 4);
-  ctx.fillStyle = '#4a4b4c';
-  const off = u.moving ? (u.anim * 20) % 4 : 0;
-  for (let x = -L / 2 + off; x < L / 2; x += 4) { ctx.fillRect(x, -Wd / 2, 1, 4); ctx.fillRect(x, Wd / 2 - 4, 1, 4); }
-}
-function hull(ctx, L, Wd, team) {
-  ctx.fillStyle = team.color;
-  ctx.fillRect(-L / 2 + 1, -Wd / 2 + 3, L - 2, Wd - 6);
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.fillRect(-L / 2 + 1, Wd / 2 - 6, L - 2, 3);
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.fillRect(-L / 2 + 1, -Wd / 2 + 3, L - 2, 2);
-}
-function infantry(ctx, u, team, extra) {
-  const step = u.moving ? Math.sin(u.anim * 12) * 2 : 0;
-  ctx.rotate(u.facing);
-  ctx.scale(1.3, 1.3);
-  ctx.fillStyle = '#2b2b2b';
-  ctx.fillRect(-2 + step, -3, 3, 2); ctx.fillRect(-2 - step, 1, 3, 2);
-  ctx.fillStyle = team.dark; ctx.beginPath(); ctx.arc(-1.5, 0, 3.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = team.color; ctx.beginPath(); ctx.arc(0, 0, 3.6, 0, Math.PI * 2); ctx.fill();
-  extra && extra();
-  ctx.fillStyle = u.key === 'engineer' ? '#f2c230' : '#3c4a35';
-  ctx.beginPath(); ctx.arc(0.5, 0, 2.3, 0, Math.PI * 2); ctx.fill();
-}
-
-const UNIT_DRAW = {
-  rifle(ctx, u, team) {
-    infantry(ctx, u, team, () => { ctx.fillStyle = '#222'; ctx.fillRect(1, 1.5, 7, 1.5); });
-  },
-  rocket(ctx, u, team) {
-    infantry(ctx, u, team, () => { ctx.fillStyle = '#556'; ctx.fillRect(-4, -3.5, 11, 2.5); ctx.fillStyle = '#c44'; ctx.fillRect(6, -3.5, 1.5, 2.5); });
-  },
-  engineer(ctx, u, team) {
-    infantry(ctx, u, team, () => { ctx.fillStyle = '#d9c06a'; ctx.fillRect(-5, -2, 3, 4); });
-  },
-  ifv(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    ctx.fillStyle = '#222';
-    for (const x of [-6, 0, 6]) { ctx.fillRect(x - 2, -7, 4, 3); ctx.fillRect(x - 2, 4, 4, 3); }
-    ctx.fillStyle = team.color; ctx.beginPath();
-    ctx.moveTo(-10, -5); ctx.lineTo(7, -5); ctx.lineTo(11, -2); ctx.lineTo(11, 2); ctx.lineTo(7, 5); ctx.lineTo(-10, 5); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(-10, 2, 18, 3);
-    ctx.restore();
-    ctx.save(); ctx.rotate(u.turret);
-    ctx.fillStyle = team.dark; ctx.fillRect(-4, -4, 8, 8);
-    ctx.fillStyle = '#ccc'; ctx.fillRect(0, -4, 7, 2.5); ctx.fillRect(0, 1.5, 7, 2.5);
-    ctx.restore();
-  },
-  tank(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    tracks(ctx, 22, 17, u); hull(ctx, 20, 17, team);
-    ctx.restore();
-    ctx.save(); ctx.rotate(u.turret);
-    ctx.fillStyle = '#333'; ctx.fillRect(4, -1.5, 13, 3);
-    ctx.fillStyle = team.dark; ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = team.color; ctx.beginPath(); ctx.arc(-0.5, -0.5, 4.5, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  },
-  mlrs(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    ctx.fillStyle = '#222';
-    for (const x of [-7, -1, 6]) { ctx.fillRect(x - 2, -7, 4, 3); ctx.fillRect(x - 2, 4, 4, 3); }
-    ctx.fillStyle = team.color; ctx.fillRect(-11, -5, 22, 10);
-    ctx.fillStyle = '#9fd4ff'; ctx.fillRect(7, -4, 3, 8);
-    ctx.restore();
-    ctx.save(); ctx.rotate(u.turret); ctx.translate(-4, 0);
-    ctx.fillStyle = '#4f5a48'; ctx.fillRect(-6, -5, 12, 10);
-    ctx.fillStyle = '#222'; for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { ctx.beginPath(); ctx.arc(4, -3 + i * 3, 1, 0, Math.PI * 2); ctx.fill(); }
-    ctx.restore();
-  },
-  railtank(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    tracks(ctx, 24, 18, u);
-    ctx.fillStyle = team.color; ctx.beginPath();
-    ctx.moveTo(-11, -6); ctx.lineTo(9, -6); ctx.lineTo(12, 0); ctx.lineTo(9, 6); ctx.lineTo(-11, 6); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(-11, -6, 20, 2);
-    ctx.restore();
-    ctx.save(); ctx.rotate(u.turret);
-    ctx.fillStyle = '#2f3438'; ctx.fillRect(0, -2.5, 22, 5);
-    ctx.fillStyle = '#6ef'; for (let i = 0; i < 4; i++) ctx.fillRect(5 + i * 4, -2.5, 1.5, 5);
-    ctx.fillStyle = team.dark; ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(4, -4); ctx.lineTo(4, 4); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  },
-  titan(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    tracks(ctx, 28, 24, u); ctx.fillStyle = '#2a2b2c'; ctx.fillRect(-14, -12, 28, 6); ctx.fillRect(-14, 6, 28, 6);
-    hull(ctx, 26, 22, team);
-    ctx.restore();
-    ctx.save(); ctx.rotate(u.turret);
-    ctx.fillStyle = '#333'; ctx.fillRect(4, -5, 17, 3); ctx.fillRect(4, 2, 17, 3);
-    ctx.fillStyle = team.dark; ctx.fillRect(-8, -8, 14, 16);
-    ctx.fillStyle = team.color; ctx.fillRect(-7, -7, 11, 14);
-    ctx.fillStyle = '#555'; ctx.fillRect(-7, -11, 8, 3); ctx.fillRect(-7, 8, 8, 3);
-    ctx.restore();
-  },
-  harvester(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    tracks(ctx, 26, 20, u);
-    ctx.fillStyle = '#b8a35a'; ctx.fillRect(-12, -8, 16, 16);
-    const f = u.cargo / u.def.capacity;
-    ctx.fillStyle = '#5b4a20'; ctx.fillRect(-11, -7, 14, 14);
-    ctx.fillStyle = '#e6b23a'; ctx.fillRect(-11, 7 - 14 * f, 14, 14 * f);
-    ctx.fillStyle = team.color; ctx.fillRect(4, -7, 8, 14);
-    ctx.fillStyle = '#9fd4ff'; ctx.fillRect(9, -5, 2, 10);
-    ctx.fillStyle = '#666'; ctx.fillRect(12, -9, 3, 18);
-    if (u.hstate === 'mine') { ctx.fillStyle = '#999'; ctx.fillRect(13 + Math.sin(u.anim * 20), -9, 2, 18); }
-    ctx.restore();
-  },
-  mcv(ctx, u, team) {
-    ctx.save(); ctx.rotate(u.facing);
-    tracks(ctx, 28, 20, u);
-    ctx.fillStyle = team.color; ctx.fillRect(-13, -7, 26, 14);
-    ctx.fillStyle = '#c3c9ce'; ctx.fillRect(-11, -6, 15, 12);
-    ctx.strokeStyle = '#555'; ctx.strokeRect(-11, -6, 15, 12);
-    ctx.fillStyle = '#9fd4ff'; ctx.fillRect(8, -5, 3, 10);
-    ctx.fillStyle = '#e0b830'; ctx.fillRect(-9, -1, 12, 2);
-    ctx.restore();
-  },
-  drone(ctx, u, team) {
-    ctx.rotate(u.facing);
-    ctx.strokeStyle = '#444'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-7, -7); ctx.lineTo(7, 7); ctx.moveTo(-7, 7); ctx.lineTo(7, -7); ctx.stroke();
-    for (const [x, y] of [[-7, -7], [7, 7], [-7, 7], [7, -7]]) {
-      ctx.fillStyle = 'rgba(200,200,200,0.35)'; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(30,30,30,0.6)'; ctx.lineWidth = 1;
-      const a = u.anim * 40;
-      ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 5, y + Math.sin(a) * 5); ctx.lineTo(x - Math.cos(a) * 5, y - Math.sin(a) * 5); ctx.stroke();
-    }
-    ctx.fillStyle = team.color; ctx.fillRect(-4, -3.5, 9, 7);
-    ctx.fillStyle = '#222'; ctx.fillRect(4, -1, 3, 2);
-  },
-  interceptor(ctx, u, team) {
-    ctx.rotate(u.facing);
-    ctx.fillStyle = team.dark;
-    ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -11); ctx.lineTo(-4, 0); ctx.lineTo(-8, 11); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = team.color;
-    ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-6, -8); ctx.lineTo(-3, 0); ctx.lineTo(-6, 8); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#9fd4ff'; ctx.fillRect(2, -1.5, 5, 3);
-    if (u.moving) { ctx.fillStyle = 'rgba(255,180,80,0.8)'; ctx.fillRect(-8, -1.5, 3 + Math.random() * 3, 3); }
-  },
-};
-
-// Draw an icon for the build sidebar.
-function drawIcon(key, team, w, h) {
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const ctx = c.getContext('2d');
-  const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#2c3238'); g.addColorStop(1, '#14181b');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  const savedG = G;
-  if (BUILDINGS[key]) {
-    const def = BUILDINGS[key];
-    const s = Math.min((w - 6) / (def.w * TILE), (h - 10) / (def.h * TILE + 14), 1.2);
-    ctx.save();
-    ctx.translate(w / 2 - def.w * TILE * s / 2, h / 2 - (def.h * TILE) * s / 2 + 4 * s);
-    ctx.scale(s, s);
-    const fake = { key, def, tx: 0, ty: 0, w: def.w, h: def.h, x: def.w * TILE / 2, y: def.h * TILE / 2, hp: 1, maxHp: 1, built: 1, turret: -0.6, anim: 0 };
-    const fakeTeam = Object.assign({ superTimer: 200, superReady: false, lowPower: false }, team);
-    const fn = BLD_DRAW[key];
-    ctx.fillStyle = '#3e3f41'; ctx.fillRect(1, 1, def.w * TILE - 2, def.h * TILE - 2);
-    try { G = null; fn(ctx, fake, 0, 0, def.w * TILE, def.h * TILE, def.height, fakeTeam, false, 0.5); } finally { G = savedG; }
-    ctx.restore();
-  } else {
-    const def = UNITS[key];
-    const s = Math.min(2.4, (h - 6) / (def.radius * 2.6));
-    ctx.save();
-    ctx.translate(w / 2, h / 2);
-    ctx.scale(s, s);
-    const fake = { key, def, facing: -0.5, turret: -0.5, anim: 0.3, moving: false, cargo: def.capacity ? def.capacity * 0.6 : 0, alt: 0, air: !!def.air };
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.ellipse(2, 3, def.radius, def.radius * 0.8, 0, 0, Math.PI * 2); ctx.fill();
-    UNIT_DRAW[key](ctx, fake, team);
-    ctx.restore();
-  }
-  return c;
-}

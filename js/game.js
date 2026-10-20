@@ -50,9 +50,9 @@ class ProdQueue {
     if (!producers) { this.clear(); return; }
     const key = this.items[0], def = defOf(key);
     if (!t.canBuild(key)) { this.cancel(key); return; }
-    const speed = (t.lowPower ? 0.5 : 1) * Math.min(2.5, 1 + 0.5 * (producers - 1)) * t.buildMult;
+    const speed = (t.lowPower ? 0.5 : 1) * Math.min(2.5, 1 + 0.5 * (producers - 1)) * t.buildMult * t.bonus('speed', this.type);
     const rate = speed / def.time;
-    const step = def.cost * rate * dt;
+    const step = t.costOf(key) * rate * dt;
     if (t.credits < step) {
       if (!this.broke) { this.broke = true; G.eva('Insufficient funds', t.id); }
       return;
@@ -76,10 +76,12 @@ class ProdQueue {
 }
 
 class Team {
-  constructor(id, faction, isAI, difficulty) {
+  constructor(id, faction, isAI, difficulty, useAlt) {
     this.id = id; this.faction = faction; this.isAI = isAI;
     const f = FACTIONS[faction];
-    this.color = f.color; this.dark = f.dark; this.light = f.light; this.name = f.name;
+    const pal = useAlt ? f.alt : f;
+    this.color = pal.color; this.dark = pal.dark; this.light = pal.light; this.name = f.name;
+    this.pkg = f.pkg; this.camo = f.camo;
     this.credits = START_CREDITS;
     this.powerOut = 0; this.powerIn = 0; this.lowPower = false;
     this.buildMult = 1; this.incomeMult = 1;
@@ -95,17 +97,24 @@ class Team {
 
   countOf(key) { return this.counts[key] || 0; }
 
+  // faction bonus multiplier of a kind ('hp', 'dmg', 'cost', 'speed') for a category
+  bonus(kind, cat) {
+    const b = FACTIONS[this.faction].bonus[kind];
+    return (b && b[cat]) || 1;
+  }
+  costOf(key) { return Math.round(defOf(key).cost * this.bonus('cost', categoryOf(key))); }
+
   canBuild(key) {
     const def = defOf(key);
     if (!def || def.buildable === false) return false;
-    if (def.faction && def.faction !== this.faction) return false;
+    if (def.pkg && def.pkg !== this.pkg) return false;
     for (const r of def.req || []) if (!this.countOf(r)) return false;
     if (UNITS[key] && !this.countOf(def.from)) return false;
     if (BUILDINGS[key] && !this.countOf('cc')) return false;
     return true;
   }
 
-  superKey() { return this.faction === 'coalition' ? 'super_lance' : 'super_silo'; }
+  superKey() { return this.pkg === 'tech' ? 'super_lance' : 'super_silo'; }
 
   recount() {
     const c = {};
@@ -207,6 +216,12 @@ class Building {
   }
 }
 
+// bonus category of a unit or structure key
+function categoryOf(key) {
+  if (BUILDINGS[key]) return BUILDINGS[key].cat === 'defense' ? 'defense' : 'structure';
+  return UNITS[key].cat;
+}
+
 function armorOf(e) { return e.kind === 'building' ? 'building' : e.def.armor; }
 
 // distance in pixels from point to entity (edge for buildings)
@@ -238,15 +253,22 @@ class Game {
     NEXT_ID = 1;
     this.opts = opts;
     this.time = 0;
-    this.map = new GameMap(opts.mapSize || 88, opts.seed);
+    this.map = new GameMap(opts.mapSize || 88, opts.seed, opts.theater || 'temperate');
     this.pf = new PathFinder(this.map);
     this.entities = []; this.byId = new Map();
     this.projectiles = []; this.effects = []; this.decals = [];
     this.messages = [];
     this.pendingStrikes = [];
     this.shake = 0;
-    const pf = opts.faction, ef = pf === 'coalition' ? 'bloc' : 'coalition';
-    this.teams = [new Team(0, pf, !!opts.autoplay, opts.difficulty), new Team(1, ef, true, opts.difficulty)];
+    const pf = opts.faction;
+    let ef = opts.enemy;
+    if (!ef || !FACTIONS[ef]) {
+      const others = Object.keys(FACTIONS).filter(k => k !== pf);
+      ef = others[Math.floor(Math.random() * others.length)];
+    }
+    // give the enemy its alternate colours when both sides share a colour family
+    const clash = FACTIONS[pf].side === FACTIONS[ef].side;
+    this.teams = [new Team(0, pf, !!opts.autoplay, opts.difficulty), new Team(1, ef, true, opts.difficulty, clash)];
     this.player = 0;
     this.ai = {};
     this.over = null;
@@ -295,6 +317,7 @@ class Game {
   // ---------- entity management ----------
   spawnUnit(key, team, x, y) {
     const u = new Unit(key, team, x, y);
+    u.hp = u.maxHp = Math.round(u.def.hp * this.teams[team].bonus('hp', u.def.cat));
     this.entities.push(u); this.byId.set(u.id, u);
     this.fogDirty = true;
     return u;
@@ -302,6 +325,7 @@ class Game {
 
   placeBuilding(key, team, tx, ty) {
     const b = new Building(key, team, tx, ty);
+    b.hp = b.maxHp = Math.round(b.def.hp * this.teams[team].bonus('hp', categoryOf(key)));
     this.entities.push(b); this.byId.set(b.id, b);
     for (let y = ty; y < ty + b.h; y++) for (let x = tx; x < tx + b.w; x++) {
       const i = this.map.idx(x, y);
@@ -394,7 +418,7 @@ class Game {
   sell(b) {
     if (b.dead || b.kind !== 'building') return;
     const t = this.teams[b.team];
-    t.credits += Math.round(b.def.cost * 0.5 * b.hp / b.maxHp);
+    t.credits += Math.round(t.costOf(b.key) * 0.5 * b.hp / b.maxHp);
     this.spawnSurvivors(b, 2);
     this.removeEntity(b);
     t.recount();
@@ -766,6 +790,7 @@ class Game {
     }
 
     if (u.def.harvester) { this.updateHarvester(u, dt); return; }
+    if (u.def.jet) { this.updateJet(u, dt); return; }
     const o = u.order;
 
     if (o && o.type === 'capture') {
@@ -865,6 +890,46 @@ class Game {
     }
 
     if (u.air) this.hover(u, dt);
+  }
+
+  // Jets never hover: they fly at speed, make attack runs and orbit when idle.
+  updateJet(u, dt) {
+    const o = u.order;
+    if (u.target && (u.target.dead || u.target.team === u.team || !this.canHit(u, u.target))) u.target = null;
+    if (u.target && o && o.type === 'move') u.target = null;
+    u.scanT -= dt;
+    if (!u.target && u.scanT <= 0 && (!o || o.type === 'amove')) {
+      u.scanT = 0.4;
+      u.target = this.findTarget(u, u.def.sight);
+    }
+    let gx, gy, sp = u.def.speed;
+    if (u.target) {
+      const t = u.target;
+      gx = t.x; gy = t.y;
+      const w = this.weaponFor(u, t);
+      const a = Math.atan2(t.y - (t.alt || 0) - u.y, t.x - u.x);
+      const d = distTo(u.x, u.y, t);
+      const isW2 = w === u.def.weapon2;
+      if (d < w.range * TILE && Math.abs(angDiff(u.facing, a)) < 0.4 && (isW2 ? u.cool2 : u.cool) <= 0) {
+        this.fire(u, w, t);
+        if (isW2) u.cool2 = w.cooldown; else u.cool = w.cooldown;
+      }
+      // pull out past the target before looping back for the next run
+      if (d < TILE * 1.5) u.passT = 0.8;
+    } else if (o && (o.type === 'move' || o.type === 'amove')) {
+      gx = o.tx * TILE + TILE / 2; gy = o.ty * TILE + TILE / 2;
+      if (Math.hypot(gx - u.x, gy - u.y) < TILE * 1.5) { u.order = null; u.orbit = [gx, gy]; }
+    } else {
+      if (!u.orbit) u.orbit = [u.x, u.y];
+      [gx, gy] = u.orbit;
+      sp *= 0.55;
+    }
+    u.passT = (u.passT || 0) - dt;
+    if (u.passT <= 0) u.facing = turnToward(u.facing, Math.atan2(gy - u.y, gx - u.x), 2.4 * dt);
+    const W = this.map.w * TILE, H = this.map.h * TILE;
+    u.x = Math.max(TILE, Math.min(W - TILE, u.x + Math.cos(u.facing) * sp * TILE * dt));
+    u.y = Math.max(TILE, Math.min(H - TILE, u.y + Math.sin(u.facing) * sp * TILE * dt));
+    u.moving = true;
   }
 
   hover(u, dt) {
@@ -1069,7 +1134,7 @@ class Game {
       if (b.hp >= b.maxHp) b.repairing = false;
       else {
         const hp = Math.min(b.maxHp - b.hp, b.maxHp * 0.05 * dt);
-        const cost = hp * b.def.cost * 0.4 / b.maxHp;
+        const cost = hp * t.costOf(b.key) * 0.4 / b.maxHp;
         if (t.credits >= cost) { t.credits -= cost; b.hp += hp; }
       }
     }
@@ -1097,7 +1162,8 @@ class Game {
 
   // ---------- weapons ----------
   fire(s, w, t) {
-    const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1);
+    const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * this.teams[s.team].bonus('dmg', s.kind === 'unit' ? s.def.cat : categoryOf(s.key));
+    s.recoil = 1;
     const ang = s.def.cat === 'vehicle' || s.kind === 'building' ? s.turret : s.facing;
     const len = s.kind === 'building' ? 12 : (s.def.radius || 6) + 2;
     const sx = s.x + Math.cos(ang) * len, sy = s.y - (s.alt || 0) - (s.kind === 'building' ? s.def.height * 0.5 : 0) + Math.sin(ang) * len;

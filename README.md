@@ -1,9 +1,18 @@
-# Cold Warning
+# Cold War 2: 2030
 
-A base-building real-time strategy game in the spirit of *Command & Conquer: Red Alert 2*, set in the year 2030.
+*Same rivals. New world.* A base-building real-time strategy game in the spirit of *Command & Conquer: Red Alert 2*, set in the year 2030.
 
-Two factions fight over rare-earth ore fields: the **Atlantic Coalition** (railgun tanks, Orbital Lance satellite strike)
-and the **Eurasian Bloc** (Titan heavy tanks, Hypersonic Silo).
+Five factions fight over rare-earth ore fields, each with its own roster, flag, colours and a small bonus:
+
+| Faction | Style | Bonus | Special tank / superweapon |
+| --- | --- | --- | --- |
+| USA | Technology / Mobility / Air Power | Aircraft +25% armor | Railgun Tank / Orbital Lance |
+| Russia | Power / Endurance / Heavy Firepower | Armor +15% firepower | Titan Tank / Hypersonic Silo |
+| China | Expansion / Innovation / Discipline | Structures build 25% faster | Railgun Tank / Orbital Lance |
+| EU | Cooperation / Sustainability / Advanced Defense | Defenses +30% armor, +20% firepower | Railgun Tank / Orbital Lance |
+| Soviet Union | Tradition / Strength / Revival | Infantry 25% cheaper | Titan Tank / Hypersonic Silo |
+
+Battles take place in five theaters: Temperate, Desert, Arctic, Steppe and Jungle.
 
 ## Play
 
@@ -15,7 +24,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Deploy your MCV into a Command Center and grow a base with a classic sidebar: build queues, hold/cancel, READY-to-place structures.
 - Economy: harvesters mine gold ore and lithium crystals; fields slowly regrow.
 - Power grid: low power slows production, disables the radar minimap and shuts off powered defenses.
-- 11 unit types: infantry, engineers (capture buildings), IFVs, tanks, MLRS artillery, faction super-tanks, attack drones and interceptors.
+- 11 unit types: infantry, engineers (capture buildings), IFVs, main battle tanks, MLRS artillery, faction super-tanks, attack helicopters and fighter jets.
 - Defenses: gatling turrets, rail turrets, SAM sites. Superweapons on a five-minute charge.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.
@@ -33,7 +42,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | Control groups | Ctrl+`1-9` to assign, `1-9` to recall (twice to jump) |
 | Build tabs / hotkeys | `Tab`, `Q` `W` `E` `R` `T` `Y` `U` `I` |
 | Sell / repair / superweapon | `Z` / `X` / `F` |
-| Set rally point | Select a Barracks/Factory/Drone Hub, right click on the map |
+| Set rally point | Select a Barracks/Factory/Airfield, right click on the map |
 | Primary production building | Double-click it |
 | Jump to base / last alert | `H` / `Space` |
 | Scroll | Arrow keys, screen edges, middle-mouse drag, minimap |
@@ -47,9 +56,23 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/map.js` | Seeded terrain and ore generation, A* pathfinding |
 | `js/game.js` | Simulation: units, combat, harvesting, production, power, fog |
 | `js/ai.js` | Computer opponent |
-| `js/render.js` | Procedural drawing of terrain, structures, units, effects |
+| `js/art.js` | Procedural artwork for structures and units, sidebar cameos |
+| `js/render.js` | Draw loop: terrain, entities, effects, fog, overlays |
+| `js/flags.js` | Faction flags as SVG |
 | `js/ui.js` | Input, camera, sidebar, minimap |
 | `js/audio.js` | Synthesized sound and announcer voice |
 | `js/main.js` | Menu and main loop |
 
-`index.html?autoplay` runs an AI-vs-AI match, which is handy for testing balance.
+`index.html?autoplay` runs an AI-vs-AI match, which is handy for testing balance
+(add `&faction=russia&enemy=eu&theater=arctic&seed=42` to pick the setup).
+
+## Art
+
+The visual style follows the concept sheet in `assets/source/mock.webp`. Sidebar cameos, theater previews,
+the logo and menu banners are cut from it by `tools/extract_assets.py` (needs Pillow):
+
+```
+python3 tools/extract_assets.py
+```
+
+Units, structures and terrain in the battlefield itself are drawn procedurally in code.
