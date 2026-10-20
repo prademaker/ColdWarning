@@ -31,17 +31,84 @@ function makeNoise(rng, size) {
 
 // Per-theater palettes (RGB) and scenery.
 const THEMES = {
-  temperate: { grass: [68, 88, 46], dirt: [102, 86, 58], sand: [156, 142, 100], water: [30, 66, 84], deep: [12, 32, 50], rock: [92, 90, 84],
+  temperate: { dry: [112, 110, 62], blades: ['#3d5a26', '#5c7f36', '#7f9a4a', '#a3a866'], grass: [68, 88, 46], dirt: [102, 86, 58], sand: [156, 142, 100], water: [30, 66, 84], deep: [12, 32, 50], rock: [92, 90, 84],
     water0: 0.3, decor: 'broadleaf', density: 1 / 12, leaf: ['#56803a', '#26431a'] },
-  desert: { grass: [184, 156, 108], dirt: [152, 118, 80], sand: [204, 180, 132], water: [40, 104, 110], deep: [18, 60, 74], rock: [146, 108, 76],
+  desert: { dry: [200, 170, 120], blades: null, grass: [184, 156, 108], dirt: [152, 118, 80], sand: [204, 180, 132], water: [40, 104, 110], deep: [18, 60, 74], rock: [146, 108, 76],
     water0: 0.24, decor: 'shrub', density: 1 / 40, leaf: ['#7d7a45', '#4e4a28'], dunes: true },
-  arctic: { grass: [214, 222, 232], dirt: [146, 154, 158], sand: [186, 204, 218], water: [42, 76, 100], deep: [16, 36, 58], rock: [104, 112, 124],
+  arctic: { dry: [196, 206, 220], blades: null, grass: [214, 222, 232], dirt: [146, 154, 158], sand: [186, 204, 218], water: [42, 76, 100], deep: [16, 36, 58], rock: [104, 112, 124],
     water0: 0.3, decor: 'pine', density: 1 / 14, leaf: ['#3e5e46', '#1c3122'], snow: true },
-  steppe: { grass: [136, 130, 76], dirt: [116, 96, 64], sand: [172, 158, 112], water: [36, 74, 88], deep: [14, 38, 52], rock: [110, 102, 88],
+  steppe: { dry: [164, 150, 90], blades: ['#7a7a3e', '#9a944e', '#b8a964', '#5f6a34'], grass: [136, 130, 76], dirt: [116, 96, 64], sand: [172, 158, 112], water: [36, 74, 88], deep: [14, 38, 52], rock: [110, 102, 88],
     water0: 0.27, decor: 'shrub', density: 1 / 26, leaf: ['#6f7a3c', '#3e4a20'] },
-  jungle: { grass: [44, 78, 36], dirt: [90, 72, 46], sand: [148, 134, 90], water: [22, 74, 72], deep: [8, 38, 42], rock: [78, 86, 72],
+  jungle: { dry: [70, 104, 44], blades: ['#24461c', '#33602a', '#4d7d34', '#2a5022'], palms: true, grass: [44, 78, 36], dirt: [90, 72, 46], sand: [148, 134, 90], water: [22, 74, 72], deep: [8, 38, 42], rock: [78, 86, 72],
     water0: 0.32, decor: 'broadleaf', density: 1 / 4, leaf: ['#3f7a2c', '#173a12'] },
 };
+
+// Tileable 256px surface textures (mostly translucent detail laid over the base colour).
+function surfaceTexture(kind, th, rng) {
+  const S = 256, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const x = c.getContext('2d');
+  // draw a mark at (px, py) and its wrapped copies so the texture tiles seamlessly
+  const wrap = (px, py, fn) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) fn(px + ox, py + oy); };
+  const pebble = (px, py, r, base, alpha) => wrap(px, py, (X, Y) => {
+    x.fillStyle = `rgba(0,0,0,${alpha * 0.6})`; x.beginPath(); x.ellipse(X + r * 0.4, Y + r * 0.4, r, r * 0.75, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = `rgba(${base},${alpha})`; x.beginPath(); x.ellipse(X, Y, r, r * 0.75, 0, 0, Math.PI * 2); x.fill();
+    x.fillStyle = `rgba(255,255,255,${alpha * 0.45})`; x.beginPath(); x.ellipse(X - r * 0.3, Y - r * 0.3, r * 0.4, r * 0.3, 0, 0, Math.PI * 2); x.fill();
+  });
+  const crack = (alpha) => {
+    let px = rng() * S, py = rng() * S;
+    const pts = [[px, py]];
+    for (let i = 0; i < 4 + rng() * 4; i++) { px += (rng() - 0.5) * 14; py += (rng() - 0.5) * 14; pts.push([px, py]); }
+    wrap(0, 0, (ox, oy) => { x.strokeStyle = `rgba(30,20,10,${alpha})`; x.lineWidth = 0.8; x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a + ox, b + oy) : x.moveTo(a + ox, b + oy)); x.stroke(); });
+  };
+  if (kind === 'grass') {
+    // clumps of blades in mixed greens, some lighter dry tufts
+    for (let i = 0; i < 260; i++) {
+      const cx = rng() * S, cy = rng() * S, n = 4 + (rng() * 8 | 0);
+      for (let k = 0; k < n; k++) {
+        const bx = cx + (rng() - 0.5) * 6, by = cy + (rng() - 0.5) * 4, len = 2 + rng() * 4, lean = (rng() - 0.5) * 2.5;
+        const col = th.blades[(rng() * th.blades.length) | 0];
+        wrap(bx, by, (X, Y) => { x.strokeStyle = col; x.globalAlpha = 0.55 + rng() * 0.35; x.lineWidth = 0.9; x.beginPath(); x.moveTo(X, Y); x.lineTo(X + lean, Y - len); x.stroke(); });
+      }
+    }
+    x.globalAlpha = 1;
+    for (let i = 0; i < 2600; i++) { const px = rng() * S, py = rng() * S; x.fillStyle = rng() < 0.5 ? 'rgba(20,34,12,0.25)' : 'rgba(170,180,110,0.18)'; x.fillRect(px, py, 1, 1); }
+    for (let i = 0; i < 40; i++) pebble(rng() * S, rng() * S, 0.6 + rng() * 0.8, '120,112,92', 0.5);
+  } else if (kind === 'dirt') {
+    for (let i = 0; i < 3500; i++) { x.fillStyle = rng() < 0.5 ? 'rgba(40,28,16,0.22)' : 'rgba(210,190,150,0.16)'; x.fillRect(rng() * S, rng() * S, 1, 1); }
+    for (let i = 0; i < 160; i++) pebble(rng() * S, rng() * S, 0.7 + rng() * 1.6, rng() < 0.5 ? '150,132,104' : '112,96,74', 0.75);
+    for (let i = 0; i < 26; i++) crack(0.28);
+    for (let i = 0; i < 30; i++) { const px = rng() * S, py = rng() * S, r = 3 + rng() * 6; wrap(px, py, (X, Y) => { x.fillStyle = 'rgba(60,40,22,0.12)'; x.beginPath(); x.ellipse(X, Y, r, r * 0.7, rng() * 3, 0, Math.PI * 2); x.fill(); }); }
+  } else if (kind === 'sand') {
+    for (let i = 0; i < 6000; i++) { x.fillStyle = rng() < 0.5 ? 'rgba(90,70,40,0.16)' : 'rgba(255,245,220,0.2)'; x.fillRect(rng() * S, rng() * S, 1, 1); }
+    // wind ripples: wavy light crests with a shadow below
+    for (let r = 0; r < 26; r++) {
+      const y0 = r * (S / 26) + rng() * 4, ph = rng() * 6;
+      for (const [dy, col] of [[0, 'rgba(255,248,226,0.22)'], [1.4, 'rgba(90,66,36,0.16)']]) {
+        x.strokeStyle = col; x.lineWidth = 1; x.beginPath();
+        for (let px = 0; px <= S; px += 4) { const py = y0 + dy + Math.sin(px / S * Math.PI * 4 + ph) * 3; px ? x.lineTo(px, py) : x.moveTo(px, py); }
+        x.stroke();
+      }
+    }
+    for (let i = 0; i < 30; i++) pebble(rng() * S, rng() * S, 0.6 + rng() * 0.9, '150,126,90', 0.5);
+  } else if (kind === 'snow') {
+    for (let i = 0; i < 70; i++) { const px = rng() * S, py = rng() * S, l = 10 + rng() * 30; wrap(px, py, (X, Y) => { x.fillStyle = 'rgba(120,150,190,0.08)'; x.beginPath(); x.ellipse(X, Y, l, 2 + rng() * 3, -0.25, 0, Math.PI * 2); x.fill(); }); }
+    for (let i = 0; i < 700; i++) { x.fillStyle = 'rgba(255,255,255,0.7)'; x.fillRect(rng() * S, rng() * S, 1, 1); }
+    for (let i = 0; i < 300; i++) { x.fillStyle = 'rgba(70,80,90,0.2)'; x.fillRect(rng() * S, rng() * S, 1, 1); }
+  } else if (kind === 'gravel') {
+    for (let i = 0; i < 4000; i++) { x.fillStyle = rng() < 0.5 ? 'rgba(30,30,30,0.22)' : 'rgba(220,220,210,0.16)'; x.fillRect(rng() * S, rng() * S, 1, 1); }
+    for (let i = 0; i < 320; i++) pebble(rng() * S, rng() * S, 0.8 + rng() * 2, rng() < 0.5 ? '140,136,128' : '100,98,92', 0.8);
+    for (let i = 0; i < 18; i++) crack(0.35);
+  } else if (kind === 'water') {
+    // short wavelets at random angles (long parallel lines turn into streaks in the iso view)
+    for (let i = 0; i < 520; i++) {
+      const px = rng() * S, py = rng() * S, w = 3 + rng() * 5, a = rng() * Math.PI, light = rng() < 0.55;
+      const dx = Math.cos(a) * w, dy = Math.sin(a) * w;
+      wrap(px, py, (X, Y) => { x.strokeStyle = light ? 'rgba(200,230,245,0.09)' : 'rgba(0,20,35,0.08)'; x.lineWidth = 1; x.beginPath(); x.moveTo(X, Y); x.quadraticCurveTo(X + dx / 2 - dy * 0.2, Y + dy / 2 + dx * 0.2, X + dx, Y + dy); x.stroke(); });
+    }
+  }
+  return c;
+}
 
 class GameMap {
   constructor(size, seed, theater = 'temperate') {
@@ -230,25 +297,36 @@ class GameMap {
     const low = document.createElement('canvas'); low.width = LW; low.height = LW;
     const lctx = low.getContext('2d');
     const img = lctx.createImageData(LW, LW), d = img.data;
+    // per-material coverage (alpha) for blending surface detail later
+    const masks = [];  // indexed by terrain type
+    for (const t of [T_GRASS, T_DIRT, T_WATER, T_ROCK, T_SAND]) masks[t] = lctx.createImageData(LW, LW);
+    const moist = makeNoise(rng, 16);
     const hill = makeNoise(rng, 40), det = makeNoise(rng, 170), mott = makeNoise(rng, 64); // sizes cover the sampled ranges
     const H = (x, y) => hill(x / LW * 9, y / LW * 9) * 0.7 + hill(x / LW * 23 + 7, y / LW * 23 + 3) * 0.3;
-    const sm = t => t < 0.2 ? 0 : t > 0.8 ? 1 : (t - 0.2) / 0.6 * ((t - 0.2) / 0.6) * (3 - 2 * (t - 0.2) / 0.6);
+    const sm = t => t < 0.1 ? 0 : t > 0.9 ? 1 : (t - 0.1) / 0.8 * ((t - 0.1) / 0.8) * (3 - 2 * (t - 0.1) / 0.8);
     const warp = makeNoise(rng, 64);
     const hard = t => t === T_ROCK;
     for (let py = 0; py < LW; py++) {
       for (let px = 0; px < LW; px++) {
         // warp terrain boundaries so shores and patches look organic; cliffs stay exact
         let fx = px / S - 0.5, fy = py / S - 0.5;
-        const wx = fx + (warp(px / LW * 40, py / LW * 40) - 0.5) * 1.1, wy = fy + (warp(px / LW * 40 + 17, py / LW * 40 + 9) - 0.5) * 1.1;
+        const wx = fx + (warp(px / LW * 40, py / LW * 40) - 0.5) * 1.4 + (warp(px / LW * 13 + 5, py / LW * 13) - 0.5) * 0.8,
+          wy = fy + (warp(px / LW * 40 + 17, py / LW * 40 + 9) - 0.5) * 1.4 + (warp(px / LW * 13, py / LW * 13 + 23) - 0.5) * 0.8;
         const cx0 = Math.max(0, Math.min(N - 2, Math.floor(wx))), cy0 = Math.max(0, Math.min(N - 2, Math.floor(wy)));
         const ux = Math.min(N - 1, (px / S) | 0), uy = Math.min(N - 1, (py / S) | 0);
         if (!hard(this.terrain[uy * N + ux]) && !hard(this.terrain[cy0 * N + cx0]) && !hard(this.terrain[cy0 * N + cx0 + 1]) &&
             !hard(this.terrain[(cy0 + 1) * N + cx0]) && !hard(this.terrain[(cy0 + 1) * N + cx0 + 1])) { fx = wx; fy = wy; }
-        const y0 = Math.max(0, Math.floor(fy)), y1 = Math.min(N - 1, y0 + 1), ty = sm(Math.min(1, Math.max(0, fy - y0)));
-        const x0 = Math.max(0, Math.floor(fx)), x1 = Math.min(N - 1, x0 + 1), tx = sm(Math.min(1, Math.max(0, fx - x0)));
+        const y0 = Math.max(0, Math.min(N - 1, Math.floor(fy))), y1 = Math.min(N - 1, y0 + 1), ty = sm(Math.min(1, Math.max(0, fy - y0)));
+        const x0 = Math.max(0, Math.min(N - 1, Math.floor(fx))), x1 = Math.min(N - 1, x0 + 1), tx = sm(Math.min(1, Math.max(0, fx - x0)));
         const a = (y0 * N + x0) * 3, b = (y0 * N + x1) * 3, c = (y1 * N + x0) * 3, e = (y1 * N + x1) * 3;
         const k = (py * LW + px) * 4;
         const ti = this.terrain[((py / S) | 0) * N + ((px / S) | 0)];
+        const tA = this.terrain[y0 * N + x0], tB = this.terrain[y0 * N + x1], tC = this.terrain[y1 * N + x0], tE = this.terrain[y1 * N + x1];
+        const wA = (1 - tx) * (1 - ty), wB = tx * (1 - ty), wC = (1 - tx) * ty, wE = tx * ty;
+        for (const [t, w] of [[tA, wA], [tB, wB], [tC, wC], [tE, wE]]) masks[t].data[k + 3] += w * 255;
+        const wGrass = (tA === T_GRASS ? wA : 0) + (tB === T_GRASS ? wB : 0) + (tC === T_GRASS ? wC : 0) + (tE === T_GRASS ? wE : 0);
+        // large patches of dry and lush ground
+        const dry = Math.min(1, Math.max(0, (moist(px / LW * 8, py / LW * 8) - 0.38) * 2.4)) * wGrass;
         const water = ti === T_WATER;
         // hill shading from a smooth height field, light from the top-left
         const shade = water ? 0 : (H(px - 2, py - 2) - H(px + 2, py + 2)) * 260;
@@ -257,7 +335,7 @@ class GameMap {
         if (th.dunes && !water) dune = Math.sin(px * 0.09 + py * 0.05 + mott(px / LW * 20, py / LW * 20) * 9) * 7;
         for (let ch = 0; ch < 3; ch++) {
           const top = tc[a + ch] + (tc[b + ch] - tc[a + ch]) * tx, bot = tc[c + ch] + (tc[e + ch] - tc[c + ch]) * tx;
-          let v = top + (bot - top) * ty + shade + m + dune;
+          let v = top + (bot - top) * ty + shade + m + dune + (th.dry[ch] - th.grass[ch]) * dry * 0.85;
           if (water && ch === 2) v += m * 0.5;
           d[k + ch] = v;
         }
@@ -265,6 +343,9 @@ class GameMap {
       }
     }
     lctx.putImageData(img, 0, 0);
+    const maskCanvas = mk => { const c = document.createElement('canvas'); c.width = c.height = LW; const x = c.getContext('2d'); for (let i = 0; i < mk.data.length; i += 4) mk.data[i] = mk.data[i + 1] = mk.data[i + 2] = 255; x.putImageData(mk, 0, 0); return c; };
+    const mGrass = maskCanvas(masks[T_GRASS]), mDirt = maskCanvas(masks[T_DIRT]), mSand = maskCanvas(masks[T_SAND]);
+    const mWater = maskCanvas(masks[T_WATER]), mRock = maskCanvas(masks[T_ROCK]);
 
     const cv = document.createElement('canvas');
     cv.width = N * TILE; cv.height = N * TILE;
@@ -282,38 +363,46 @@ class GameMap {
     ctx.fillStyle = ctx.createPattern(gc, 'repeat');
     ctx.fillRect(0, 0, cv.width, cv.height);
 
-    // ground details: tufts, pebbles, cracks, ripples on water
+    // surface detail: a tiling texture per material, laid only where that material is
+    const W = cv.width, layer = document.createElement('canvas');
+    layer.width = layer.height = W;
+    const lc = layer.getContext('2d');
+    const overlay = (tex, mask, alpha = 1) => {
+      lc.globalCompositeOperation = 'source-over'; lc.clearRect(0, 0, W, W);
+      lc.fillStyle = lc.createPattern(tex, 'repeat'); lc.fillRect(0, 0, W, W);
+      lc.globalCompositeOperation = 'destination-in'; lc.imageSmoothingEnabled = true;
+      lc.drawImage(mask, 0, 0, W, W);
+      ctx.globalAlpha = alpha; ctx.drawImage(layer, 0, 0); ctx.globalAlpha = 1;
+    };
+    overlay(surfaceTexture(th.snow ? 'snow' : th.blades ? 'grass' : 'sand', th, rng), mGrass);
+    overlay(surfaceTexture('dirt', th, rng), mDirt);
+    overlay(surfaceTexture(th.snow ? 'snow' : 'sand', th, rng), mSand, 0.8);
+    overlay(surfaceTexture('gravel', th, rng), mRock);
+    overlay(surfaceTexture('water', th, rng), mWater);
+    // shoreline: a wide band of wet ground and a thin line of foam just outside the water
+    // (computed on the low-resolution grid, then stretched: they are soft anyway)
+    if ('filter' in ctx) {
+      const bc = document.createElement('canvas'); bc.width = bc.height = LW;
+      const bx = bc.getContext('2d');
+      const band = (blur, color) => {
+        bx.globalCompositeOperation = 'source-over'; bx.clearRect(0, 0, LW, LW);
+        bx.filter = `blur(${blur}px)`; bx.drawImage(mWater, 0, 0); bx.filter = 'none';
+        bx.globalCompositeOperation = 'destination-out'; bx.drawImage(mWater, 0, 0);
+        bx.globalCompositeOperation = 'source-in'; bx.fillStyle = color; bx.fillRect(0, 0, LW, LW);
+        ctx.drawImage(bc, 0, 0, W, W);
+      };
+      band(3, th.snow ? 'rgba(200,220,235,0.35)' : 'rgba(40,30,16,0.38)');
+      band(0.5, 'rgba(236,246,250,0.6)');
+    }
+    // broken ice floes along arctic shores: irregular slabs with a lit edge
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const t = this.terrain[this.idx(x, y)], X = x * TILE, Y = y * TILE;
-      if (t === T_GRASS) {
-        const n = th.snow ? 1 : 4;
-        for (let k = 0; k < n; k++) {
-          const gx = X + rng() * TILE, gy = Y + rng() * TILE;
-          if (th.snow) { ctx.fillStyle = 'rgba(120,140,160,0.18)'; ctx.fillRect(gx, gy, 3 + rng() * 5, 1); continue; }
-          ctx.strokeStyle = `rgba(${rng() < 0.5 ? '20,35,10' : '150,160,90'},0.35)`; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + (rng() - 0.5) * 3, gy - 2 - rng() * 3); ctx.stroke();
-        }
-      } else if (t === T_DIRT || t === T_SAND) {
-        for (let k = 0; k < 2; k++) {
-          ctx.fillStyle = `rgba(${rng() < 0.5 ? '40,30,20' : '230,220,190'},0.25)`;
-          ctx.beginPath(); ctx.arc(X + rng() * TILE, Y + rng() * TILE, 0.8 + rng() * 1.4, 0, Math.PI * 2); ctx.fill();
-        }
-        if (t === T_DIRT && rng() < 0.15) {
-          ctx.strokeStyle = 'rgba(30,20,10,0.25)'; ctx.beginPath();
-          let cx = X + rng() * TILE, cy = Y + rng() * TILE; ctx.moveTo(cx, cy);
-          for (let s2 = 0; s2 < 3; s2++) { cx += (rng() - 0.5) * 12; cy += (rng() - 0.5) * 12; ctx.lineTo(cx, cy); }
-          ctx.stroke();
-        }
-      } else if (t === T_WATER) {
-        if (th.snow && depth[this.idx(x, y)] <= 2 && rng() < 0.5) {
-          ctx.fillStyle = 'rgba(225,238,248,0.55)';
-          ctx.beginPath(); ctx.ellipse(X + rng() * TILE, Y + rng() * TILE, 4 + rng() * 8, 3 + rng() * 5, rng() * 3, 0, Math.PI * 2); ctx.fill();
-        } else if (rng() < 0.35) {
-          ctx.strokeStyle = 'rgba(190,225,240,0.12)'; ctx.lineWidth = 1;
-          const wx = X + rng() * TILE, wy = Y + rng() * TILE;
-          ctx.beginPath(); ctx.moveTo(wx, wy); ctx.quadraticCurveTo(wx + 5, wy - 2, wx + 10, wy); ctx.stroke();
-        }
-      }
+      if (!th.snow || this.terrain[this.idx(x, y)] !== T_WATER || depth[this.idx(x, y)] > 1 || rng() > 0.35) continue;
+      const cx = x * TILE + rng() * TILE, cy = y * TILE + rng() * TILE, r = 4 + rng() * 7, n = 5 + ((rng() * 3) | 0), rot = rng() * 6;
+      ctx.beginPath();
+      for (let k = 0; k < n; k++) { const a = rot + k / n * Math.PI * 2, rr = r * (0.6 + rng() * 0.5); ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(220,234,246,0.75)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(120,150,175,0.6)'; ctx.lineWidth = 1; ctx.stroke();
     }
     // boulders and trees are upright 3D props drawn by the renderer; only bushes are painted flat
     this.props = [];

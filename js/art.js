@@ -772,55 +772,92 @@ function oreSprite(gem, level, v) {
 }
 
 function rockSprite(theme, v) {
-  return Art.get(`R|${theme.rock}|${!!theme.snow}|${v}`, () => {
+  return Art.get(`R|${theme.rock}|${!!theme.snow}|${theme.decor}|${v}`, () => {
     const r = makeRng(v * 977 + 13);
-    const col = `rgb(${theme.rock.join(',')})`;
     const parts = [];
     const n = 2 + (v % 3);
-    for (let k = 0; k < n; k++) {
-      const cx = (r() - 0.5) * 16, cy = (r() - 0.5) * 16, rad = 5 + r() * 7, h = 5 + r() * 12;
+    const mossy = !theme.snow && theme.decor === 'broadleaf';
+    for (let k = 0; k < n + 2; k++) {
+      const small = k >= n; // a couple of small stones around the big boulders
+      const cx = (r() - 0.5) * (small ? 24 : 16), cy = (r() - 0.5) * (small ? 24 : 16);
+      const rad = small ? 1.5 + r() * 2 : 5 + r() * 7, h = small ? 1 + r() * 2 : 5 + r() * 12;
+      const j = (r() - 0.5) * 24, col = `rgb(${theme.rock.map(c => Math.max(0, Math.min(255, Math.round(c + j)))).join(',')})`;
       const sides = 6 + ((r() * 3) | 0), rot = r() * 6;
-      const pts = Array.from({ length: sides }, (_, i) => { const a = rot + i / sides * Math.PI * 2, rr = rad * (0.75 + r() * 0.3); return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; });
-      parts.push(prism(pts, inset(pts, 0.45 + r() * 0.25, (r() - 0.5) * 3, (r() - 0.5) * 3), 0, h, col, theme.snow ? { topColor: '#eef3f8' } : {}));
+      const pts = Array.from({ length: sides }, (_, i) => { const a = rot + i / sides * Math.PI * 2, rr = rad * (0.7 + r() * 0.35); return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; });
+      const top = inset(pts, 0.4 + r() * 0.3, (r() - 0.5) * 3, (r() - 0.5) * 3);
+      const opt = theme.snow ? { topColor: '#eef3f8' } : mossy && r() < 0.5 ? { topColor: ['#5f7240', '#6b7c48'][(r() * 2) | 0] } : {};
+      parts.push(prism(pts, top, 0, h, col, opt));
     }
     return bake(place(parts));
   });
 }
 
+// Trees: crowns built from many small leaf clusters lit from the top left, back to front.
 function treeSprite(theme, v) {
-  return Art.get(`T|${theme.decor}|${theme.leaf.join()}|${!!theme.snow}|${v}`, () => {
+  return Art.get(`T|${theme.decor}|${theme.leaf.join()}|${!!theme.snow}|${!!theme.palms}|${v}`, () => {
     const r = makeRng(v * 131 + 7);
     const s = 0.8 + r() * 0.5;
     const c = document.createElement('canvas');
-    const W = 52, H = 72, S = 2;
+    const W = 60, H = 80, S = 2;
     c.width = W * S; c.height = H * S;
     const ctx = c.getContext('2d'); ctx.scale(S, S);
-    const ox = W / 2, oy = H - 8;
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.beginPath(); ctx.ellipse(ox + 8 * s, oy + 2, 14 * s, 5 * s, 0, 0, Math.PI * 2); ctx.fill();
+    const ox = W / 2, oy = H - 10;
     const [hi, lo] = theme.leaf;
-    if (theme.decor === 'pine') {
+    const jitter = (hex, amt) => tone(hex, (r() - 0.5) * amt);
+    const blob = (x, y, rad, light, dark) => {
+      const g = ctx.createRadialGradient(x - rad * 0.45, y - rad * 0.5, rad * 0.1, x, y, rad);
+      g.addColorStop(0, light); g.addColorStop(0.7, dark); g.addColorStop(1, tone(dark.startsWith('#') ? dark : lo, -0.25));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+    };
+    // soft ground shadow cast to the lower right
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.ellipse(ox + 9 * s, oy + 2, 16 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill();
+    const palm = theme.palms && v % 3 === 0;
+    if (palm) {
+      ctx.strokeStyle = '#6b5434'; ctx.lineWidth = 2.4 * s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.quadraticCurveTo(ox + 6 * s, oy - 18 * s, ox + 3 * s, oy - 34 * s); ctx.stroke();
+      const tx = ox + 3 * s, ty = oy - 34 * s;
+      for (let k = 0; k < 8; k++) {
+        const a = k / 8 * Math.PI * 2 + r() * 0.3, len = (13 + r() * 5) * s;
+        ctx.strokeStyle = k % 2 ? hi : lo; ctx.lineWidth = 2.6 * s;
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo(tx + Math.cos(a) * len * 0.6, ty + Math.sin(a) * len * 0.35 - 5 * s, tx + Math.cos(a) * len, ty + Math.sin(a) * len * 0.45 + 2 * s); ctx.stroke();
+      }
+    } else if (theme.decor === 'pine') {
       ctx.fillStyle = '#4a3422'; ctx.fillRect(ox - 1.5, oy - 10 * s, 3, 10 * s);
-      for (let k = 0; k < 4; k++) {
-        const w = (13 - k * 2.8) * s, y = oy - (6 + k * 9) * s, h = 15 * s;
-        ctx.fillStyle = lo;
-        ctx.beginPath(); ctx.moveTo(ox, y - h); ctx.lineTo(ox + w, y); ctx.lineTo(ox - w, y); ctx.closePath(); ctx.fill();
-        ctx.fillStyle = hi;
-        ctx.beginPath(); ctx.moveTo(ox, y - h); ctx.lineTo(ox, y); ctx.lineTo(ox - w, y); ctx.closePath(); ctx.fill();
-        if (theme.snow) { ctx.fillStyle = 'rgba(240,246,252,0.85)'; ctx.beginPath(); ctx.moveTo(ox, y - h); ctx.lineTo(ox + w * 0.45, y - h * 0.45); ctx.lineTo(ox - w * 0.5, y - h * 0.4); ctx.closePath(); ctx.fill(); }
+      for (let k = 0; k < 5; k++) {
+        const w = (14 - k * 2.4) * s, y = oy - (5 + k * 8) * s, h = 14 * s;
+        // jagged tier: sawtooth lower edge, shaded right side
+        ctx.beginPath(); ctx.moveTo(ox, y - h);
+        const teeth = 6;
+        for (let t = 0; t <= teeth; t++) { const px = ox + w - (t / teeth) * w * 2; ctx.lineTo(px, y + (t % 2 ? -2 * s : 1.5 * s)); }
+        ctx.closePath();
+        const g = ctx.createLinearGradient(ox - w, 0, ox + w, 0);
+        g.addColorStop(0, jitter(hi, 0.15)); g.addColorStop(0.55, lo); g.addColorStop(1, tone(lo, -0.3));
+        ctx.fillStyle = g; ctx.fill();
+        if (theme.snow) { ctx.fillStyle = 'rgba(240,246,252,0.85)'; ctx.beginPath(); ctx.moveTo(ox, y - h); ctx.lineTo(ox + w * 0.35, y - h * 0.5); ctx.lineTo(ox - w * 0.55, y - h * 0.4); ctx.closePath(); ctx.fill(); }
       }
     } else if (theme.decor === 'shrub') {
-      ctx.strokeStyle = lo; ctx.lineWidth = 1.3;
-      for (let k = 0; k < 7; k++) { const a = -Math.PI * (0.1 + k / 7 * 0.8); ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.cos(a) * 9 * s, oy + Math.sin(a) * 9 * s); ctx.stroke(); }
-      ctx.fillStyle = hi; ctx.beginPath(); ctx.arc(ox, oy - 4 * s, 3.5 * s, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#5a4630'; ctx.lineWidth = 1.1;
+      for (let k = 0; k < 9; k++) { const a = -Math.PI * (0.08 + k / 9 * 0.84); ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox + Math.cos(a) * 10 * s, oy + Math.sin(a) * 9 * s); ctx.stroke(); }
+      for (let k = 0; k < 7; k++) blob(ox + (r() - 0.5) * 14 * s, oy - (3 + r() * 6) * s, (1.6 + r() * 1.6) * s, jitter(hi, 0.2), lo);
     } else {
-      ctx.fillStyle = '#4a3422'; ctx.fillRect(ox - 1.8, oy - 14 * s, 3.6, 14 * s);
-      const lobes = [[0, -26], [-8, -20], [8, -20], [-4, -32], [5, -31], [0, -18]];
-      for (const [lx, ly] of lobes) {
-        const x = ox + lx * s, y = oy + ly * s, rr = (8 + r() * 3) * s;
-        const g = ctx.createRadialGradient(x - rr * 0.4, y - rr * 0.4, 1, x, y, rr);
-        g.addColorStop(0, hi); g.addColorStop(1, lo);
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+      // broadleaf: trunk and branches, then a dome of leaf clusters, dark back ones first
+      ctx.strokeStyle = '#4a3422'; ctx.lineWidth = 3 * s; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ox, oy - 16 * s); ctx.stroke();
+      ctx.lineWidth = 1.6 * s;
+      ctx.beginPath(); ctx.moveTo(ox, oy - 12 * s); ctx.lineTo(ox - 6 * s, oy - 20 * s); ctx.moveTo(ox, oy - 14 * s); ctx.lineTo(ox + 6 * s, oy - 22 * s); ctx.stroke();
+      const leafHi = jitter(hi, 0.18), leafLo = jitter(lo, 0.18);
+      const clusters = [];
+      for (let k = 0; k < 18; k++) {
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 10 * s;
+        clusters.push([ox + Math.cos(a) * d * 1.15, oy - 27 * s + Math.sin(a) * d * 0.8, (4 + r() * 3) * s]);
+      }
+      clusters.sort((p, q) => (p[0] + p[1]) - (q[0] + q[1]));
+      clusters.forEach(([x, y, rad], i) => blob(x, y, rad, i < 6 ? tone(leafLo, 0.05) : leafHi, leafLo));
+      for (let k = 0; k < 40; k++) { // leaf speckle
+        const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 13 * s;
+        ctx.fillStyle = r() < 0.5 ? 'rgba(255,255,220,0.18)' : 'rgba(0,20,0,0.18)';
+        ctx.fillRect(ox + Math.cos(a) * d, oy - 27 * s + Math.sin(a) * d * 0.8, 1.2, 1.2);
       }
     }
     return { c, ox, oy, w: W, h: H };
