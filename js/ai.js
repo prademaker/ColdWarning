@@ -236,7 +236,8 @@ class AI {
         continue;
       }
       if (t.countOf(key) >= need[key]) continue;
-      if (key === 'shipyard' && !this.shipyardSpot()) continue; // the base has not reached the water yet
+      // a navy once the first wave is out or money piles up, and the base has reached the water
+      if (key === 'shipyard' && ((!this.waves && t.credits < 3000) || !this.shipyardSpot())) continue;
       if (t.canBuild(key)) return key;
       if (qtype === 'structure') return null; // wait for prerequisites instead of skipping ahead
     }
@@ -249,7 +250,7 @@ class AI {
     if (!blds.length) return false;
     if (def.water) { const s = this.shipyardSpot(true); return !!s && G.tryPlace(t.id, qtype, s[0], s[1]); }
     // once the air force is up and the shipyard has nowhere to go, the base grows toward the shore
-    const shore = this.sea && t.countOf('airfield') && !t.countOf('shipyard') && !this.shipyardSpot() ? this.sea.shore : null;
+    const shore = this.sea && t.countOf('airfield') && this.waves && !t.countOf('shipyard') && !this.shipyardSpot() ? this.sea.shore : null;
     const [hx, hy] = this.home();
     const foe = this.nearestFoe();
     const [ex, ey] = foe ? this.startPx(foe.id) : [G.map.w * TILE / 2, G.map.h * TILE / 2];
@@ -349,8 +350,9 @@ class AI {
     if (sq && t.canBuild(sig) && !sq.items.length && t.credits > 800 + reserve &&
       units.filter(u => u.key === sig).length < 2 + Math.floor(this.waves / 2)) sq.add(sig);
 
-    if (this.sea) this.produceFleet(units, this.enemyMix(), reserve);
     const army = units.filter(u => u.def.weapon && !u.def.naval).length;
+    // the land army comes first; warships only once it has some weight behind it
+    if (this.sea && army >= 10 + this.waves * 2) this.produceFleet(units, this.enemyMix(), reserve);
     const cap = 18 + this.waves * 4 + Math.floor(t.credits / 2500) * 3; // spend surplus
     if (army > cap) return;
 
