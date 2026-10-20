@@ -50,22 +50,97 @@ function maskTexture(tex, rule) {
   return t;
 }
 
+// ---- MagicaVoxel .vox models ----
+// Palette indices 1-8 are the team colour ramp (masked for recolouring in game).
+function parseVox(buf) {
+  const dv = new DataView(buf), id = o => String.fromCharCode(...new Uint8Array(buf, o, 4));
+  let p = 8, size = null, voxels = null, palette = null;
+  const end = buf.byteLength;
+  p += 12; // MAIN header
+  while (p < end) {
+    const name = id(p), n = dv.getUint32(p + 4, true), m = dv.getUint32(p + 8, true), c = p + 12;
+    if (name === 'SIZE') size = [dv.getUint32(c, true), dv.getUint32(c + 4, true), dv.getUint32(c + 8, true)];
+    if (name === 'XYZI') { const k = dv.getUint32(c, true); voxels = new Uint8Array(buf, c + 4, k * 4); }
+    if (name === 'RGBA') palette = new Uint8Array(buf, c, 1024);
+    p = c + n + m;
+  }
+  return { size, voxels, palette };
+}
+
+// colour and team-mask buffers per voxel geometry (kept off userData, which clone() JSON-copies)
+const VOX_COLORS = new WeakMap();
+
+// Mesh of the visible voxel faces. Model axes: x forward, y right, z up -> three (x, z up, y).
+function voxMesh(vox, pivot, lift) {
+  const occ = new Set(), list = [];
+  for (let i = 0; i < vox.voxels.length; i += 4) {
+    const [x, y, z, c] = vox.voxels.subarray(i, i + 4);
+    occ.add(x + ',' + y + ',' + z); list.push([x, y, z, c]);
+  }
+  const pos = [], nor = [], col = [], mcol = [];
+  const FACES = [
+    [[1, 0, 0], [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]]], [[-1, 0, 0], [[0, 1, 0], [0, 0, 0], [0, 0, 1], [0, 1, 1]]],
+    [[0, 1, 0], [[1, 1, 0], [0, 1, 0], [0, 1, 1], [1, 1, 1]]], [[0, -1, 0], [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]]],
+    [[0, 0, 1], [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]]], [[0, 0, -1], [[0, 1, 0], [1, 1, 0], [1, 0, 0], [0, 0, 0]]],
+  ];
+  const tc = new THREE.Color();
+  for (const [x, y, z, c] of list) {
+    const pi = (c - 1) * 4;
+    tc.setRGB(vox.palette[pi] / 255, vox.palette[pi + 1] / 255, vox.palette[pi + 2] / 255, THREE.SRGBColorSpace);
+    const team = c >= 1 && c <= 8 ? 1 : 0;
+    for (const [n, q] of FACES) {
+      if (occ.has((x + n[0]) + ',' + (y + n[1]) + ',' + (z + n[2]))) continue;
+      const v = q.map(([a, b, d]) => [x + a - pivot[0], z + d + lift, y + b - pivot[1]]);
+      for (const k of [0, 2, 1, 0, 3, 2]) { // reversed: the axis swap mirrors the winding
+        pos.push(...v[k]); nor.push(n[0], n[2], n[1]); col.push(tc.r, tc.g, tc.b); mcol.push(team, team, team);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  VOX_COLORS.set(g, { colors: g.getAttribute('color'), mask: new THREE.Float32BufferAttribute(mcol, 3) });
+  return mesh;
+}
+
+async function loadVoxModel(cfg) {
+  const fetchVox = async f => parseVox(await (await fetch('/vox/' + f)).arrayBuffer());
+  const root = new THREE.Group();
+  const hull = voxMesh(await fetchVox(cfg.vox.hull), cfg.pivot, 0);
+  hull.name = 'hull'; root.add(hull);
+  if (cfg.vox.turret) {
+    const t = new THREE.Group(); t.name = 'turret';
+    t.add(voxMesh(await fetchVox(cfg.vox.turret), cfg.turretPivot, 0));
+    // the turret sits on the hull at mount = [x, y, z] in hull voxels
+    t.position.set(cfg.mount[0] - cfg.pivot[0], cfg.mount[2], cfg.mount[1] - cfg.pivot[1]);
+    root.add(t);
+  }
+  return root;
+}
+
 function maskMaterials(root, rules) {
   const saved = new Map();
   root.traverse(o => {
     if (!o.isMesh) return;
     saved.set(o, o.material);
+    const vc = VOX_COLORS.get(o.geometry);
+    if (vc) {
+      o.geometry.setAttribute('color', vc.mask);
+      o.material = new THREE.MeshBasicMaterial({ vertexColors: true });
+      return;
+    }
     const m = o.material;
     const rule = rules[m.name] || rules['*'] || 'paint';
     o.material = m.map ? new THREE.MeshBasicMaterial({ map: maskTexture(m.map, rule) })
       : new THREE.MeshBasicMaterial({ color: rule === 'all' ? 0xffffff : 0x000000 });
   });
-  return () => saved.forEach((m, o) => { o.material = m; });
+  return () => saved.forEach((m, o) => { o.material = m; const vc = VOX_COLORS.get(o.geometry); if (vc) o.geometry.setAttribute('color', vc.colors); });
 }
 
 async function renderSheet(cfg) {
-  const gltf = await loader.loadAsync('/models/' + cfg.file);
-  const root = gltf.scene;
+  const root = cfg.vox ? await loadVoxModel(cfg) : (await loader.loadAsync('/models/' + cfg.file)).scene;
   const C = cfg.cell * RES;                 // cell size in pixels
   const s = RES * cfg.k * Math.SQRT2;       // pixels per model unit
   const ay = Math.round(C * (cfg.anchor || 0.66));
@@ -75,7 +150,7 @@ async function renderSheet(cfg) {
 
   root.updateMatrixWorld(true);
   for (const name of cfg.hide || []) root.getObjectByName(name).visible = false;
-  const meta = { cell: cfg.cell, cols: COLS, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {} };
+  const meta = { cell: cfg.cell, cols: COLS, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {}, style: cfg.vox ? 'voxel' : 'model' };
   const turretNode = cfg.turret ? root.getObjectByName(cfg.turret) : null;
   if (cfg.rotor) {
     const blade = root.getObjectByName(cfg.rotor);
@@ -92,7 +167,7 @@ async function renderSheet(cfg) {
     t.position.set(0, wp.y, 0);
     const g = new THREE.Group(); g.add(t);
     parts.turret = g;
-    meta.turretOffset = wp.z * cfg.k;   // forward offset of the turret pivot from the hull pivot (world px)
+    meta.turretOffset = (cfg.vox ? wp.x : wp.z) * cfg.k; // forward offset of the turret pivot from the hull pivot (world px)
   }
 
   const out = {};
@@ -108,7 +183,8 @@ async function renderSheet(cfg) {
       const sx = sheet.getContext('2d');
       for (let f = 0; f < FACINGS; f++) {
         // game facing a (0 = +x, towards +y) -> rotate the model's +Z forward onto it
-        holder.rotation.y = Math.PI / 2 - f / FACINGS * Math.PI * 2;
+        // .glb models face +Z; voxel models face +X
+        holder.rotation.y = (cfg.vox ? 0 : Math.PI / 2) - f / FACINGS * Math.PI * 2;
         renderer.render(scene, cam);
         sx.drawImage(renderer.domElement, (f % COLS) * C, Math.floor(f / COLS) * C);
       }

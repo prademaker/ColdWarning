@@ -17,6 +17,8 @@ const { chromium } = require('playwright');
 const MODELS = {
   tank: { file: 'Tank_006.glb', k: 3.6, cell: 112, turret: 'Tank_tower_006', mask: { Picture_2: 'all', Color: 'paint' } },
   ifv: { file: 'Hummer_003.glb', k: 6.4, cell: 88, mask: { Color: 'paint' } },
+  // RA2-style voxel tank made for this game (tools/sprites/voxel_tank.js)
+  tank_vox: { vox: { hull: 'tank_hull.vox', turret: 'tank_turret.vox' }, pivot: [15.5, 10], turretPivot: [8.5, 8.5], mount: [14, 10, 8], turret: 'turret', k: 1.0, cell: 104 },
   heli: { file: 'Helicopter_001.glb', k: 2.8, cell: 120, anchor: 0.7, hide: ['Blade_001'], rotor: 'Blade_001', mask: { Color: 'dark' } },
 };
 
@@ -24,8 +26,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'assets', 'sprites');
 
 function serve(modelDir) {
-  const types = { '.html': 'text/html', '.js': 'text/javascript', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg' };
-  const roots = { '/three/': path.join(__dirname, 'node_modules', 'three') + '/', '/models/': modelDir + '/', '/': __dirname + '/' };
+  const types = { '.vox': 'application/octet-stream', '.html': 'text/html', '.js': 'text/javascript', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg' };
+  const roots = { '/three/': path.join(__dirname, 'node_modules', 'three') + '/', '/models/': modelDir + '/', '/vox/': path.join(ROOT, 'assets', 'voxels') + '/', '/': __dirname + '/' };
   const server = http.createServer((req, res) => {
     const url = decodeURIComponent(req.url.split('?')[0]);
     const prefix = Object.keys(roots).find(p => url.startsWith(p));

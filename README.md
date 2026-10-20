@@ -95,3 +95,9 @@ node render.js /path/to/Separate_Assets_glb    # writes assets/sprites/
 The model files are not in this repository: the pack's licence allows using them in a game but not
 redistributing the files. Keep your download elsewhere and point the tool at it. Which model plays
 which unit (and its size) is configured at the top of `render.js`.
+
+The renderer also reads MagicaVoxel `.vox` files for Red Alert 2 style voxel units. Palette indices 1-8
+are the team colour ramp (stored as greys); the game recolours them per player. `assets/voxels/` holds a
+sample tank made for this game (`tools/sprites/voxel_tank.js` generates it; edit it in MagicaVoxel and
+re-run `node render.js <models> tank_vox`). Open the game with `?tank=vox` to use it instead of the
+model-based tank.

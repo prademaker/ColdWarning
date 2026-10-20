@@ -192,11 +192,19 @@ function teamSheet(key, part, team) {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const x = c.getContext('2d');
     x.drawImage(sh.base, 0, 0);
-    x.globalCompositeOperation = 'multiply';
-    x.drawImage(layer(CAMO_TINT[team.faction] || '#ffffff'), 0, 0);
-    // a light wash of team colour keeps sides recognisable without hiding the camouflage
-    x.globalCompositeOperation = 'color'; x.globalAlpha = 0.2;
-    x.drawImage(layer(team.color), 0, 0);
+    if (SPRITE_META[key].style === 'voxel') {
+      // voxel units: team colour replaces the grey plates entirely, keeping their shading (RA2 style)
+      x.globalCompositeOperation = 'color'; x.globalAlpha = 0.8;
+      x.drawImage(layer(team.color), 0, 0);
+      x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.15;
+      x.drawImage(layer(team.color), 0, 0);
+    } else {
+      x.globalCompositeOperation = 'multiply';
+      x.drawImage(layer(CAMO_TINT[team.faction] || '#ffffff'), 0, 0);
+      // a light wash of team colour keeps sides recognisable without hiding the camouflage
+      x.globalCompositeOperation = 'color'; x.globalAlpha = 0.2;
+      x.drawImage(layer(team.color), 0, 0);
+    }
     return c;
   });
 }
@@ -388,18 +396,23 @@ function unitSprite(u, team, part) {
 }
 
 // draw a unit whose ground point projects to (sx, sy)
+// Which sprite set draws a unit type. '?tank=vox' in the URL switches tanks to the voxel model.
+const SPRITE_FOR = {};
+if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('tank') === 'vox') SPRITE_FOR.tank = 'tank_vox';
+
 function drawUnitArt(ctx, u, team, sx, sy) {
   const m = UNIT_MODELS[u.key];
-  const meta = typeof SPRITE_META !== 'undefined' ? SPRITE_META[u.key] : null;
+  const sk = u.spriteKey || SPRITE_FOR[u.key] || u.key;
+  const meta = typeof SPRITE_META !== 'undefined' ? SPRITE_META[sk] : null;
   const lift = u.alt || 0;
   const rec = (u.recoil || 0) * 2.5;
-  const hull = meta && modelSprite(u.key, 'hull', team, u.facing);
+  const hull = meta && modelSprite(sk, 'hull', team, u.facing);
   if (hull) {
     Art.blit(ctx, hull, sx, sy - lift);
     if (meta.parts.turret) {
       const off = meta.turretOffset || 0;
       const tx = Math.cos(u.facing) * off - Math.cos(u.turret) * rec, ty = Math.sin(u.facing) * off - Math.sin(u.turret) * rec;
-      const tur = modelSprite(u.key, 'turret', team, u.turret);
+      const tur = modelSprite(sk, 'turret', team, u.turret);
       if (tur) Art.blit(ctx, tur, sx + isoX(tx, ty), sy - lift + isoY(tx, ty, 0));
     }
   } else {

@@ -35,5 +35,18 @@ const SPRITE_META = {
       "z": 12.540536022186279,
       "r": 16.064666080474854
     }
+  },
+  "tank_vox": {
+    "cell": 104,
+    "cols": 8,
+    "res": 2,
+    "ax": 52,
+    "ay": 68.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1.5
   }
 };
