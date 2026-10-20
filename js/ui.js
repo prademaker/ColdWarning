@@ -343,6 +343,9 @@ const UI = {
     this.keys[k] = down;
     if (!down) return;
     if (e.target && e.target.tagName === 'INPUT') return;
+    if (k === 'F5') { e.preventDefault(); Main.quickSave(); return; }
+    if (k === 'F9') { e.preventDefault(); Main.quickLoad(); return; }
+    if (!document.getElementById('saves').hidden) { if (k === 'Escape') Main.closeDialog(); return; }
     if (k === 'Escape') { if (!this.cancelModes()) this.selection = []; return; }
     if (k === 'p' || k === 'P') { Main.togglePause(); return; }
     if (k === 'm' || k === 'M') { this.toggleSound(); return; }

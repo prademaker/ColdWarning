@@ -48,7 +48,7 @@
       <section class="m-box"><h3>Game speed</h3><div id="speed" class="opts"></div></section>
       <section class="m-box" id="seed-box"><h3>Map seed</h3><div class="opts"><input id="seed" type="number"><button id="reroll" class="opt" title="Random seed">⟳</button></div></section>
       <section class="m-box"><h3>Audio</h3><div id="audio" class="sliders"></div></section>
-      <button id="start">DEPLOY</button>
+      <div class="start-col"><button id="start">DEPLOY</button><button id="load-game" class="opt">Load game</button></div>
     </div>
     <details class="help">
       <summary>How to play</summary>
@@ -60,7 +60,7 @@
         <li><b>Units:</b> left-click/drag to select, right-click to move/attack. <kbd>Ctrl</kbd>+right-click or <kbd>A</kbd> = attack-move.</li>
         <li><kbd>S</kbd> stop · <kbd>Ctrl</kbd>+<kbd>1-9</kbd> make group · <kbd>1-9</kbd> recall (twice to jump) · double-click selects all of a type.</li>
         <li><kbd>Tab</kbd> cycles build tabs · <kbd>Q</kbd>…<kbd>I</kbd> build hotkeys · <kbd>Z</kbd> sell · <kbd>X</kbd> repair · <kbd>F</kbd> superweapon.</li>
-        <li><kbd>H</kbd> jump to base · <kbd>Space</kbd> jump to last alert · <kbd>P</kbd> pause · <kbd>M</kbd> mute · <kbd>N</kbd> next track · arrows / screen edges / middle-drag scroll.</li>
+        <li><kbd>H</kbd> jump to base · <kbd>Space</kbd> jump to last alert · <kbd>P</kbd> pause (and save or load) · <kbd>F5</kbd> quicksave · <kbd>F9</kbd> quickload · <kbd>M</kbd> mute · <kbd>N</kbd> next track · arrows / screen edges / middle-drag scroll.</li>
         <li>Engineers capture enemy buildings. Heavy tanks crush infantry. Units promote to Veteran and Elite with kills.</li>
         <li><b>Garrisons:</b> right-click a civilian building or your own Battle Bunker with infantry to move in; they fire out of it. Select the building and press <kbd>D</kbd> to empty it. Flame weapons burn occupants out.</li>
         <li><b>Dig in:</b> select riflemen and press <kbd>D</kbd> to dig in behind sandbags (tougher, longer range, can't move). Any move order gets them up again.</li>
@@ -74,6 +74,7 @@
 </div>
 
 <div id="track" hidden></div>
+<div id="saves" hidden></div>
 <div id="game" hidden>
   <canvas id="view"></canvas>
   <div id="messages"></div>
@@ -109,7 +110,9 @@
     <div id="sel-info"></div>
   </div>
   <div id="tooltip" hidden></div>
-  <div id="pause-overlay" hidden><div>PAUSED<small>Press P to resume</small></div></div>
+  <div id="pause-overlay" hidden><div class="pausebox">PAUSED<small>Press P to resume</small>
+    <div class="pausebtns"><button id="p-resume">Resume</button><button id="p-save">Save game</button><button id="p-load">Load game</button><button id="p-quit">Quit to menu</button></div>
+    <small class="pkeys">F5 quicksave · F9 quickload</small></div></div>
   <div id="end" hidden></div>
 </div>
 
@@ -121,6 +124,7 @@
 <script src="js/ai.js"></script>
 <script src="js/waves.js"></script>
 <script src="js/campaign.js"></script>
+<script src="js/save.js"></script>
 <script src="js/art.js"></script>
 <script src="js/render.js"></script>
 <script src="js/audio.js"></script>

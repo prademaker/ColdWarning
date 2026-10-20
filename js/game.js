@@ -9,6 +9,12 @@ const RANK_ARMOR = [1, 0.85, 0.7];
 const RANK_KILLS = [3, 7];
 
 // ---------------- Teams & production ----------------
+// end-of-match numbers per team; army is the value of the team's units, sampled every 10 s
+function blankStats() {
+  return { built: 0, lost: 0, kills: 0, structuresBuilt: 0, structuresLost: 0, structuresKilled: 0, harvested: 0, spent: 0, made: {}, army: [] };
+}
+const STATS_EVERY = 10;
+
 class ProdQueue {
   constructor(team, type) {
     this.team = team; this.type = type;
@@ -31,7 +37,7 @@ class ProdQueue {
     const i = this.items.lastIndexOf(key);
     if (i < 0) return false;
     if (i === 0) {
-      this.team.credits += this.spent;
+      this.team.credits += this.spent; this.team.stats.spent -= this.spent;
       this.progress = 0; this.spent = 0; this.ready = false; this.paused = false;
     }
     this.items.splice(i, 1);
@@ -39,7 +45,7 @@ class ProdQueue {
   }
 
   clear() {
-    this.team.credits += this.spent;
+    this.team.credits += this.spent; this.team.stats.spent -= this.spent;
     this.items = []; this.progress = 0; this.spent = 0; this.ready = false; this.paused = false;
   }
 
@@ -58,7 +64,7 @@ class ProdQueue {
       return;
     }
     this.broke = false;
-    t.credits -= step; this.spent += step;
+    t.credits -= step; this.spent += step; t.stats.spent += step;
     this.progress += rate * dt;
     if (this.progress >= 1) {
       this.progress = 1;
@@ -92,7 +98,7 @@ class Team {
     this.superTimer = 0; this.superReady = false;
     this.defeated = false;
     this.counts = {};
-    this.stats = { built: 0, lost: 0, kills: 0, structuresBuilt: 0, structuresLost: 0, structuresKilled: 0, harvested: 0 };
+    this.stats = blankStats();
     this.rally = {};
   }
 
@@ -166,6 +172,7 @@ class Team {
       if (spot) { u.order = { type: 'move', tx: spot[0], ty: spot[1] }; u.path = [[spot[0], spot[1]]]; u.pathI = 0; }
     }
     this.stats.built++;
+    this.stats.made[key] = (this.stats.made[key] || 0) + 1;
     G.eva(def.cat === 'infantry' ? 'Unit ready' : def.air ? 'Drone ready' : 'Unit ready', this.id);
     if (def.harvester) { u.order = null; u.hstate = 'seek'; return; }
     if (b.rally && !def.mcv) G.commandMove([u], b.rally[0], b.rally[1], false, true);
@@ -390,7 +397,7 @@ class Game {
     return {
       id: NEUTRAL, name: 'Civilian', faction: 'usa', color: '#a59f90', dark: '#5f5a50', light: '#d8d2c4', camo: ['#8d877a', '#6b665c', '#a9a395'],
       isAI: true, lowPower: false, credits: 0, counts: {},
-      stats: { built: 0, lost: 0, kills: 0, structuresBuilt: 0, structuresLost: 0, structuresKilled: 0, harvested: 0 },
+      stats: blankStats(),
       bonus() { return 1; }, boost() { return 1; }, costOf() { return 0; }, countOf() { return 0; }, recount() {},
     };
   }
@@ -971,6 +978,7 @@ class Game {
     this.updateEffects(dt);
     this.updateStrikes(dt);
     this.map.regrow(dt * 0.25);
+    if (Math.floor(this.time / STATS_EVERY) !== Math.floor((this.time - dt) / STATS_EVERY)) this.sampleStats();
 
     // cleanup
     if (ents.some(e => e.dead)) {
@@ -983,6 +991,15 @@ class Game {
     if (this.fogT <= 0 || this.fogDirty) { this.updateFog(); this.fogT = 0.2; this.fogDirty = false; }
     this.shake = Math.max(0, this.shake - dt * 20);
     if (((this.time * 2) | 0) !== (((this.time - dt) * 2) | 0)) this.checkVictory();
+  }
+
+  // army value of every team, for the graph on the end screen
+  sampleStats() {
+    const army = this.teams.map(() => 0);
+    for (const e of this.entities) {
+      if (e.kind === 'unit' && !e.dead && e.team !== NEUTRAL && !e.def.harvester && !e.def.mcv) army[e.team] += e.def.cost || 0;
+    }
+    this.teams.forEach((t, i) => t.stats.army.push(army[i]));
   }
 
   checkVictory() {

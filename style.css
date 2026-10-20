@@ -164,9 +164,32 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 #tooltip .tstat { color: var(--dim); margin-top: 4px; }
 #tooltip .treq { color: #f77; margin-top: 4px; }
 #tooltip .thelp { color: #5f7286; margin-top: 4px; font-size: 12px; }
-#pause-overlay { position: absolute; inset: 0; right: var(--sb-w); display: flex; align-items: center; justify-content: center; background: rgba(0,5,12,.5);
+#pause-overlay { position: absolute; inset: 0; right: var(--sb-w); z-index: 4; display: flex; align-items: center; justify-content: center; background: rgba(0,5,12,.5);
   font-family: var(--head); font-size: 52px; font-weight: 600; letter-spacing: 12px; text-align: center; }
 #pause-overlay small { display: block; font-size: 15px; letter-spacing: 3px; color: var(--dim); font-weight: 400; }
+.pausebtns { display: flex; flex-direction: column; gap: 8px; width: 240px; margin: 22px auto 12px; }
+.pausebtns button, .sv-actions button { padding: 10px 18px; background: var(--panel2); border: 1px solid var(--edge2); color: var(--text); font-family: var(--head); font-size: 16px; letter-spacing: 3px; border-radius: 2px; }
+.pausebtns button:hover, .sv-actions button:hover { border-color: var(--gold); color: var(--gold); }
+#pause-overlay small.pkeys { font-size: 13px; letter-spacing: 2px; }
+.start-col { margin-left: auto; align-self: center; display: flex; flex-direction: column; gap: 8px; }
+.start-col #start { margin-left: 0; }
+#saves { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(0,5,12,.7); }
+.svbox { background: var(--panel); border: 2px solid var(--edge2); border-radius: 3px; padding: 22px 26px; width: min(560px, calc(100% - 32px)); max-height: calc(100% - 40px); overflow: auto; }
+.svbox h2 { font-family: var(--head); font-weight: 600; letter-spacing: 6px; margin: 0 0 14px; font-size: 26px; }
+.sv-slot { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--edge); background: var(--panel2); margin-bottom: 6px; border-radius: 2px; }
+.sv-slot.go { cursor: pointer; }
+.sv-slot.go:hover { border-color: var(--gold); }
+.sv-slot img { width: 30px; height: 20px; object-fit: cover; }
+.sv-slot .sv-flag { width: 30px; flex: none; }
+.sv-text { flex: 1; min-width: 0; }
+.sv-name { font-family: var(--head); letter-spacing: 1px; font-size: 15px; }
+.sv-sub { color: var(--dim); font-size: 14px; }
+.sv-slot.empty .sv-name { color: var(--dim); }
+.sv-del { background: none; border: 1px solid var(--edge2); color: var(--dim); padding: 4px 9px; border-radius: 2px; }
+.sv-del:hover { color: #f77; border-color: #f77; }
+.sv-msg { min-height: 20px; margin: 8px 0 0; color: var(--gold); }
+.sv-msg.err { color: #f77; }
+.sv-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 #end { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,5,12,.65); z-index: 5; }
 .endbox { background: var(--panel); border: 2px solid var(--edge2); padding: 28px 38px; border-radius: 3px; text-align: center; min-width: 440px; }
 .endbox.win { border-color: #3a8a4a; } .endbox.lose { border-color: #8a2a2a; }
@@ -177,6 +200,12 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 .endbox td, .endbox th { padding: 4px 14px; text-align: right; font-size: 15px; }
 .endbox th { font-family: var(--head); font-weight: 500; letter-spacing: 1px; }
 .endbox td:first-child { text-align: left; color: var(--dim); }
+.end-chart { margin: 4px auto 6px; width: fit-content; max-width: 100%; }
+.end-chart-t { color: var(--dim); font-size: 13px; letter-spacing: 2px; text-transform: uppercase; text-align: left; margin-left: 46px; }
+.end-chart svg { max-width: 100%; height: auto; display: block; }
+.end-chart text { fill: var(--dim); font-size: 11px; font-family: var(--body); }
+.end-chart .ax { stroke: var(--edge2); } .end-chart .grid { stroke: var(--edge); stroke-dasharray: 3 4; }
+.endbox { max-height: calc(100vh - 24px); overflow: auto; }
 .endbtns button { margin: 10px 6px 0; padding: 10px 24px; background: linear-gradient(180deg, #ff4a3d, #b4161a); border: 0; font-family: var(--head); letter-spacing: 2px; font-size: 15px; border-radius: 2px; color: #fff; }
 .endbtns button + button { background: var(--panel2); border: 1px solid var(--edge2); }
 

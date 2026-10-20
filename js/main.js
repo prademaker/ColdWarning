@@ -22,6 +22,11 @@ const Main = {
       seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null,
     };
     this.buildMenu();
+    document.getElementById('load-game').onclick = () => { Sfx.resume(); this.openSaves('load'); };
+    document.getElementById('p-resume').onclick = () => this.togglePause();
+    document.getElementById('p-save').onclick = () => this.openSaves('save');
+    document.getElementById('p-load').onclick = () => this.openSaves('load');
+    document.getElementById('p-quit').onclick = () => { this.paused = false; this.toMenu(); };
     if (params.has('mission') && missionDef(params.get('mission'))) {
       // straight into a campaign mission (handy for testing)
       this.settings.difficulty = DIFFICULTY[params.get('difficulty')] ? params.get('difficulty') : 'normal';
@@ -189,18 +194,28 @@ const Main = {
       const ids = Object.keys(THEATERS);
       opts = Object.assign({}, opts, { theater: ids[Math.floor(Math.random() * ids.length)] });
     }
+    new Game(opts);
+    this.enter();
+  },
+
+  // show the battle in G: a new one, or one just loaded (cam = where the camera was when saved)
+  enter(cam) {
+    const opts = G.opts;
+    if (cam) this.opts = opts;
     document.getElementById('menu').hidden = true;
     document.getElementById('game').hidden = false;
     document.getElementById('end').hidden = true;
     document.getElementById('pause-overlay').hidden = true;
-    new Game(opts);
+    this.closeDialog();
     G.map.renderTerrain();
     Render.init();
     this.speed = opts.speed || 1;
     this.paused = false;
+    this.endShown = false;
+    this.autoT = 0;
     UI.init(document.getElementById('view'));
-    if (G.mission && G.mission.focus) UI.centerOn(...G.mission.focus);
-    G.eva('Battle control online', G.player);
+    if (cam) { UI.cam.x = cam.x; UI.cam.y = cam.y; UI.clampCam(); } else if (G.mission && G.mission.focus) UI.centerOn(...G.mission.focus);
+    G.eva(cam ? 'Battle control restored' : 'Battle control online', G.player);
     Sfx.ambience(opts.theater);
     Music.play('game');
     if (!this.running) {
@@ -214,6 +229,58 @@ const Main = {
     if (!G || G.over) return;
     this.paused = !this.paused;
     document.getElementById('pause-overlay').hidden = !this.paused;
+    if (!this.paused) this.closeDialog();
+  },
+
+  // ---------- save / load ----------
+  // the slot list, for saving (from the pause menu) or loading (pause menu or main menu)
+  openSaves(mode, msg) {
+    const box = document.getElementById('saves');
+    const slots = Save.slots.filter(s => mode === 'load' || s !== 'auto');
+    const when = t => new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    box.innerHTML = `<div class="svbox"><h2>${mode === 'save' ? 'SAVE GAME' : 'LOAD GAME'}</h2>
+      ${slots.map(slot => {
+        const i = Save.info(slot);
+        const go = mode === 'save' || i;
+        return `<div class="sv-slot${i ? '' : ' empty'}${go ? ' go' : ''}" data-slot="${slot}">
+          <div class="sv-flag">${i && FLAGS[i.faction] ? `<img src="${FLAGS[i.faction]}" alt="">` : ''}</div>
+          <div class="sv-text"><div class="sv-name">${Save.slotName(slot)}${i ? ' · ' + i.what : ''}</div>
+          <div class="sv-sub">${i ? `${THEATERS[i.theater] ? THEATERS[i.theater].name + ' · ' : ''}${this.clock(i.time)} played · saved ${when(i.at)}` : 'Empty'}</div></div>
+          ${i ? `<button class="sv-del" data-del="${slot}" title="Delete this save">✕</button>` : ''}</div>`;
+      }).join('')}
+      <p class="sv-msg${msg && msg.err ? ' err' : ''}">${msg ? msg.text : ''}</p>
+      <div class="sv-actions"><button id="sv-close">Back</button></div></div>`;
+    box.hidden = false;
+    box.querySelector('#sv-close').onclick = () => this.closeDialog();
+    box.querySelectorAll('.sv-del').forEach(b => b.onclick = e => {
+      e.stopPropagation();
+      Save.remove(b.dataset.del);
+      this.openSaves(mode, { text: Save.slotName(b.dataset.del) + ' deleted.' });
+    });
+    box.querySelectorAll('.sv-slot.go').forEach(el => el.onclick = async () => {
+      const slot = el.dataset.slot;
+      try {
+        if (mode === 'save') { await Save.saveTo(slot); this.openSaves('save', { text: 'Saved to ' + Save.slotName(slot) + '.' }); }
+        else await this.loadSlot(slot);
+      } catch (err) { this.openSaves(mode, { text: err.message, err: true }); }
+    });
+  },
+
+  closeDialog() { document.getElementById('saves').hidden = true; },
+
+  async loadSlot(slot) {
+    const r = await Save.loadFrom(slot);
+    if (r.removed) G.eva(r.removed + ' units no longer in the game were left out', G.player);
+  },
+
+  async quickSave() {
+    if (!Save.canSave()) return;
+    try { await Save.saveTo('quick'); G.eva('Game saved', G.player); } catch (err) { G.eva(err.message, G.player); }
+  },
+
+  async quickLoad() {
+    if (!Save.info('quick')) { if (G) G.eva('No quicksave yet', G.player); return; }
+    try { await this.loadSlot('quick'); } catch (err) { if (G) G.eva(err.message, G.player); }
   },
 
   frame(now) {
@@ -226,6 +293,9 @@ const Main = {
         let steps = 0;
         while (this.acc >= TICK && steps < 8) { G.update(TICK); this.acc -= TICK; steps++; }
         if (steps >= 8) this.acc = 0;
+        // autosave every five minutes of play
+        this.autoT += steps * TICK;
+        if (this.autoT >= 300 && !G.over && !G.opts.autoplay) { this.autoT = 0; Save.saveTo('auto').catch(() => {}); }
       }
       UI.update(dt);
       Render.draw(UI.ctx, UI.cam, UI);
@@ -242,7 +312,12 @@ const Main = {
     const el = document.getElementById('end');
     const teams = G.teams, W = G.waves;
     const mins = Math.floor(G.over.time / 60), secs = Math.floor(G.over.time % 60);
-    const row = (label, k) => `<tr><td>${label}</td>${teams.map(t => `<td>${Math.round(t.stats[k])}</td>`).join('')}</tr>`;
+    G.sampleStats();
+    const row = (label, k) => `<tr><td>${label}</td>${teams.map(t => `<td>${Math.round(t.stats[k] || 0).toLocaleString()}</td>`).join('')}</tr>`;
+    const top = t => {
+      const [key] = Object.entries(t.stats.made || {}).sort((a, b) => b[1] - a[1])[0] || [];
+      return key && defOf(key) ? `${nameOf(key, t.faction)} ×${t.stats.made[key]}` : '–';
+    };
     const M = G.mission;
     const text = M ? G.over.text : W ? (G.over.win ? `All ${W.total} waves repelled. The base holds.` : `The base fell during wave ${W.wave} of ${W.total}.`) :
       G.over.win ? 'The enemy has been eliminated. The region is secure.' : 'Our forces have been wiped out. Command has been lost.';
@@ -261,8 +336,11 @@ const Main = {
       ${row('Kills', 'kills')}
       ${row('Structures built', 'structuresBuilt')}
       ${row('Structures destroyed', 'structuresKilled')}
+      ${row('Structures lost', 'structuresLost')}
       ${row('Credits harvested', 'harvested')}
-      </table>
+      ${row('Credits spent', 'spent')}
+      <tr><td>Most built</td>${teams.map(t => `<td>${top(t)}</td>`).join('')}</tr>
+      </table>${this.armyChart(teams)}
       <div class="endbtns">${buttons}</div></div>`;
     el.hidden = false;
     document.getElementById('again').onclick = () => this.start(M ? Object.assign({}, this.opts) : Object.assign({}, this.opts, { seed: Math.floor(Math.random() * 1e6) }));
@@ -270,7 +348,27 @@ const Main = {
     document.getElementById('tomenu').onclick = () => this.toMenu();
   },
 
+  // line chart of each team's army value over the match (sampled in Game.sampleStats)
+  armyChart(teams) {
+    const n = Math.max(...teams.map(t => (t.stats.army || []).length));
+    if (n < 3) return '';
+    const W = 520, H = 130, L = 46, B = 18, max = Math.max(1000, ...teams.flatMap(t => t.stats.army || []));
+    const x = i => L + i / (n - 1) * (W - L - 6), y = v => 6 + (1 - v / max) * (H - B - 6);
+    const lines = teams.map(t => {
+      const pts = (t.stats.army || []).map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+      return `<polyline points="${pts}" fill="none" stroke="${t.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    }).join('');
+    const span = (n - 1) * STATS_EVERY, ticks = [0, 0.5, 1].map(f => `<text x="${x(f * (n - 1))}" y="${H - 3}" text-anchor="${f ? f < 1 ? 'middle' : 'end' : 'start'}">${this.clock(f * span)}</text>`).join('');
+    const k = v => v >= 1000 ? Math.round(v / 1000) + 'k' : v;
+    return `<div class="end-chart"><div class="end-chart-t">Army value over time</div><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+      <line x1="${L}" y1="${y(0)}" x2="${W - 6}" y2="${y(0)}" class="ax"/><line x1="${L}" y1="${y(max)}" x2="${W - 6}" y2="${y(max)}" class="grid"/>
+      <text x="${L - 6}" y="${y(max) + 4}" text-anchor="end">$${k(max)}</text><text x="${L - 6}" y="${y(0) + 4}" text-anchor="end">0</text>
+      ${ticks}${lines}</svg></div>`;
+  },
+
   toMenu() {
+    this.closeDialog();
+    document.getElementById('pause-overlay').hidden = true;
     document.getElementById('game').hidden = true;
     document.getElementById('menu').hidden = false;
     document.getElementById('end').hidden = true;
