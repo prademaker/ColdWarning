@@ -29,12 +29,15 @@ const UI = {
     document.getElementById('sidebar').style.setProperty('--team', pt.color);
     G.on('eva', msg => { Sfx.say(msg); this.flashMessages(); });
     G.on('sound', (name, x, y) => {
-      if (x !== undefined) {
-        const m = 100, [sx, sy] = this.toScreen(x, y);
-        if (sx < -m || sy < -m || sx > this.canvas.width + m || sy > this.canvas.height + m) return;
-      }
-      Sfx.play(name);
+      if (x === undefined) { Sfx.play(name); return; }
+      // pan by screen position; fade out with distance beyond the screen edge
+      const [sx, sy] = this.toScreen(x, y), W = this.canvas.width, H = this.canvas.height;
+      const out = Math.hypot(Math.max(0, -sx, sx - W), Math.max(0, -sy, sy - H));
+      const big = name === 'boom' || name === 'place';
+      const vol = 1 - out / (big ? 900 : 450);
+      if (vol > 0.05) Sfx.play(name, vol, Math.max(-0.8, Math.min(0.8, (sx / W) * 2 - 1)));
     });
+    G.on('voice', (u, kind) => Sfx.unitVoice(u, kind));
   },
 
   resize() {
@@ -99,6 +102,8 @@ const UI = {
     if (!add) this.selection = [];
     for (const e of list) if (!this.selection.includes(e)) this.selection.push(e);
     if (list.length) Sfx.play('click');
+    const u = list.find(e => e.kind === 'unit' && e.team === G.player);
+    if (u) Sfx.unitVoice(u, 'select');
   },
 
   // ---------- events ----------
@@ -119,15 +124,19 @@ const UI = {
     this.minimap.addEventListener('mousemove', e => { if (e.buttons & 1) this.onMinimap(e, false); });
     this.minimap.addEventListener('contextmenu', e => e.preventDefault());
     for (const [id, fn] of [['btn-repair', () => this.toggleMode('repair')], ['btn-sell', () => this.toggleMode('sell')],
-      ['btn-super', () => this.startSuper()], ['btn-pause', () => Main.togglePause()], ['btn-sound', () => this.toggleSound()]]) {
+      ['btn-super', () => this.startSuper()], ['btn-pause', () => Main.togglePause()], ['btn-sound', () => this.toggleSound()], ['btn-music', () => this.toggleMusic()]]) {
       document.getElementById(id).addEventListener('click', () => { Sfx.resume(); fn(); });
     }
   },
 
   toggleSound() {
-    Sfx.muted = !Sfx.muted;
-    if (Sfx.muted && window.speechSynthesis) speechSynthesis.cancel();
+    Sfx.setMuted(!Sfx.muted);
     document.getElementById('btn-sound').classList.toggle('off', Sfx.muted);
+  },
+
+  toggleMusic() {
+    Music.setOn(!Music.on);
+    document.getElementById('btn-music').classList.toggle('off', !Music.on);
   },
 
   toggleMode(m) {
@@ -327,6 +336,7 @@ const UI = {
     if (k === 'Escape') { if (!this.cancelModes()) this.selection = []; return; }
     if (k === 'p' || k === 'P') { Main.togglePause(); return; }
     if (k === 'm' || k === 'M') { this.toggleSound(); return; }
+    if (k === 'n' || k === 'N') { Music.next(); return; }
     if (G.over || Main.paused) return;
     if (/^[0-9]$/.test(k)) {
       if (e.ctrlKey || e.metaKey) { e.preventDefault(); this.groups[k] = this.ownSelected().filter(x => x.kind === 'unit'); G.eva('Team ' + k + ' assigned', G.player); }

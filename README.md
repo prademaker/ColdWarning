@@ -28,7 +28,11 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Defenses: gatling turrets, rail turrets, SAM sites. Superweapons on a five-minute charge.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.
-- Procedurally generated maps (seeded), synthesized sound effects, spoken announcer lines.
+- Procedurally generated maps (seeded).
+- Audio is all synthesized in the browser, with no sound files:
+  - Layered weapon and explosion effects, panned to where they happen on screen, with reverb and theater wind ambience.
+  - Spoken announcer and unit replies (via the browser's speech engine).
+  - A generative soundtrack of seven tracks in an industrial/military rock style. Calm stretches play drums, bass, pads and arpeggios; when your forces are in combat, distorted guitars, brass stabs and a lead come in.
 
 ## Controls
 
@@ -46,7 +50,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | Primary production building | Double-click it |
 | Jump to base / last alert | `H` / `Space` |
 | Scroll | Arrow keys, screen edges, middle-mouse drag, minimap |
-| Pause / mute | `P` / `M` |
+| Pause / mute / next music track | `P` / `M` / `N` |
 
 ## Code layout
 
@@ -60,7 +64,8 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/render.js` | Isometric draw loop: terrain chunks, depth-sorted sprites, effects, fog, overlays |
 | `js/flags.js` | Faction flags as SVG |
 | `js/ui.js` | Input, camera, sidebar, minimap |
-| `js/audio.js` | Synthesized sound and announcer voice |
+| `js/audio.js` | Synthesized sound effects, ambience, announcer and unit voices |
+| `js/music.js` | Generative soundtrack that follows the battle |
 | `js/main.js` | Menu and main loop |
 
 `index.html?autoplay` runs an AI-vs-AI match, which is handy for testing balance

@@ -290,7 +290,8 @@ class Game {
     this.cols = Math.ceil(N * TILE / this.cellSize);
     this.cells = Array.from({ length: this.cols * this.cols }, () => []);
     this.evaLast = {};
-    this.listeners = { eva: [], sound: [] };
+    this.listeners = { eva: [], sound: [], voice: [] };
+    this.heat = 0;
 
     // starting forces
     this.teams.forEach((t, i) => {
@@ -321,6 +322,7 @@ class Game {
     for (const f of this.listeners.eva) f(msg);
   }
   sound(name, x, y) { for (const f of this.listeners.sound) f(name, x, y); }
+  voice(u, kind) { for (const f of this.listeners.voice) f(u, kind); }
 
   get playerTeam() { return this.teams[this.player]; }
 
@@ -475,6 +477,7 @@ class Game {
     target.hitT = this.time;
     if (attacker && !attacker.dead && attacker.team !== target.team) {
       target.lastAttacker = attacker;
+      if (target.team === this.player || attacker.team === this.player) this.heat += 1; // drives the music
       if (target.team === this.player) {
         this.eva(target.kind === 'building' ? 'Our base is under attack' : 'Unit under attack', target.team);
         if (target.kind === 'building') this.alertPos = { x: target.x, y: target.y, t: this.time };
@@ -630,7 +633,7 @@ class Game {
       const a = i * 2.4, r = Math.sqrt(i) * 1.1;
       this.setMove(u, tx + Math.cos(a) * r, ty + Math.sin(a) * r, attackMove);
     });
-    if (!quiet && units.length && units[0].team === this.player) this.sound('ack');
+    if (!quiet && units.length && units[0].team === this.player) { this.sound('ack'); this.voice(units[0], attackMove ? 'attack' : 'move'); }
   }
 
   formationSpots(tx, ty, n) {
@@ -659,7 +662,7 @@ class Game {
       u.order = { type: 'attack', target };
       u.target = target; u.path = null; u.repathT = 0;
     }
-    if (units.length && units[0].team === this.player) this.sound('ack');
+    if (units.length && units[0].team === this.player) { this.sound('ack'); this.voice(units[0], 'attack'); }
   }
 
   commandCapture(u, b) {
