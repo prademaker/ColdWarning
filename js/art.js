@@ -170,7 +170,9 @@ if (typeof SPRITE_META !== 'undefined') {
     for (const part of Object.keys(m.parts)) {
       const base = new Image(), mask = new Image();
       base.src = `assets/sprites/${key}_${part}.png`; mask.src = `assets/sprites/${key}_${part}_mask.png`;
-      SHEETS[key + '_' + part] = { base, mask };
+      let camo = null;
+      if (m.camo) { camo = new Image(); camo.src = `assets/sprites/${key}_${part}_camo.png`; }
+      SHEETS[key + '_' + part] = { base, mask, camo };
     }
   }
 }
@@ -179,13 +181,13 @@ const loaded = img => img.complete && img.naturalWidth > 0;
 
 function teamSheet(key, part, team) {
   const sh = SHEETS[key + '_' + part];
-  if (!sh || !loaded(sh.base) || !loaded(sh.mask)) return null;
+  if (!sh || !loaded(sh.base) || !loaded(sh.mask) || (sh.camo && !loaded(sh.camo))) return null;
   return Art.get(`S|${key}|${part}|${team.faction}|${team.color}`, () => {
     const w = sh.base.naturalWidth, h = sh.base.naturalHeight;
-    const layer = color => {
+    const layer = (color, img = sh.mask) => {
       const l = document.createElement('canvas'); l.width = w; l.height = h;
       const lx = l.getContext('2d');
-      lx.drawImage(sh.mask, 0, 0);
+      lx.drawImage(img, 0, 0);
       lx.globalCompositeOperation = 'source-in'; lx.fillStyle = color; lx.fillRect(0, 0, w, h);
       return l;
     };
@@ -193,10 +195,12 @@ function teamSheet(key, part, team) {
     const x = c.getContext('2d');
     x.drawImage(sh.base, 0, 0);
     if (SPRITE_META[key].style === 'voxel') {
-      // voxel units: team colour replaces the grey plates entirely, keeping their shading (RA2 style)
-      x.globalCompositeOperation = 'color'; x.globalAlpha = 0.8;
+      // voxel units: faction-tinted camouflage on the armour, solid team colour on the accent
+      // parts (fender edges, turret band, rear plate), keeping the voxels' shading
+      if (sh.camo) { x.globalCompositeOperation = 'multiply'; x.drawImage(layer(CAMO_TINT[team.faction] || '#ffffff', sh.camo), 0, 0); }
+      x.globalCompositeOperation = 'color'; x.globalAlpha = 0.85;
       x.drawImage(layer(team.color), 0, 0);
-      x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.15;
+      x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.2;
       x.drawImage(layer(team.color), 0, 0);
     } else {
       x.globalCompositeOperation = 'multiply';
@@ -396,9 +400,10 @@ function unitSprite(u, team, part) {
 }
 
 // draw a unit whose ground point projects to (sx, sy)
-// Which sprite set draws a unit type. '?tank=vox' in the URL switches tanks to the voxel model.
-const SPRITE_FOR = {};
-if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('tank') === 'vox') SPRITE_FOR.tank = 'tank_vox';
+// Which sprite set draws a unit type. Tanks use the camouflaged voxel model by default;
+// '?tank=model' in the URL switches back to the ITHappy model.
+const SPRITE_FOR = { tank: 'tank_vox' };
+if (typeof location !== 'undefined' && new URLSearchParams(location.search).get('tank') === 'model') delete SPRITE_FOR.tank;
 
 function drawUnitArt(ctx, u, team, sx, sy) {
   const m = UNIT_MODELS[u.key];

@@ -96,8 +96,9 @@ The model files are not in this repository: the pack's licence allows using them
 redistributing the files. Keep your download elsewhere and point the tool at it. Which model plays
 which unit (and its size) is configured at the top of `render.js`.
 
-The renderer also reads MagicaVoxel `.vox` files for Red Alert 2 style voxel units. Palette indices 1-8
-are the team colour ramp (stored as greys); the game recolours them per player. `assets/voxels/` holds a
-sample tank made for this game (`tools/sprites/voxel_tank.js` generates it; edit it in MagicaVoxel and
-re-run `node render.js <models> tank_vox`). Open the game with `?tank=vox` to use it instead of the
-model-based tank.
+The renderer also reads MagicaVoxel `.vox` files for Red Alert 2 style voxel units, painted in a
+middle ground between the two looks: camouflaged armour with team-coloured accents. Palette indices
+1-8 are the team colour ramp (stored as greys) and 9-11 the camouflage (stored as desert tan); the game
+recolours both per player and faction. `assets/voxels/` holds the tank made for this game, which is the
+default tank (`tools/sprites/voxel_tank.js` generates it; edit it in MagicaVoxel and re-run
+`node render.js <models> tank_vox`). Open the game with `?tank=model` to use the ITHappy tank instead.

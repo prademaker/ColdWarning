@@ -47,6 +47,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -1.5
+    "turretOffset": -1.5,
+    "camo": true
   }
 };

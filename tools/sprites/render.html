@@ -51,7 +51,7 @@ function maskTexture(tex, rule) {
 }
 
 // ---- MagicaVoxel .vox models ----
-// Palette indices 1-8 are the team colour ramp (masked for recolouring in game).
+// Palette indices 1-8 are the team colour ramp and 9-11 the camouflage (both masked for recolouring in game).
 function parseVox(buf) {
   const dv = new DataView(buf), id = o => String.fromCharCode(...new Uint8Array(buf, o, 4));
   let p = 8, size = null, voxels = null, palette = null;
@@ -77,7 +77,7 @@ function voxMesh(vox, pivot, lift) {
     const [x, y, z, c] = vox.voxels.subarray(i, i + 4);
     occ.add(x + ',' + y + ',' + z); list.push([x, y, z, c]);
   }
-  const pos = [], nor = [], col = [], mcol = [];
+  const pos = [], nor = [], col = [], mcol = [], ccol = [];
   const FACES = [
     [[1, 0, 0], [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]]], [[-1, 0, 0], [[0, 1, 0], [0, 0, 0], [0, 0, 1], [0, 1, 1]]],
     [[0, 1, 0], [[1, 1, 0], [0, 1, 0], [0, 1, 1], [1, 1, 1]]], [[0, -1, 0], [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]]],
@@ -87,12 +87,12 @@ function voxMesh(vox, pivot, lift) {
   for (const [x, y, z, c] of list) {
     const pi = (c - 1) * 4;
     tc.setRGB(vox.palette[pi] / 255, vox.palette[pi + 1] / 255, vox.palette[pi + 2] / 255, THREE.SRGBColorSpace);
-    const team = c >= 1 && c <= 8 ? 1 : 0;
+    const team = c >= 1 && c <= 8 ? 1 : 0, camo = c >= 9 && c <= 11 ? 1 : 0;
     for (const [n, q] of FACES) {
       if (occ.has((x + n[0]) + ',' + (y + n[1]) + ',' + (z + n[2]))) continue;
       const v = q.map(([a, b, d]) => [x + a - pivot[0], z + d + lift, y + b - pivot[1]]);
       for (const k of [0, 2, 1, 0, 3, 2]) { // reversed: the axis swap mirrors the winding
-        pos.push(...v[k]); nor.push(n[0], n[2], n[1]); col.push(tc.r, tc.g, tc.b); mcol.push(team, team, team);
+        pos.push(...v[k]); nor.push(n[0], n[2], n[1]); col.push(tc.r, tc.g, tc.b); mcol.push(team, team, team); ccol.push(camo, camo, camo);
       }
     }
   }
@@ -101,7 +101,7 @@ function voxMesh(vox, pivot, lift) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   const mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
-  VOX_COLORS.set(g, { colors: g.getAttribute('color'), mask: new THREE.Float32BufferAttribute(mcol, 3) });
+  VOX_COLORS.set(g, { colors: g.getAttribute('color'), mask: new THREE.Float32BufferAttribute(mcol, 3), camo: new THREE.Float32BufferAttribute(ccol, 3) });
   return mesh;
 }
 
@@ -120,14 +120,14 @@ async function loadVoxModel(cfg) {
   return root;
 }
 
-function maskMaterials(root, rules) {
+function maskMaterials(root, rules, which = 'mask') {
   const saved = new Map();
   root.traverse(o => {
     if (!o.isMesh) return;
     saved.set(o, o.material);
     const vc = VOX_COLORS.get(o.geometry);
     if (vc) {
-      o.geometry.setAttribute('color', vc.mask);
+      o.geometry.setAttribute('color', vc[which]);
       o.material = new THREE.MeshBasicMaterial({ vertexColors: true });
       return;
     }
@@ -176,8 +176,8 @@ async function renderSheet(cfg) {
     lights(scene);
     const holder = new THREE.Group(); holder.add(obj); scene.add(holder);
     const sheets = {};
-    for (const pass of ['base', 'mask']) {
-      const restore = pass === 'mask' ? maskMaterials(obj, cfg.mask || {}) : () => {};
+    for (const pass of cfg.vox ? ['base', 'mask', 'camo'] : ['base', 'mask']) {
+      const restore = pass !== 'base' ? maskMaterials(obj, cfg.mask || {}, pass) : () => {};
       const sheet = document.createElement('canvas');
       sheet.width = C * COLS; sheet.height = C * ROWS;
       const sx = sheet.getContext('2d');
@@ -189,7 +189,7 @@ async function renderSheet(cfg) {
         sx.drawImage(renderer.domElement, (f % COLS) * C, Math.floor(f / COLS) * C);
       }
       restore();
-      if (pass === 'mask') {
+      if (pass !== 'base') {
         // luminance -> alpha, limited by the base sheet's coverage
         const base = sheets.base.getContext('2d').getImageData(0, 0, sheet.width, sheet.height).data;
         const d = sx.getImageData(0, 0, sheet.width, sheet.height), p = d.data;
@@ -201,7 +201,9 @@ async function renderSheet(cfg) {
       }
       sheets[pass] = sheet;
     }
-    out[part] = { base: sheets.base.toDataURL('image/png'), mask: sheets.mask.toDataURL('image/png') };
+    out[part] = {};
+    for (const [pass, c] of Object.entries(sheets)) out[part][pass] = c.toDataURL('image/png');
+    if (sheets.camo) meta.camo = true;
     meta.parts[part] = true;
   }
   return { meta, images: out };
