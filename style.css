@@ -34,11 +34,13 @@ h3 { font-family: var(--head); font-weight: 500; font-size: 13px; letter-spacing
 .m-tag .t1 { font-size: 22px; letter-spacing: 6px; color: #b7d3f2; font-weight: 400; }
 .m-tag .t2 { font-size: 12px; letter-spacing: 3px; color: #8ea4bb; margin-top: 10px; }
 .menu-inner { max-width: 1480px; margin: 0 auto; padding: 22px 24px 18px; }
-#factions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+#factions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.fside { grid-column: 1 / -1; font-family: var(--head); font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: #a7b6c6; margin: 4px 0 -2px; }
+.fside b { color: var(--text); font-weight: 600; }
 .faction { text-align: left; padding: 0; background: var(--panel); border: 2px solid rgba(255,255,255,0.08); color: var(--text); border-radius: 3px;
   transition: transform .15s, box-shadow .15s, border-color .15s; overflow: hidden; display: flex; flex-direction: column; }
-.faction.west { border-color: rgba(61,139,255,0.45); }
-.faction.east { border-color: rgba(232,65,58,0.45); }
+.faction.allies { border-color: rgba(61,139,255,0.45); }
+.faction.axis { border-color: rgba(232,65,58,0.45); }
 .faction:hover { transform: translateY(-2px); }
 .faction.sel { border-color: var(--fc); box-shadow: 0 0 0 1px var(--fc), 0 0 28px -4px var(--fc); }
 .fhead { display: flex; align-items: center; gap: 12px; padding: 12px; background: linear-gradient(90deg, color-mix(in srgb, var(--fc) 26%, transparent), transparent 85%);
@@ -54,6 +56,7 @@ h3 { font-family: var(--head); font-weight: 500; font-size: 13px; letter-spacing
 .fspecial { padding: 2px 12px 12px; color: var(--dim); font-size: 13px; }
 .fsig { padding: 3px 12px 0; color: #e8eef5; font-size: 13px; }
 .fsig span { color: var(--dim); font-size: 12px; }
+.fsig + .fsig { padding-top: 2px; }
 .m-row { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; align-items: stretch; }
 .m-box { background: var(--panel); border: 1px solid var(--edge); padding: 12px 14px; border-radius: 3px; }
 .m-box.grow { flex: 1; }

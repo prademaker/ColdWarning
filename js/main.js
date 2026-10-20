@@ -47,17 +47,26 @@ const Main = {
     const s = this.settings;
     const fbox = document.getElementById('factions');
     fbox.innerHTML = '';
-    for (const [id, f] of Object.entries(FACTIONS)) {
+    // Allies first, then the Axis, each under its own heading
+    const brief = key => defOf(key).desc.replace(/^[\w ]+ only\. /, '');
+    for (const [id, f] of Object.entries(FACTIONS).sort((a, b) => (a[1].side === 'allies' ? 0 : 1) - (b[1].side === 'allies' ? 0 : 1))) {
+      if (!fbox.querySelector('.fside.' + f.side)) {
+        const h = document.createElement('div');
+        h.className = 'fside ' + f.side;
+        h.innerHTML = `<b>${SIDES[f.side].name}</b> · ${SIDES[f.side].tagline}`;
+        fbox.appendChild(h);
+      }
       const card = document.createElement('button');
       card.className = 'faction ' + f.side + (s.faction === id ? ' sel' : '');
       card.style.setProperty('--fc', f.color);
       const special = f.pkg === 'tech' ? 'Railgun Tank · Orbital Lance' : 'Titan Tank · Hypersonic Silo';
       card.innerHTML = `<div class="fhead"><img class="flag" src="${FLAGS[id]}" alt=""><div><div class="fname">${f.name}</div>
         <div class="ftag">${f.tagline.toUpperCase().split(' / ').join(' &nbsp;/&nbsp; ')}</div></div></div>
-        <div class="funits">${['tank', 'heli', 'jet'].map(k => `<div class="fu"><img src="assets/cameos/${id}/${k}.webp" alt=""><span>${f.names[k]}</span></div>`).join('')}</div>
+        <div class="funits">${['tank', 'heli', 'jet'].map(k => `<div class="fu"><img src="assets/cameos/${cameoFaction(id)}/${k}.webp" alt=""><span>${f.names[k]}</span></div>`).join('')}</div>
         <div class="fbonus">★ ${f.bonusText}</div>
-        <div class="fsig">◆ ${nameOf(f.signature, id)} <span>${defOf(f.signature).desc.replace(/^\w+ only\. /, '')}</span></div>
-        <div class="fspecial">${SIDES[f.side].name} bloc · ${special}</div>`;
+        <div class="fsig">◆ ${nameOf(f.signature, id)} <span>${brief(f.signature)}</span></div>
+        <div class="fsig">■ ${nameOf(f.edge, id)} <span>${brief(f.edge)}</span></div>
+        <div class="fspecial">${SIDES[f.side].name} · ${special}</div>`;
       card.addEventListener('click', () => { s.faction = id; if (s.enemy === id) s.enemy = 'random'; this.buildMenu(); });
       fbox.appendChild(card);
     }

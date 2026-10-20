@@ -35,12 +35,15 @@ const MODELS = {
   iskander_vox: { vox: { hull: 'iskander_hull.vox', turret: 'iskander_turret.vox' }, pivot: [17, 7.5], turretPivot: [13, 4], mount: [13, 7.5, 7], turret: 'turret', k: 1.0, cell: 88 },
   drone_vox: { vox: { hull: 'drone.vox' }, pivot: [11, 14], k: 1.0, cell: 72 },
   kirov_vox: { vox: { hull: 'kirov.vox' }, pivot: [23, 10.5], k: 1.5, cell: 160 },
-  ...Object.fromEntries(['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando'].flatMap(kind => [0, 1, 2].map(f =>
+  aegis_vox: { vox: { hull: 'aegis_hull.vox', turret: 'aegis_turret.vox' }, pivot: [13.5, 8], turretPivot: [6, 6], mount: [12, 8, 9], turret: 'turret', k: 1.0, cell: 64 },
+  raijin_vox: { vox: { hull: 'raijin_hull.vox', turret: 'raijin_turret.vox' }, pivot: [6.5, 7.5], turretPivot: [7, 7], mount: [6.5, 7.5, 13], turret: 'turret', k: 1.15, cell: 72 },
+  demotruck_vox: { vox: { hull: 'demotruck.vox' }, pivot: [13.5, 7], k: 1.0, cell: 64 },
+  ...Object.fromEntries(['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando', 'sas', 'hacker'].flatMap(kind => [0, 1, 2].map(f =>
     [`${kind}_vox_${f}`, { vox: { hull: `${kind}_${f}.vox` }, pivot: [2.5, 3.5], k: 1.25, cell: 40, anchor: 0.75 }]))),
   // structures (tools/sprites/voxel_buildings.js): 1 voxel = 2 game px, one facing, pivot at the footprint centre
   ...Object.fromEntries(Object.entries({
     cc: [3, 3], power: [2, 2], refinery: [3, 3], barracks: [2, 2], factory: [3, 3], radar: [2, 2], airfield: [3, 2],
-    tech: [2, 2], hub: [2, 2], laser: [1, 1], super_lance: [3, 3], super_silo: [3, 3], super_silo_open: [3, 3], turret: [1, 1], railturret: [1, 1], sam: [1, 1],
+    tech: [2, 2], hub: [2, 2], laser: [1, 1], thaad: [2, 2], koksan: [2, 2], gchq: [2, 2], robotics: [2, 2], krasukha: [2, 2], propaganda: [1, 1], super_lance: [3, 3], super_silo: [3, 3], super_silo_open: [3, 3], turret: [1, 1], railturret: [1, 1], sam: [1, 1],
   }).map(([key, [w, h]]) => {
     const W = w * 16, H = h * 16, span = (W + H) * 2, cell = span + 24;
     return [`b_${key}`, { vox: { hull: `b_${key}.vox` }, pivot: [W / 2, H / 2], k: 2, cell, anchor: (cell - 12 - span / 4) / cell, facings: 1 }];
@@ -50,6 +53,8 @@ const MODELS = {
   b_railturret_gun: { vox: { hull: 'b_railturret_gun.vox' }, pivot: [5.5, 5.5], lift: 5, k: 2, cell: 80, anchor: 0.62 },
   b_sam_gun: { vox: { hull: 'b_sam_gun.vox' }, pivot: [5.5, 5.5], lift: 3, k: 2, cell: 64, anchor: 0.62 },
   b_laser_gun: { vox: { hull: 'b_laser_gun.vox' }, pivot: [5.5, 5.5], lift: 10, k: 2, cell: 72, anchor: 0.62 },
+  b_thaad_gun: { vox: { hull: 'b_thaad_gun.vox' }, pivot: [7, 7], lift: 2, k: 2, cell: 80, anchor: 0.62 },
+  b_koksan_gun: { vox: { hull: 'b_koksan_gun.vox' }, pivot: [6, 6], lift: 4, k: 2, cell: 112, anchor: 0.6 },
   heli: { file: 'Helicopter_001.glb', k: 2.8, cell: 120, anchor: 0.7, hide: ['Blade_001'], rotor: 'Blade_001', mask: { Color: 'dark' } },
 };
 

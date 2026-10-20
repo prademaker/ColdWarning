@@ -726,5 +726,230 @@ const SPRITE_META = {
     },
     "style": "voxel",
     "camo": true
+  },
+  "aegis_vox": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1.5,
+    "camo": true
+  },
+  "raijin_vox": {
+    "cell": 72,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 0,
+    "camo": true
+  },
+  "demotruck_vox": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sas_vox_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sas_vox_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sas_vox_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hacker_vox_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hacker_vox_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hacker_vox_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_thaad": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_koksan": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_gchq": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_robotics": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_krasukha": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_propaganda": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_thaad_gun": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 49.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_koksan_gun": {
+    "cell": 112,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 56,
+    "ay": 67,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
   }
 };
