@@ -147,8 +147,9 @@ const Save = {
   // a short description of the running match, shown in the save list
   describe() {
     const M = G.mission, pt = G.playerTeam;
-    const what = M ? 'Campaign · ' + M.def.title : G.mode === 'defense' ? 'Defense · wave ' + G.waves.wave + ' of ' + G.waves.total :
+    let what = M ? 'Campaign · ' + M.def.title : G.mode === 'defense' ? 'Defense · wave ' + G.waves.wave + ' of ' + G.waves.total :
       'Skirmish · ' + G.teams.length + ' players';
+    if (G.superweapons === false) what += ' · no superweapons';
     return { what, faction: pt.faction, theater: G.map.theater, time: Math.round(G.time), at: Date.now() };
   },
 
