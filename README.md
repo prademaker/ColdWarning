@@ -75,6 +75,12 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Garrisons, Red Alert 2 style: villages of civilian buildings dot the map, and infantry can move into them (or into your own
   Battle Bunker) to fire out of the windows with extra range and punch, untouchable until the building falls. A held building
   changes hands with its occupants; flamethrowers, thermobaric rockets and bombs burn the occupants out.
+- Height levels: every map has the sea, the plain and raised hills behind cliff faces, with three-tile ramps as the only
+  way up. Units and structures on a hilltop see two tiles further, reach a tile further, and take a quarter less damage
+  from fire coming up from the plain. Map generation keeps every base connected, climbing over a hill by its ramps where
+  a road has to.
+- Bridges over narrow water, where they save a long way round (ships sail underneath). Ctrl + right-click one to bring
+  it down with whatever is on it; right-click a broken bridge with an Engineer to rebuild it.
 - Riflemen dig in behind sandbags: half the damage taken and a longer-ranged gun, but they can't move until they get up again.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
 - Upgrades. Research sits at the end of the Infantry, Armor, Air and Navy tabs (one at a time per tab, once per match):
@@ -124,6 +130,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | Select all of a type on screen | Double-click |
 | Move / attack / harvest / capture / garrison | Right click |
 | Attack-move | `A` then click, or Ctrl + right click |
+| Destroy a bridge | Ctrl + right click on it (an Engineer right-clicked on a broken one repairs it) |
 | Stop / deploy MCV | `S` / `D` (or click a selected MCV) |
 | Dig riflemen in or out / empty a garrison / lay a mine | `D` with them (or the building, or a Mine Layer) selected |
 | Control groups | Ctrl+`1-9` to assign, `1-9` to recall (twice to jump) |
@@ -141,7 +148,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | File | Purpose |
 | --- | --- |
 | `js/config.js` | Factions, unit and structure stats, damage tables |
-| `js/map.js` | Seeded terrain and ore generation, A* pathfinding |
+| `js/map.js` | Seeded terrain, hills, ramps, bridges and ore generation, A* pathfinding |
 | `js/game.js` | Simulation: units, combat, harvesting, production, power, fog |
 | `js/ai.js` | Computer opponent |
 | `js/waves.js` | Defense mode waves |

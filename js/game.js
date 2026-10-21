@@ -424,6 +424,7 @@ class Game {
     this.heat = 0;
 
     for (const c of this.map.civ) this.placeBuilding(c.key, NEUTRAL, c.tx, c.ty).built = 1;
+    this.map.bridges.forEach((br, k) => this.addBridge(k));
 
     // starting forces
     this.teams.forEach((t, i) => {
@@ -580,6 +581,50 @@ class Game {
       if (this.map.bld[i] === b.id) this.map.bld[i] = -1;
     }
   }
+
+  // A bridge is a structure nobody owns, lying over its span of water without blocking it.
+  // Brought down it stays on the map as a ruin (hp 0) for an Engineer to repair.
+  addBridge(k) {
+    const br = this.map.bridges[k], b = new Building('bridge', NEUTRAL, br.x, br.y);
+    b.w = br.w; b.h = br.h; b.x = (br.x + br.w / 2) * TILE; b.y = (br.y + br.h / 2) * TILE;
+    b.built = 1; b.span = k;
+    this.entities.push(b); this.byId.set(b.id, b);
+    return b;
+  }
+
+  bridgeUp(b) { return this.map.bridges[b.span].up; }
+
+  collapseBridge(b, attacker) {
+    const br = this.map.bridges[b.span], m = this.map;
+    if (!br.up) return;
+    br.up = false; b.hp = 0; b.target = null;
+    for (let y = br.y; y < br.y + br.h; y++) for (let x = br.x; x < br.x + br.w; x++) {
+      const px = x * TILE + TILE / 2, py = y * TILE + TILE / 2;
+      this.explosion(px, py, 26, (x + y) % 2 === 0, Math.random() * 0.8);
+      this.effects.push({ type: 'splash', x: px, y: py, t: -Math.random() * 0.8, life: 1.4, size: 16 });
+    }
+    // everything on the deck goes into the water
+    for (const u of this.entities) {
+      if (u.kind !== 'unit' || u.dead || u.air || u.mode !== MOVE_LAND || !m.inside(u.tx, u.ty)) continue;
+      if (m.bridgeAt[m.idx(u.tx, u.ty)] === b.span) this.kill(u, attacker);
+    }
+    for (const e of this.entities) if (e.kind === 'unit' && e.path) e.repath = true;
+    if (this.explored[m.idx(br.ends[0][0], br.ends[0][1])] || this.explored[m.idx(br.ends[1][0], br.ends[1][1])]) this.eva('Bridge destroyed', this.player);
+    this.shake = Math.max(this.shake, 8);
+  }
+
+  // an Engineer at a bridgehead puts the whole span back up (and is used up doing it)
+  mendBridge(b, u) {
+    const br = this.map.bridges[b.span];
+    br.up = true; b.hp = b.maxHp;
+    this.removeEntity(u);
+    for (const e of this.entities) if (e.kind === 'unit' && e.path) e.repath = true;
+    this.eva('Bridge repaired', u.team);
+    this.sound('capture', b.x, b.y);
+  }
+
+  // whether a team may shoot at something: an enemy, or a bridge it was told to bring down
+  foe(t, team) { return t.def.bridge ? t.hp > 0 && this.bridgeUp(t) : this.hostile(t.team, team); }
 
   // nearest passable, building-free tile to (tx,ty) for a unit moving by mode
   findFreeTile(tx, ty, mode = MOVE_LAND) {
@@ -803,7 +848,7 @@ class Game {
     const d = distTo(b.x, b.y, t);
     for (const u of g) {
       const w = this.weaponFor(u, t);
-      if (!w || d > (w.range + GARRISON.range) * TILE + Math.min(b.w, b.h) * TILE / 2 + 8) continue;
+      if (!w || d > (this.reach(b, w) + GARRISON.range) * TILE + Math.min(b.w, b.h) * TILE / 2 + 8) continue;
       const isW2 = w === u.def.weapon2;
       if ((isW2 ? u.cool2 : u.cool) > 0) continue;
       u.facing = Math.atan2(t.y - u.y, t.x - u.x);
@@ -903,10 +948,12 @@ class Game {
 
   // ---------- damage ----------
   damage(target, amount, warhead, attacker) {
-    if (target.dead) return;
+    if (target.dead || (target.def.bridge && !this.bridgeUp(target))) return;
     const mult = WARHEADS[warhead][armorOf(target)];
     if (!mult) return;
     let dmg = amount * mult;
+    // fire from below at something up on a hill
+    if (attacker && !attacker.air && !target.air && this.elevated(target) && !this.elevated(attacker)) dmg *= HIGH_GROUND.uphill;
     if (target.kind === 'unit') dmg *= RANK_ARMOR[target.rank];
     if (target.dug) dmg *= target.def.dig.armor;
     if (target.armorMul) dmg *= target.armorMul;
@@ -944,7 +991,7 @@ class Game {
         target.guard = [target.x, target.y];
       }
     }
-    if (target.hp <= 0) this.kill(target, attacker);
+    if (target.hp <= 0) { if (target.def.bridge) this.collapseBridge(target, attacker); else this.kill(target, attacker); }
   }
 
   // special hit effects: a Reaper's laser designation, a Raijin's EMP
@@ -989,7 +1036,7 @@ class Game {
       } else {
         this.explosion(e.x, e.y, e.def.radius * 2.2, true, 0, e.alt);
         if (e.air) this.effects.push({ type: 'falling', x: e.x, y: e.y, alt: e.alt, t: 0, life: 0.6 });
-        else if (this.map.isWater(e.tx, e.ty)) {
+        else if (this.map.openWater(e.tx, e.ty)) {
           // a ship goes down: the burning hull settles into a ring of foam
           this.effects.push({ type: 'sinking', key: e.key, team: e.team, x: e.x, y: e.y, facing: e.facing, t: 0, life: 2.4 });
           this.effects.push({ type: 'splash', x: e.x, y: e.y, t: 0, life: 1.6, size: e.def.radius * 2 });
@@ -1094,9 +1141,15 @@ class Game {
 
   maxRange(e) {
     let r = 0;
-    for (const w of this.weaponsOf(e)) r = Math.max(r, w.range);
+    for (const w of this.weaponsOf(e)) r = Math.max(r, this.reach(e, w));
     return r;
   }
+
+  // up on a hill (ground units and structures; a ramp doesn't count)
+  elevated(e) { return !e.air && this.map.high(e.tx, e.ty); }
+  // a weapon's reach in tiles from where its holder stands, and how far that holder sees
+  reach(e, w) { return w.range + (this.elevated(e) ? HIGH_GROUND.range : 0); }
+  sightOf(e) { return e.def.sight + (this.elevated(e) ? HIGH_GROUND.sight : 0); }
 
   // Units come first (armed ones by preference), then structures; bombers go for structures
   // first. Walls only draw fire when nothing else is in reach.
@@ -1168,11 +1221,14 @@ class Game {
   formationSpots(tx, ty, n, mode = MOVE_LAND) {
     const spots = [];
     const m = this.map;
+    // a click on a hill (or below one) keeps everyone on that level rather than round by a ramp
+    const level = m.inside(tx, ty) && !m.ramp[m.idx(tx, ty)] ? m.height[m.idx(tx, ty)] : -1;
     // ships spread wider: they are big, and a click on the shore should still find water
     for (let r = 0; spots.length < n && r < (mode === MOVE_LAND ? 10 : 16); r++) {
       for (let y = ty - r; y <= ty + r; y++) for (let x = tx - r; x <= tx + r; x++) {
         if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) !== r) continue;
-        if (m.passable(x, y, mode) && (mode === MOVE_LAND || (x + y) % 2 === 0 || r > 6)) spots.push([x, y]);
+        if (!m.passable(x, y, mode) || (level >= 0 && m.height[m.idx(x, y)] !== level && !m.ramp[m.idx(x, y)])) continue;
+        if (mode === MOVE_LAND || (x + y) % 2 === 0 || r > 6) spots.push([x, y]);
       }
     }
     return spots;
@@ -1188,7 +1244,7 @@ class Game {
 
   commandAttack(units, target) {
     for (const u of units) {
-      if (u.def.engineer && target.kind === 'building') { if (target.def.cat !== 'civilian') this.commandCapture(u, target); continue; }
+      if (u.def.engineer && target.kind === 'building') { if (target.def.cat !== 'civilian' && !target.def.bridge) this.commandCapture(u, target); continue; }
       if (u.def.demo && target.kind === 'building') { this.commandDemolish(u, target); continue; }
       if (!this.canHit(u, target)) continue;
       u.order = { type: 'attack', target };
@@ -1321,7 +1377,7 @@ class Game {
     const pid = this.player;
     for (const e of this.entities) {
       if (!this.allied(e.team, pid) || e.dead) continue;
-      const r = e.def.sight;
+      const r = this.sightOf(e);
       const cx = e.x / TILE, cy = e.y / TILE;
       const rr = r + (e.kind === 'building' ? Math.max(e.w, e.h) / 2 : 0);
       const x0 = Math.max(0, Math.floor(cx - rr)), x1 = Math.min(N - 1, Math.ceil(cx + rr));
@@ -1480,7 +1536,7 @@ class Game {
 
     if (o && o.type === 'demo') {
       const b = o.target;
-      if (b.dead || !this.hostile(b.team, u.team)) { u.order = null; return; }
+      if (b.dead || !this.foe(b, u.team)) { u.order = null; return; }
       if (distTo(u.x, u.y, b) < TILE * 0.8) {
         u.facing = Math.atan2(b.y - u.y, b.x - u.x);
         u.plantT = (u.plantT || 0) + dt;
@@ -1490,6 +1546,20 @@ class Game {
       u.repathT = (u.repathT || 0) - dt;
       if (!u.path || u.repathT <= 0 || u.repath) { this.pathToEntity(u, b, 1); u.repathT = 1.5; }
       this.moveAlong(u, dt);
+      return;
+    }
+
+    if (o && o.type === 'capture' && o.target.def.bridge) {
+      const b = o.target, br = this.map.bridges[b.span];
+      if (br.up && b.hp >= b.maxHp) { u.order = null; return; }
+      // to the nearer bridgehead; the far one if the near one can't be reached
+      const d = e => Math.hypot((e[0] + 0.5) * TILE - u.x, (e[1] + 0.5) * TILE - u.y);
+      if (o.end === undefined) o.end = d(br.ends[0]) <= d(br.ends[1]) ? 0 : 1;
+      const end = br.ends[o.end];
+      if (d(end) < TILE * 1.6) { this.mendBridge(b, u); return; }
+      u.repathT = (u.repathT || 0) - dt;
+      if (!u.path || u.repathT <= 0 || u.repath) { this.computePath(u, end[0], end[1], 0); u.repathT = 1.5; }
+      if (this.moveAlong(u, dt)) { o.end = 1 - o.end; u.path = null; }
       return;
     }
 
@@ -1519,7 +1589,7 @@ class Game {
     }
 
     // engage current target
-    if (u.target && (u.target.dead || !this.hostile(u.target.team, u.team))) u.target = null;
+    if (u.target && (u.target.dead || !this.foe(u.target, u.team))) u.target = null;
     if (u.target && (!this.canHit(u, u.target) || distTo(u.x, u.y, u.target) > this.stealthRange(u.target, u))) u.target = null;
     if (u.target && u.order && u.order.type === 'move') u.target = null;
 
@@ -1527,7 +1597,7 @@ class Game {
     u.scanT -= dt;
     if (!u.target && u.def.weapon && u.scanT <= 0 && (!u.order || u.order.type === 'amove' || u.order.type === 'guard')) {
       u.scanT = 0.4;
-      const t = this.findTarget(u, u.order && u.order.type === 'amove' ? u.def.sight : Math.max(this.maxRange(u), u.def.sight - 1));
+      const t = this.findTarget(u, u.order && u.order.type === 'amove' ? this.sightOf(u) : Math.max(this.maxRange(u), this.sightOf(u) - 1));
       if (t) { u.target = t; u.guard = u.order ? null : [u.x, u.y]; }
     }
 
@@ -1536,7 +1606,7 @@ class Game {
       const t = u.target;
       const w = this.weaponFor(u, t);
       const d = distTo(u.x, u.y, t);
-      const range = w.range * TILE + (t.kind === 'unit' ? 4 : 8);
+      const range = this.reach(u, w) * TILE + (t.kind === 'unit' ? 4 : 8);
       const minR = (w.minRange || 0) * TILE;
       // idle units shouldn't wander off chasing forever
       if (!u.order && u.guard && Math.hypot(u.x - u.guard[0], u.y - u.guard[1]) > (u.def.sight + 3) * TILE) {
@@ -1575,7 +1645,7 @@ class Game {
       if (u.air) { this.flyToward(u, t.x, t.y, dt); return; }
       u.repathT = (u.repathT || 0) - dt;
       if (!u.path || u.repathT <= 0 || u.repath || u.pathI >= u.path.length) {
-        this.pathToEntity(u, t, Math.max(1, w.range - 0.7));
+        this.pathToEntity(u, t, Math.max(1, this.reach(u, w) - 0.7));
         u.repathT = 1.0;
       }
       this.moveAlong(u, dt);
@@ -1616,13 +1686,13 @@ class Game {
   }
   // whether a weapon of a unit can fire at a target right now (in reach, and not hidden from it)
   inReach(u, w, t) {
-    if (!t || t.dead || !this.hostile(t.team, u.team) || !this.fits(w, t)) return false;
+    if (!t || t.dead || !this.foe(t, u.team) || !this.fits(w, t)) return false;
     const d = distTo(u.x, u.y, t);
-    return d <= w.range * TILE + (t.kind === 'unit' ? 4 : 8) && d >= (w.minRange || 0) * TILE && (t.kind !== 'unit' || d <= this.stealthRange(t, u));
+    return d <= this.reach(u, w) * TILE + (t.kind === 'unit' ? 4 : 8) && d >= (w.minRange || 0) * TILE && (t.kind !== 'unit' || d <= this.stealthRange(t, u));
   }
   subTarget(u, w) {
     let best = null, bs = 1e9;
-    for (const o of this.unitsNear(u.x, u.y, w.range * TILE + 32)) {
+    for (const o of this.unitsNear(u.x, u.y, this.reach(u, w) * TILE + 32)) {
       if (!this.inReach(u, w, o)) continue;
       const d = Math.hypot(o.x - u.x, o.y - u.y);
       if (d < bs) { bs = d; best = o; }
@@ -1711,7 +1781,11 @@ class Game {
       return u.pathI >= u.path.length;
     }
     const nx = u.x + Math.cos(a) * sp, ny = u.y + Math.sin(a) * sp;
-    u.x = nx; u.y = ny;
+    if (!this.canCross(u, nx, ny, true)) {
+      // pushed off the line onto a cliff edge: back to the middle of the tile, then on
+      const cx = u.tx * TILE + TILE / 2, cy = u.ty * TILE + TILE / 2, cd = Math.hypot(cx - u.x, cy - u.y);
+      if (cd > 1) { u.x += (cx - u.x) / cd * Math.min(cd, sp); u.y += (cy - u.y) / cd * Math.min(cd, sp); }
+    } else { u.x = nx; u.y = ny; }
     // stuck detection
     u.stuckT += dt;
     if (u.stuckT > 1.5) {
@@ -1755,7 +1829,17 @@ class Game {
   nudge(u, dx, dy) {
     if (u.dug) return;
     const nx = u.x + dx, ny = u.y + dy;
-    if (u.air || this.map.passable(Math.floor(nx / TILE), Math.floor(ny / TILE), u.mode)) { u.x = nx; u.y = ny; }
+    if (u.air || this.canCross(u, nx, ny)) { u.x = nx; u.y = ny; }
+  }
+
+  // whether a ground unit can move from where it is to (nx, ny) without climbing or dropping a
+  // cliff on the way; open ground is checked too unless it is following its path (which may
+  // start inside the factory that built it)
+  canCross(u, nx, ny, onPath) {
+    const m = this.map, tx = Math.floor(nx / TILE), ty = Math.floor(ny / TILE);
+    if (!onPath && !m.passable(tx, ty, u.mode)) return false;
+    if ((tx === u.tx && ty === u.ty) || !m.inside(u.tx, u.ty) || !m.inside(tx, ty)) return true;
+    return m.step(m.idx(u.tx, u.ty), m.idx(tx, ty));
   }
 
   // ---------- harvesting ----------
@@ -1893,9 +1977,9 @@ class Game {
       b.burstT -= dt;
       if (b.burstT <= 0 && b.target && !b.target.dead) { this.fire(b, w, b.target); b.burst--; b.burstT = 0.2; }
     }
-    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || distTo(b.x, b.y, b.target) > Math.min(w.range * TILE + 8, this.stealthRange(b.target, b)))) b.target = null;
+    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || distTo(b.x, b.y, b.target) > Math.min(this.reach(b, w) * TILE + 8, this.stealthRange(b.target, b)))) b.target = null;
     b.scanT -= dt;
-    if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, w.range); }
+    if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, this.reach(b, w)); }
     if (b.target) {
       const a = Math.atan2(b.target.y - b.y, b.target.x - b.x);
       b.turret = turnToward(b.turret, a, 6 * dt);
@@ -2060,7 +2144,7 @@ class Game {
         const p = {
           type: w.proj === 'bomb' ? 'arty' : w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: by,
           dmg, warhead: w.warhead, splash: w.splash || 0, speed: (w.speed || 12) * TILE, t: 0,
-          ang: Math.atan2(ty - sy, tx - sx), hot,
+          ang: Math.atan2(ty - sy, tx - sx), hot, aim: t.def.bridge ? t : null,
         };
         if (w.proj === 'arty') {
           p.tx += (Math.random() - 0.5) * TILE * 1.5; p.ty += (Math.random() - 0.5) * TILE * 1.5;
@@ -2198,7 +2282,7 @@ class Game {
         if (d < R) this.damage(o, p.dmg * (1 - d / R * 0.6), p.warhead, p.src);
       }
       for (const o of this.entities) {
-        if (o.kind !== 'building' || !this.hostile(o.team, p.team) || o.dead) continue;
+        if (o.kind !== 'building' || o.dead || !(this.hostile(o.team, p.team) || (p.aim === o && this.foe(o, p.team)))) continue;
         if (distTo(p.tx, p.ty, o) < R * 0.6) this.damage(o, p.dmg, p.warhead, p.src);
       }
       this.explosion(p.tx, p.ty, 22, false);
