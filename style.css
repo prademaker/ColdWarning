@@ -124,8 +124,8 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 #btn-super { flex: none; font-size: 12px; letter-spacing: 1px; }
 #btn-super.ready { background: #6a1010; border-color: #f55; color: #fff; animation: blink .5s infinite alternate; }
 #tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--edge2); }
-.tab { flex: 1; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--dim); font-size: 12px; padding: 6px 0 5px;
-  font-family: var(--head); letter-spacing: 1px; text-transform: uppercase; }
+.tab { flex: 1 1 auto; min-width: 0; background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--dim); font-size: 11px; padding: 6px 1px 5px;
+  font-family: var(--head); letter-spacing: .4px; text-transform: uppercase; }
 .tab.active { color: #fff; border-bottom-color: var(--team); background: linear-gradient(0deg, color-mix(in srgb, var(--team) 20%, transparent), transparent); }
 .tab.disabled { opacity: .35; }
 .tab.ready:not(.active) { color: #7f7; animation: blink .5s infinite alternate; }

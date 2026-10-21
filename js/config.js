@@ -16,7 +16,7 @@ const FACTIONS = {
     color: '#3d8bff', dark: '#1d4e9e', light: '#9cc6ff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#a08f68', '#7a6b4b', '#c2b088'],
-    names: { rifle: 'Rifleman', tank: 'M1A3 Abrams', ifv: 'Stryker IFV', mlrs: 'M142 HIMARS', sniper: 'Marine Sniper', heli: 'AH-64E Apache', jet: 'F-35 Lightning II', sam: 'Patriot SAM' },
+    names: { rifle: 'Rifleman', tank: 'M1A3 Abrams', ifv: 'Stryker IFV', mlrs: 'M142 HIMARS', sniper: 'Marine Sniper', heli: 'AH-64E Apache', jet: 'F-35 Lightning II', sam: 'Patriot SAM', patrol: 'Mk VI Patrol Boat', destroyer: 'Arleigh Burke Destroyer', sub: 'Virginia-class Submarine', cruiser: 'Ticonderoga Cruiser' },
     bonus: { hp: { air: 1.25 } }, bonusText: 'Aircraft +25% armor', signature: 'drone', edge: 'thaad',
   },
   eu: {
@@ -24,7 +24,7 @@ const FACTIONS = {
     color: '#4a72ff', dark: '#22379c', light: '#a9bcff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#5f6a55', '#454d3e', '#7b8670'],
-    names: { rifle: 'Special Forces', tank: 'Leopard 2A7', ifv: 'Boxer IFV', mlrs: 'MARS II', sniper: 'Designated Marksman', heli: 'NH90 TTH', jet: 'Eurofighter Typhoon', sam: 'IRIS-T SLM' },
+    names: { rifle: 'Special Forces', tank: 'Leopard 2A7', ifv: 'Boxer IFV', mlrs: 'MARS II', sniper: 'Designated Marksman', heli: 'NH90 TTH', jet: 'Eurofighter Typhoon', sam: 'IRIS-T SLM', patrol: 'Combattante Patrol Boat', destroyer: 'Horizon Frigate', sub: 'Type 212 Submarine', cruiser: 'FREMM Missile Frigate' },
     bonus: { hp: { defense: 1.3 }, dmg: { defense: 1.2 } }, bonusText: 'Defenses +30% armor, +20% firepower', signature: 'aegis', edge: 'laser',
   },
   uk: {
@@ -32,7 +32,7 @@ const FACTIONS = {
     color: '#5b6ee8', dark: '#2a358c', light: '#b3bcff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#8a8466', '#655f48', '#a8a282'],
-    names: { rifle: 'Royal Marine', tank: 'Challenger 3', ifv: 'Ajax Recon', mlrs: 'M270A2 MLRS', sniper: 'Royal Marines Sniper', heli: 'Apache AH-64E', jet: 'F-35B Lightning', sam: 'Sky Sabre' },
+    names: { rifle: 'Royal Marine', tank: 'Challenger 3', ifv: 'Ajax Recon', mlrs: 'M270A2 MLRS', sniper: 'Royal Marines Sniper', heli: 'Apache AH-64E', jet: 'F-35B Lightning', sam: 'Sky Sabre', patrol: 'River-class Patrol Ship', destroyer: 'Type 45 Destroyer', sub: 'Astute-class Submarine', cruiser: 'Type 26 Frigate' },
     bonus: { hp: { infantry: 1.25 } }, bonusText: 'Infantry +25% armor', signature: 'sas', edge: 'gchq',
   },
   japan: {
@@ -40,7 +40,7 @@ const FACTIONS = {
     color: '#3ea8d8', dark: '#1b5a85', light: '#a3d6f7',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#5b6b4a', '#3f4c33', '#788a64'],
-    names: { rifle: 'JGSDF Infantry', tank: 'Type 10', ifv: 'Type 16 MCV', mlrs: 'Type 19 MLRS', sniper: 'JGSDF Marksman', heli: 'AH-64DJ Apache', jet: 'Mitsubishi F-X', sam: 'Type 03 Chu-SAM' },
+    names: { rifle: 'JGSDF Infantry', tank: 'Type 10', ifv: 'Type 16 MCV', mlrs: 'Type 19 MLRS', sniper: 'JGSDF Marksman', heli: 'AH-64DJ Apache', jet: 'Mitsubishi F-X', sam: 'Type 03 Chu-SAM', patrol: 'Hayabusa Patrol Boat', destroyer: 'Mogami Frigate', sub: 'Taigei-class Submarine', cruiser: 'Atago Destroyer' },
     bonus: { hp: { vehicle: 1.15 } }, bonusText: 'Vehicles +15% armor', signature: 'raijin', edge: 'robotics',
   },
   russia: {
@@ -48,7 +48,7 @@ const FACTIONS = {
     color: '#e8413a', dark: '#8c1f1b', light: '#ff9e98',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6e7048', '#4f5134', '#8c8d60'],
-    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', flak: 'Pantsir-SM', tos: 'TOS-2 Tosochka', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf' },
+    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', flak: 'Pantsir-SM', tos: 'TOS-2 Tosochka', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf', patrol: 'Raptor Patrol Boat', destroyer: 'Admiral Gorshkov Frigate', sub: 'Yasen-class Submarine', battleship: 'Pyotr Velikiy' },
     bonus: { dmg: { vehicle: 1.15 } }, bonusText: 'Armor +15% firepower', signature: 'iskander', edge: 'krasukha',
   },
   china: {
@@ -56,7 +56,7 @@ const FACTIONS = {
     color: '#e5322d', dark: '#86160f', light: '#ff9a92',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#566f48', '#3e5235', '#71895e'],
-    names: { rifle: 'PLA Trooper', tank: 'Type 99A', flak: 'PGZ-09 SPAAG', tos: 'PCH-191 Thermobaric', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM' },
+    names: { rifle: 'PLA Trooper', tank: 'Type 99A', flak: 'PGZ-09 SPAAG', tos: 'PCH-191 Thermobaric', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM', patrol: 'Type 022 Missile Boat', destroyer: 'Type 055 Destroyer', sub: 'Type 093 Submarine', battleship: 'Type 055B Battlecruiser' },
     bonus: { speed: { structure: 1.25, defense: 1.25 } }, bonusText: 'Structures build 25% faster', signature: 'hacker', edge: 'hub',
   },
   soviet: {
@@ -64,7 +64,7 @@ const FACTIONS = {
     color: '#d92b2b', dark: '#7d1212', light: '#ff9a9a',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6a6a3e', '#4c4c2c', '#86865a'],
-    names: { rifle: 'Motor Rifle', tank: 'T-90M', flak: '2S6 Tunguska', tos: 'TOS-1A Solntsepyok', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM' },
+    names: { rifle: 'Motor Rifle', tank: 'T-90M', flak: '2S6 Tunguska', tos: 'TOS-1A Solntsepyok', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM', patrol: 'Osa Missile Boat', destroyer: 'Sovremenny Destroyer', sub: 'Akula-class Submarine', battleship: 'Orlan Battlecruiser' },
     bonus: { cost: { infantry: 0.75 } }, bonusText: 'Infantry 25% cheaper', signature: 'kirov', edge: 'propaganda',
   },
   northkorea: {
@@ -72,7 +72,7 @@ const FACTIONS = {
     color: '#c8302f', dark: '#701616', light: '#f59a95',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#5f6640', '#444a2c', '#7b8358'],
-    names: { rifle: 'KPA Rifleman', tank: 'Chonma-20', flak: 'M1992 SPAAG', tos: 'KN-25 Launcher', heli: 'Mi-24 Hind', jet: 'MiG-29 Fulcrum', sam: 'Pongae-5 SAM' },
+    names: { rifle: 'KPA Rifleman', tank: 'Chonma-20', flak: 'M1992 SPAAG', tos: 'KN-25 Launcher', heli: 'Mi-24 Hind', jet: 'MiG-29 Fulcrum', sam: 'Pongae-5 SAM', patrol: 'Nampo Patrol Boat', destroyer: 'Choe Hyon Destroyer', sub: 'Sinpo Submarine', battleship: 'Juche Battlecruiser' },
     bonus: { cost: { defense: 0.75 } }, bonusText: 'Defenses 25% cheaper', signature: 'demotruck', edge: 'koksan',
   },
 };
@@ -91,22 +91,24 @@ const THEATERS = {
   jungle: { name: 'Jungle', art: 'jungle' },
 };
 
-// Damage multipliers: warhead vs armor class.
+// Damage multipliers: warhead vs armor class. 'ship' is the armor of warships; torpedoes only
+// hurt what floats (the hovercraft rides on light armor).
 const WARHEADS = {
-  bullet:    { infantry: 1.0,  light: 0.45, heavy: 0.25, building: 0.25, air: 0.6 },
-  cannon:    { infantry: 0.35, light: 1.0,  heavy: 0.85, building: 0.8,  air: 0 },
-  rocket:    { infantry: 0.35, light: 1.0,  heavy: 0.9,  building: 0.7,  air: 1.25 },
-  artillery: { infantry: 1.1,  light: 0.7,  heavy: 0.5,  building: 1.0,  air: 0 },
-  rail:      { infantry: 0.8,  light: 1.1,  heavy: 1.0,  building: 0.7,  air: 0 },
-  flak:      { infantry: 0.1,  light: 0.1,  heavy: 0.05, building: 0,    air: 1.0 },
-  blast:     { infantry: 1.0,  light: 1.0,  heavy: 1.0,  building: 1.0,  air: 1.0 },
-  sniper:    { infantry: 1.0,  light: 0.12, heavy: 0.06, building: 0.04, air: 0 },
-  fire:      { infantry: 1.25, light: 0.55, heavy: 0.3,  building: 0.9,  air: 0 },
-  thermo:    { infantry: 1.2,  light: 0.9,  heavy: 0.55, building: 1.1,  air: 0 },
-  laser:     { infantry: 0.9,  light: 1.0,  heavy: 0.75, building: 0,    air: 1.2 },
-  missile:   { infantry: 0.8,  light: 0.9,  heavy: 0.8,  building: 1.2,  air: 0 },
-  emp:       { infantry: 0.4,  light: 1.0,  heavy: 0.9,  building: 0.6,  air: 1.0 },
-  hack:      { infantry: 0,    light: 0,    heavy: 0,    building: 0,    air: 0 },
+  bullet:    { infantry: 1.0,  light: 0.45, heavy: 0.25, building: 0.25, air: 0.6,  ship: 0.2 },
+  cannon:    { infantry: 0.35, light: 1.0,  heavy: 0.85, building: 0.8,  air: 0,    ship: 0.8 },
+  rocket:    { infantry: 0.35, light: 1.0,  heavy: 0.9,  building: 0.7,  air: 1.25, ship: 0.85 },
+  artillery: { infantry: 1.1,  light: 0.7,  heavy: 0.5,  building: 1.0,  air: 0,    ship: 0.75 },
+  rail:      { infantry: 0.8,  light: 1.1,  heavy: 1.0,  building: 0.7,  air: 0,    ship: 1.0 },
+  flak:      { infantry: 0.1,  light: 0.1,  heavy: 0.05, building: 0,    air: 1.0,  ship: 0.05 },
+  blast:     { infantry: 1.0,  light: 1.0,  heavy: 1.0,  building: 1.0,  air: 1.0,  ship: 1.0 },
+  sniper:    { infantry: 1.0,  light: 0.12, heavy: 0.06, building: 0.04, air: 0,    ship: 0.02 },
+  fire:      { infantry: 1.25, light: 0.55, heavy: 0.3,  building: 0.9,  air: 0,    ship: 0.3 },
+  thermo:    { infantry: 1.2,  light: 0.9,  heavy: 0.55, building: 1.1,  air: 0,    ship: 0.6 },
+  laser:     { infantry: 0.9,  light: 1.0,  heavy: 0.75, building: 0,    air: 1.2,  ship: 0.6 },
+  missile:   { infantry: 0.8,  light: 0.9,  heavy: 0.8,  building: 1.2,  air: 0,    ship: 1.1 },
+  emp:       { infantry: 0.4,  light: 1.0,  heavy: 0.9,  building: 0.6,  air: 1.0,  ship: 0.9 },
+  hack:      { infantry: 0,    light: 0,    heavy: 0,    building: 0,    air: 0,    ship: 0 },
+  torpedo:   { infantry: 0,    light: 0.8,  heavy: 0.8,  building: 0,    air: 0,    ship: 1.25 },
 };
 
 // speed & ranges are in tiles (per second), times in seconds.
@@ -269,6 +271,62 @@ const UNITS = {
     weapon2: { warhead: 'cannon', damage: 55, range: 5, cooldown: 1.6, proj: 'rocket', speed: 16, ground: true, air: false },
     desc: 'Supersonic multirole fighter. Wins the skies, strafes ground targets.',
   },
+  // ---- navy: built at a Naval Shipyard, sail only on water (the hovercraft also drives on land) ----
+  patrol: {
+    name: 'Patrol Boat', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard'], naval: true,
+    cost: 700, time: 7, hp: 420, speed: 3.8, sight: 9, radius: 11, turn: 5, key: 'Q',
+    weapon: { warhead: 'cannon', damage: 32, range: 6, cooldown: 1.0, proj: 'shell', speed: 16, ground: true, air: false },
+    weapon2: { warhead: 'flak', damage: 32, range: 6.5, cooldown: 0.8, proj: 'tracer', ground: false, air: true },
+    desc: 'Fast gunboat. Shells boats and the shoreline, and its autocannon keeps helicopters off.',
+  },
+  destroyer: {
+    name: 'Destroyer', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard', 'radar'], naval: true,
+    cost: 1500, time: 13, hp: 950, speed: 2.7, sight: 10, radius: 15, turn: 3, key: 'W',
+    weapon: { warhead: 'cannon', damage: 58, range: 8, cooldown: 1.4, proj: 'shell', speed: 16, ground: true, air: false },
+    weapon2: { warhead: 'flak', damage: 48, range: 9, cooldown: 1.2, proj: 'rocket', speed: 15, burst: 2, ground: false, air: true },
+    weapon3: { warhead: 'torpedo', damage: 70, range: 6, cooldown: 2.0, proj: 'torpedo', speed: 8, only: ['naval'], asw: true, ground: true, air: false },
+    desc: 'Escort warship: a deck gun, surface-to-air missiles and anti-submarine torpedoes. The fleet\'s answer to submarines.',
+  },
+  sub: {
+    name: 'Attack Submarine', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard'], naval: true, submarine: true, stealth: 3,
+    cost: 1200, time: 11, hp: 560, speed: 2.9, sight: 8, radius: 11, turn: 4, key: 'E',
+    weapon: { warhead: 'torpedo', damage: 160, range: 6.5, cooldown: 2.6, proj: 'torpedo', speed: 7, only: ['naval'], asw: true, ground: true, air: false },
+    desc: 'Runs submerged: hidden until it fires or an enemy comes within 3 tiles, and only torpedoes can reach it down there. Its torpedoes sink ships.',
+  },
+  hover: {
+    name: 'Hovercraft', cat: 'naval', armor: 'light', from: 'shipyard', req: ['shipyard'], naval: true, amphib: true, transport: 6,
+    cost: 900, time: 8, hp: 480, speed: 3.6, sight: 7, radius: 13, turn: 5, key: 'T',
+    weapon: { warhead: 'bullet', damage: 14, range: 5, cooldown: 0.3, proj: 'tracer', ground: true, air: true },
+    desc: 'Amphibious landing craft for 6 infantry or 2 vehicles. Right-click it with troops to board, drive it onto a beach and press D to unload.',
+  },
+  cruiser: {
+    name: 'Missile Cruiser', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard', 'tech'], side: 'allies', naval: true,
+    cost: 2400, time: 20, hp: 1500, speed: 2.1, sight: 10, radius: 18, turn: 2.5, key: 'R',
+    weapon: { warhead: 'missile', damage: 230, range: 15, minRange: 4, cooldown: 6.5, proj: 'arty', speed: 11, splash: 1.2, burst: 2, ground: true, air: false },
+    weapon2: { warhead: 'flak', damage: 55, range: 9, cooldown: 1.0, proj: 'rocket', speed: 15, burst: 2, ground: false, air: true },
+    desc: 'Allies only. Vertical-launch cruise missiles strike structures 15 tiles inland, and its SAMs guard the fleet. Blind to submarines.',
+  },
+  battleship: {
+    name: 'Battlecruiser', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard', 'tech'], side: 'axis', naval: true,
+    cost: 2600, time: 22, hp: 2200, speed: 1.6, sight: 10, radius: 19, turn: 2, key: 'R', turrets: 2,
+    weapon: { warhead: 'artillery', damage: 135, range: 13, minRange: 3, cooldown: 4.5, proj: 'arty', speed: 10, splash: 1.8, burst: 3, ground: true, air: false },
+    weapon2: { warhead: 'flak', damage: 40, range: 7, cooldown: 0.8, proj: 'tracer', burst: 2, ground: false, air: true },
+    desc: 'Axis only. Heavily armored gunship whose twin turrets shell the coast from 13 tiles out. Blind to submarines.',
+  },
+  carrier: {
+    name: 'HMS Queen Elizabeth', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard', 'tech'], nation: 'uk', naval: true,
+    cost: 3000, time: 24, hp: 1900, speed: 1.7, sight: 12, radius: 22, turn: 2, key: 'U',
+    weapon: { warhead: 'rocket', damage: 75, range: 16, cooldown: 5, proj: 'sortie', speed: 9, burst: 3, ground: true, air: true },
+    desc: 'UK only. Aircraft carrier: launches F-35B strikes at anything, ground or air, within 16 tiles. Enemy air defenses can shoot the jets down.',
+  },
+  maya: {
+    name: 'Maya-class Aegis Destroyer', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard', 'radar'], nation: 'japan', naval: true,
+    cost: 1800, time: 15, hp: 1050, speed: 2.7, sight: 11, radius: 16, turn: 3, key: 'U',
+    intercept: { range: 8, cooldown: 0.8 },
+    weapon: { warhead: 'flak', damage: 62, range: 10, cooldown: 0.9, proj: 'rocket', speed: 16, burst: 2, ground: false, air: true },
+    weapon2: { warhead: 'cannon', damage: 48, range: 7, cooldown: 1.4, proj: 'shell', speed: 16, ground: true, air: false },
+    desc: 'Japan only. SM-3 interceptors shoot down incoming missiles, rockets and artillery within 8 tiles, guarding the fleet and the coast. Long-range air defense.',
+  },
 };
 
 const BUILDINGS = {
@@ -382,6 +440,11 @@ const BUILDINGS = {
     name: 'Office Building', cat: 'civilian', w: 3, h: 2, hp: 1800, cost: 0, time: 0, power: 0, sight: 7, height: 54, buildable: false, garrison: 8,
     desc: 'Civilian building. Infantry can garrison it.',
   },
+  shipyard: {
+    name: 'Naval Shipyard', cat: 'building', w: 3, h: 3, hp: 1500, cost: 1500, time: 12, power: -40, sight: 8, height: 30, req: ['factory'], key: 'G', produces: 'naval', water: true,
+    heal: { rate: 24, radius: 4, naval: true },
+    desc: 'Builds warships and repairs them alongside. Must be built out on the water, within reach of your base.',
+  },
   sam: {
     name: 'SAM Site', cat: 'defense', w: 1, h: 1, hp: 650, cost: 750, time: 7, power: -30, sight: 9, height: 20, req: ['radar'], key: 'E', needsPower: true,
     weapon: { warhead: 'flak', damage: 55, range: 9, cooldown: 1.1, proj: 'rocket', speed: 14, ground: false, air: true, burst: 2 },
@@ -395,14 +458,15 @@ const BUILDINGS = {
 const GARRISON = { range: 1, dmg: 1.25, clear: { fire: 0.2, thermo: 0.7, blast: 0.5 }, civilian: ['civ_house', 'civ_flats', 'civ_office'] };
 const NEUTRAL = -1;
 
-const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory', air: 'airfield' };
+const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory', air: 'airfield', naval: 'shipyard' };
 
 const TABS = [
-  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'gchq', 'robotics', 'krasukha', 'propaganda', 'super_lance', 'super_silo'] },
+  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'gchq', 'robotics', 'krasukha', 'propaganda', 'shipyard', 'super_lance', 'super_silo'] },
   { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser', 'thaad', 'koksan', 'bunker'] },
   { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'sas', 'hacker', 'engineer'] },
   { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'aegis', 'raijin', 'demotruck', 'harvester', 'mcv'] },
   { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet'] },
+  { id: 'naval', label: 'Navy', list: ['patrol', 'destroyer', 'sub', 'cruiser', 'battleship', 'carrier', 'maya', 'hover'] },
 ];
 
 // The two factions. Each fields its own scout vehicle, artillery and special infantry; SIDE_SWAP
@@ -429,7 +493,7 @@ function inRoster(key, faction) {
 function queueTypeOf(key) {
   if (BUILDINGS[key]) return BUILDINGS[key].cat === 'defense' ? 'defense' : 'structure';
   const u = UNITS[key];
-  return u.cat === 'infantry' ? 'infantry' : u.cat === 'air' ? 'air' : 'vehicle';
+  return u.cat === 'infantry' ? 'infantry' : u.cat === 'air' ? 'air' : u.cat === 'naval' ? 'naval' : 'vehicle';
 }
 
 // AI tactics per difficulty: counter = adapt unit mix to what scouts have seen,
@@ -452,6 +516,15 @@ const LINEUPS = {
   '2v1':  { label: '2 vs 1', teams: [0, 0, 1] },
   'ffa3': { label: 'Free for all (3)', teams: [0, 1, 2] },
   'ffa4': { label: 'Free for all (4)', teams: [0, 1, 2, 3] },
+};
+
+// How much water a skirmish map has. Lakes is the classic land map; on the sea maps a large
+// sea fills the middle with a bay reaching toward every base, and the land route runs round
+// the rim (on Islands only along narrow causeways).
+const MAP_WATER = {
+  lakes: { label: 'Lakes' },
+  sea: { label: 'Inland sea', edge: 0.2 },    // land left at the middle of each edge, share of the map
+  islands: { label: 'Islands', edge: 0.075 },
 };
 
 const MAP_SIZES = {

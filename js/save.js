@@ -34,7 +34,7 @@ const SaveCodec = {
   roots() {
     const missions = {};
     for (const m of CAMPAIGN.missions) missions[m.id] = m;
-    return { FACTIONS, THEATERS, WARHEADS, UNITS, BUILDINGS, GARRISON, TABS, SIDES, DIFFICULTY, LINEUPS, MAP_SIZES, EXTRA_COLORS, DEFENSE, CAST, THEMES, MISSIONS: missions };
+    return { FACTIONS, THEATERS, WARHEADS, UNITS, BUILDINGS, GARRISON, TABS, SIDES, DIFFICULTY, LINEUPS, MAP_SIZES, MAP_WATER, EXTRA_COLORS, DEFENSE, CAST, THEMES, MISSIONS: missions };
   },
 
   statics() {
@@ -169,8 +169,9 @@ const Save = {
     G = g;
     NEXT_ID = data.nextId;
     // rebuild what isn't stored
-    const fresh = new GameMap(g.map.w, g.map.seed, g.map.theater, g.map.players);
+    const fresh = new GameMap(g.map.w, g.map.seed, g.map.theater, g.map.players, g.map.water);
     for (const k of SaveCodec.skip.GameMap) g.map[k] = fresh[k];
+    if (!g.map.waterId) g.map.labelWater(); // saves from before the navy
     g.pf = new PathFinder(g.map);
     g.neutral = Game.makeNeutral();
     g.listeners = { eva: [], sound: [], voice: [] };
@@ -189,10 +190,13 @@ const Save = {
         if (e.target && !e.target.def) e.target = null;
         if (e.order && e.order.target && !e.order.target.def) e.order = null;
         if (e.garrison) e.garrison = e.garrison.filter(u => u.def);
+        if (e.passengers) e.passengers = e.passengers.filter(u => u.def);
       }
       g.projectiles = g.projectiles.filter(p => !Object.values(p).some(x => x && x.kind && !x.def));
       for (const t of g.teams) for (const q of Object.values(t.queues)) q.items = q.items.filter(k => defOf(k));
     }
+    // build queues added since the save was made (the Navy tab) start empty
+    for (const t of g.teams) for (const tab of TABS) if (!t.queues[tab.id]) t.queues[tab.id] = new ProdQueue(t, tab.id);
     for (const t of g.teams) t.recount();
     g.updateFog();
     return { missing, removed: lost.length, dropped: data.dropped || [] };

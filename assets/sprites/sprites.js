@@ -951,5 +951,132 @@ const SPRITE_META = {
     },
     "style": "voxel",
     "camo": true
+  },
+  "patrol_vox": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 7,
+    "camo": true
+  },
+  "destroyer_vox": {
+    "cell": 96,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 48,
+    "ay": 63.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 15.6,
+    "camo": true
+  },
+  "sub_vox": {
+    "cell": 72,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hover_vox": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "cruiser_vox": {
+    "cell": 112,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 56,
+    "ay": 74,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 22.5,
+    "camo": true
+  },
+  "battleship_vox": {
+    "cell": 128,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 64,
+    "ay": 84.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 19.375,
+    "camo": true
+  },
+  "carrier_vox": {
+    "cell": 160,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 80,
+    "ay": 105.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "maya_vox": {
+    "cell": 96,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 48,
+    "ay": 63.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 16.8,
+    "camo": true
+  },
+  "b_shipyard": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
   }
 };

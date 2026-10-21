@@ -4,6 +4,8 @@
 'use strict';
 
 const CHUNK = 512;
+// effects that lie flat on the water surface
+const WATER_FX = { wake: 1, foam: 1, splash: 1 };
 
 const Render = {
   fogCanvas: null, fogVersion: -1, cx: 0, cy: 0,
@@ -103,7 +105,10 @@ const Render = {
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r * 0.8, d.a, 0, Math.PI * 2); ctx.fill();
     }
-    for (const f of G.effects) if (f.type === 'corpse') this.drawCorpse(ctx, f);
+    for (const f of G.effects) {
+      if (f.type === 'corpse') this.drawCorpse(ctx, f);
+      else if (WATER_FX[f.type]) this.drawWaterFx(ctx, f);
+    }
     this.drawGroundOverlays(ctx, ui);
     ctx.restore();
     this.drawOreDeposits(ctx, tx0, ty0, tx1, ty1, t);
@@ -136,7 +141,7 @@ const Render = {
       else this.drawUnit(ctx, it.e, it.sx, it.sy);
     }
     for (const p of G.projectiles) this.drawProjectile(ctx, p);
-    for (const f of G.effects) if (f.type !== 'corpse') this.drawEffect(ctx, f);
+    for (const f of G.effects) if (f.type !== 'corpse' && !WATER_FX[f.type]) this.drawEffect(ctx, f);
     air.sort((a, b) => (a.x + a.y) - (b.x + b.y));
     for (const e of air) {
       const [sx, sy] = this.P(e.x, e.y);
@@ -245,9 +250,49 @@ const Render = {
     }
   },
 
+  // foam, wakes and splashes lie flat on the water (drawn in the ground transform)
+  drawWaterFx(ctx, f) {
+    const p = f.t / f.life;
+    if (f.t < 0) return;
+    if (f.type === 'wake') {
+      // a V of foam spreading out behind the hull
+      const a = f.a, s = f.size * (1 + p * 1.6), nx = -Math.sin(a), ny = Math.cos(a);
+      ctx.fillStyle = `rgba(235,245,250,${0.42 * (1 - p)})`;
+      for (const k of [-1, 1]) {
+        ctx.beginPath(); ctx.ellipse(f.x + nx * s * k * 0.7, f.y + ny * s * k * 0.7, s * 0.55, s * 0.22, a, 0, Math.PI * 2); ctx.fill();
+      }
+      return;
+    }
+    if (f.type === 'foam') {
+      ctx.fillStyle = `rgba(230,242,248,${0.5 * (1 - p)})`;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.size * (1 + p), 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+    // splash: a white ring spreading over the water
+    ctx.strokeStyle = `rgba(235,246,252,${0.75 * (1 - p)})`; ctx.lineWidth = 2.5 * (1 - p) + 0.5;
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.size * (0.3 + p), 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `rgba(220,238,246,${0.35 * (1 - p)})`;
+    ctx.beginPath(); ctx.arc(f.x, f.y, f.size * 0.5 * (1 - p), 0, Math.PI * 2); ctx.fill();
+  },
+
   // ---------- units ----------
   drawUnit(ctx, u, sx, sy) {
     const team = G.teamOf(u.team);
+    if (u.def.naval && G.map.isWater(u.tx, u.ty)) {
+      // ships sit in the water: a ring of foam at the waterline instead of a shadow,
+      // a gentle roll, and a submerged submarine is only a dark shape below the surface
+      const r = u.def.radius, under = G.submerged(u);
+      ctx.save(); this.ground(ctx);
+      ctx.fillStyle = under ? 'rgba(10,25,35,0.35)' : 'rgba(225,240,248,0.16)';
+      ctx.beginPath(); ctx.ellipse(u.x, u.y, r * 1.45, r * 0.5, u.facing, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      const roll = Math.sin(u.anim * 1.6 + u.id) * 0.8;
+      if (under) ctx.globalAlpha = 0.42;
+      drawUnitArt(ctx, u, team, sx, sy + roll + (under ? 3 : 0));
+      ctx.globalAlpha = 1;
+      this.drawStatus(ctx, u, sx, sy);
+      return;
+    }
     if (!u.air) {
       const r = u.def.radius * 1.15;
       ctx.fillStyle = 'rgba(0,0,0,0.32)';
@@ -325,6 +370,24 @@ const Render = {
     }
     const dx = Math.cos(p.ang), dy = Math.sin(p.ang);
     const a = Math.atan2((dx + dy) / 2, dx - dy);
+    if (p.type === 'torpedo') {
+      ctx.fillStyle = 'rgba(20,30,36,0.7)';
+      ctx.beginPath(); ctx.ellipse(x, y, 4, 1.6, a, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
+    if (p.type === 'sortie') {
+      // a little jet in its carrier's colours, with its shadow on the ground
+      const [gx, gy] = this.P(p.x, p.y, 0);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.ellipse(gx, gy, 5, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(a);
+      ctx.fillStyle = '#9aa4ad';
+      ctx.beginPath(); ctx.moveTo(7, 0); ctx.lineTo(-5, -5.5); ctx.lineTo(-3, 0); ctx.lineTo(-5, 5.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = G.teamOf(p.team).color; ctx.fillRect(-5, -1, 6, 2);
+      ctx.fillStyle = 'rgba(255,170,60,0.9)'; ctx.fillRect(-7, -0.8, 2, 1.6);
+      ctx.restore();
+      return;
+    }
     ctx.save();
     ctx.translate(x, y); ctx.rotate(a);
     if (p.type === 'rocket') {
@@ -445,6 +508,16 @@ const Render = {
         for (let i = 0; i < 3; i++) ctx.fillRect(x + Math.sin(i * 7 + f.t * 20) * 6 * p, y - p * 8 - i * 2, 2, 2);
         ctx.globalAlpha = 1;
         break;
+      case 'sinking': {
+        // the wreck settles lower and fades, trailing smoke
+        const def = UNITS[f.key];
+        if (!def) break;
+        ctx.save(); ctx.globalAlpha = Math.max(0, 1 - p * 1.1);
+        drawUnitArt(ctx, { key: f.key, def, facing: f.facing + p * 0.25, turret: f.facing, anim: 0, alt: 0, cargo: 0 }, G.teamOf(f.team), x, y + p * 10);
+        ctx.restore();
+        if (Math.random() < 0.3) G.effects.push({ type: 'smoke', x: f.x + (Math.random() - 0.5) * 16, y: f.y + (Math.random() - 0.5) * 16, z: 6, t: 0, life: 1.2, size: 4 });
+        break;
+      }
       case 'falling':
         ctx.fillStyle = '#222';
         ctx.save(); ctx.translate(x, y); ctx.rotate(f.t * 12);
@@ -544,7 +617,7 @@ const Render = {
       const ok = G.canPlace(ui.placing.key, pid, ui.placing.tx, ui.placing.ty);
       for (let y = 0; y < def.h; y++) for (let x = 0; x < def.w; x++) {
         const tx = ui.placing.tx + x, ty = ui.placing.ty + y;
-        const tileOk = G.map.inside(tx, ty) && G.map.terrainPassable(tx, ty) && G.map.bld[G.map.idx(tx, ty)] < 0;
+        const tileOk = G.map.inside(tx, ty) && (def.water ? G.map.isWater(tx, ty) : G.map.terrainPassable(tx, ty)) && G.map.bld[G.map.idx(tx, ty)] < 0;
         ctx.fillStyle = ok ? 'rgba(80,255,120,0.35)' : tileOk ? 'rgba(255,200,60,0.35)' : 'rgba(255,60,60,0.45)';
         ctx.fillRect(tx * TILE + 1, ty * TILE + 1, TILE - 2, TILE - 2);
       }

@@ -38,12 +38,21 @@ const MODELS = {
   aegis_vox: { vox: { hull: 'aegis_hull.vox', turret: 'aegis_turret.vox' }, pivot: [13.5, 8], turretPivot: [6, 6], mount: [12, 8, 9], turret: 'turret', k: 1.0, cell: 64 },
   raijin_vox: { vox: { hull: 'raijin_hull.vox', turret: 'raijin_turret.vox' }, pivot: [6.5, 7.5], turretPivot: [7, 7], mount: [6.5, 7.5, 13], turret: 'turret', k: 1.15, cell: 72 },
   demotruck_vox: { vox: { hull: 'demotruck.vox' }, pivot: [13.5, 7], k: 1.0, cell: 64 },
+  // the navy (tools/sprites/voxel_naval.js); the waterline is z = 0
+  patrol_vox: { vox: { hull: 'patrol_hull.vox', turret: 'patrol_turret.vox' }, pivot: [15, 4.5], turretPivot: [3.5, 3.5], mount: [22, 4.5, 4], turret: 'turret', k: 1.0, cell: 64 },
+  destroyer_vox: { vox: { hull: 'destroyer_hull.vox', turret: 'destroyer_turret.vox' }, pivot: [22, 6.5], turretPivot: [4.5, 4.5], mount: [35, 6.5, 5], turret: 'turret', k: 1.2, cell: 96 },
+  sub_vox: { vox: { hull: 'sub.vox' }, pivot: [20, 4.5], k: 1.1, cell: 72 },
+  hover_vox: { vox: { hull: 'hover.vox' }, pivot: [15, 8], k: 1.0, cell: 64 },
+  cruiser_vox: { vox: { hull: 'cruiser_hull.vox', turret: 'cruiser_turret.vox' }, pivot: [26, 7.5], turretPivot: [4.5, 4.5], mount: [44, 7.5, 5], turret: 'turret', k: 1.25, cell: 112 },
+  battleship_vox: { vox: { hull: 'battleship_hull.vox', turret: 'battleship_turret.vox' }, pivot: [30, 8.5], turretPivot: [5.5, 5.5], mount: [45.5, 8.5, 6], turret: 'turret', k: 1.25, cell: 128 },
+  carrier_vox: { vox: { hull: 'carrier.vox' }, pivot: [36, 11], k: 1.3, cell: 160 },
+  maya_vox: { vox: { hull: 'maya_hull.vox', turret: 'maya_turret.vox' }, pivot: [23, 6.5], turretPivot: [4.5, 4.5], mount: [37, 6.5, 5], turret: 'turret', k: 1.2, cell: 96 },
   ...Object.fromEntries(['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando', 'sas', 'hacker'].flatMap(kind => [0, 1, 2].map(f =>
     [`${kind}_vox_${f}`, { vox: { hull: `${kind}_${f}.vox` }, pivot: [2.5, 3.5], k: 1.25, cell: 40, anchor: 0.75 }]))),
   // structures (tools/sprites/voxel_buildings.js): 1 voxel = 2 game px, one facing, pivot at the footprint centre
   ...Object.fromEntries(Object.entries({
     cc: [3, 3], power: [2, 2], refinery: [3, 3], barracks: [2, 2], factory: [3, 3], radar: [2, 2], airfield: [3, 2],
-    tech: [2, 2], hub: [2, 2], laser: [1, 1], thaad: [2, 2], koksan: [2, 2], gchq: [2, 2], robotics: [2, 2], krasukha: [2, 2], propaganda: [1, 1], super_lance: [3, 3], super_silo: [3, 3], super_silo_open: [3, 3], turret: [1, 1], railturret: [1, 1], sam: [1, 1],
+    tech: [2, 2], hub: [2, 2], laser: [1, 1], thaad: [2, 2], koksan: [2, 2], gchq: [2, 2], robotics: [2, 2], krasukha: [2, 2], propaganda: [1, 1], super_lance: [3, 3], super_silo: [3, 3], super_silo_open: [3, 3], turret: [1, 1], railturret: [1, 1], sam: [1, 1], shipyard: [3, 3],
   }).map(([key, [w, h]]) => {
     const W = w * 16, H = h * 16, span = (W + H) * 2, cell = span + 24;
     return [`b_${key}`, { vox: { hull: `b_${key}.vox` }, pivot: [W / 2, H / 2], k: 2, cell, anchor: (cell - 12 - span / 4) / cell, facings: 1 }];

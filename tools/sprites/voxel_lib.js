@@ -22,6 +22,9 @@ col('rubber', [32, 32, 30]); col('skin', [198, 160, 124]); col('ore', [226, 176,
 col('hazard', [214, 172, 44]); col('glassDark', [40, 74, 104]); col('rail', [96, 232, 255]); col('jetGrey', [150, 157, 164]);
 col('jetDark', [104, 110, 118]); col('vest', [222, 182, 46]); col('flame', [255, 168, 64]); col('white', [228, 230, 228]);
 col('red', [190, 40, 34]);
+// warships: haze grey hulls, dark decks and the red anti-fouling at the waterline
+col('hull', [138, 146, 152]); col('hullDark', [98, 106, 112]); col('deck', [84, 88, 88]); col('deckLight', [118, 122, 120]);
+col('boot', [140, 46, 40]); col('black', [30, 32, 34]); col('flightDeck', [66, 70, 72]); col('skirt', [42, 42, 40]);
 const TEAM = 6, TEAM_LIGHT = 7, TEAM_DARK = 4;
 
 // three-tone camouflage: soft blobs in 3D so the pattern wraps over edges

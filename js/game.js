@@ -164,16 +164,22 @@ class Team {
     let u;
     if (def.air) {
       u = G.spawnUnit(key, this.id, b.x, b.y);
+    } else if (def.naval) {
+      // ships slip out of the dock onto the nearest open water
+      const mode = def.amphib ? MOVE_AMPHIB : MOVE_WATER;
+      const spot = G.findFreeTile(b.tx + 1, b.ty + 1, mode) || [b.tx + 1, b.ty + b.h];
+      u = G.spawnUnit(key, this.id, spot[0] * TILE + TILE / 2, spot[1] * TILE + TILE / 2);
+      u.facing = Math.atan2(u.y - b.y, u.x - b.x);
     } else {
       const ex = b.tx + Math.floor(b.w / 2), ey = b.ty + b.h;
-      const spot = G.findFreeTile(ex, ey, b);
+      const spot = G.findFreeTile(ex, ey);
       u = G.spawnUnit(key, this.id, b.x, (b.ty + b.h) * TILE - 6);
       u.facing = Math.PI / 2;
       if (spot) { u.order = { type: 'move', tx: spot[0], ty: spot[1] }; u.path = [[spot[0], spot[1]]]; u.pathI = 0; }
     }
     this.stats.built++;
     this.stats.made[key] = (this.stats.made[key] || 0) + 1;
-    G.eva(def.cat === 'infantry' ? 'Unit ready' : def.air ? 'Drone ready' : 'Unit ready', this.id);
+    G.eva(def.cat === 'infantry' ? 'Unit ready' : def.air ? 'Drone ready' : def.naval ? 'Vessel ready' : 'Unit ready', this.id);
     if (def.harvester) { u.order = null; u.hstate = 'seek'; return; }
     if (b.rally && !def.mcv) G.commandMove([u], b.rally[0], b.rally[1], false, true);
     if (this.isAI && G.ai[this.id]) G.ai[this.id].onUnitBuilt(u);
@@ -204,7 +210,7 @@ class Unit {
     this.facing = Math.random() * Math.PI * 2; this.turret = this.facing;
     this.air = !!this.def.air; this.alt = this.air ? (this.def.alt || 26) : 0;
     this.order = null; this.path = null; this.pathI = 0;
-    this.target = null; this.cool = Math.random() * 0.5; this.cool2 = 0;
+    this.target = null; this.cool = Math.random() * 0.5; this.cool2 = 0; this.cool3 = 0;
     this.burst = 0; this.burstT = 0;
     this.kills = 0; this.rank = 0;
     this.cargo = 0; this.hstate = null;
@@ -213,9 +219,13 @@ class Unit {
     this.stuckT = 0; this.lastX = x; this.lastY = y;
     this.dug = false; this.digging = 0; this.digT = 0; // digging: 1 setting up, -1 packing
     this.inside = null; // the structure this soldier is garrisoning
+    this.aboard = null; // the transport carrying this unit
+    if (this.def.transport) this.passengers = [];
   }
   get tx() { return Math.floor(this.x / TILE); }
   get ty() { return Math.floor(this.y / TILE); }
+  // how it gets about: aircraft fly, ships sail, the hovercraft does both land and sea
+  get mode() { return this.def.amphib ? MOVE_AMPHIB : this.def.naval ? MOVE_WATER : MOVE_LAND; }
 }
 
 class Building {
@@ -241,6 +251,13 @@ function categoryOf(key) {
   if (BUILDINGS[key]) return BUILDINGS[key].cat === 'defense' ? 'defense' : 'structure';
   return UNITS[key].cat;
 }
+
+// units that aim a turret independently of the hull (vehicles and warships)
+function turreted(def) { return def.cat === 'vehicle' || def.cat === 'naval'; }
+
+// transport space a unit takes up: a soldier one seat, anything bigger three
+function cargoSize(u) { return u.def.cat === 'infantry' ? 1 : 3; }
+function cargoUsed(tr) { return tr.passengers.reduce((s, u) => s + cargoSize(u), 0); }
 
 // visual heights (for drawing shots in the 3D view)
 function aimZ(e) {
@@ -294,7 +311,7 @@ class Game {
     // alliance number per team, the human first; defense is the player against the waves
     const lineup = md ? md.teams.map(t => t.ally) : this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
     const size = typeof opts.mapSize === 'number' ? opts.mapSize : (MAP_SIZES[opts.mapSize] || MAP_SIZES.medium).tiles;
-    this.map = new GameMap(size, opts.seed, opts.theater || 'temperate', md ? md.starts || lineup.length : this.mode === 'defense' ? 4 : lineup.length);
+    this.map = new GameMap(size, opts.seed, opts.theater || 'temperate', md ? md.starts || lineup.length : this.mode === 'defense' ? 4 : lineup.length, md ? md.water : opts.water);
     this.pf = new PathFinder(this.map);
     this.entities = []; this.byId = new Map();
     this.projectiles = []; this.effects = []; this.decals = [];
@@ -440,11 +457,11 @@ class Game {
       this.map.bld[i] = b.id;
       this.map.ore[i] = 0; this.map.oreMax[i] = 0;
     }
-    // push ground units out of the footprint
+    // push ground units and ships out of the footprint
     for (const e of this.entities) {
       if (e.kind !== 'unit' || e.air || e.dead) continue;
       if (e.tx >= tx && e.tx < tx + b.w && e.ty >= ty && e.ty < ty + b.h) {
-        const s = this.findFreeTile(e.tx, e.ty);
+        const s = this.findFreeTile(e.tx, e.ty, e.mode);
         if (s) { e.x = s[0] * TILE + TILE / 2; e.y = s[1] * TILE + TILE / 2; e.path = null; }
       }
     }
@@ -473,13 +490,13 @@ class Game {
     }
   }
 
-  // nearest passable, building-free tile to (tx,ty)
-  findFreeTile(tx, ty, avoid) {
+  // nearest passable, building-free tile to (tx,ty) for a unit moving by mode
+  findFreeTile(tx, ty, mode = MOVE_LAND) {
     for (let r = 0; r < 12; r++) {
       let best = null, bd = 1e9;
       for (let y = ty - r; y <= ty + r; y++) for (let x = tx - r; x <= tx + r; x++) {
         if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) !== r) continue;
-        if (!this.map.passable(x, y)) continue;
+        if (!this.map.passable(x, y, mode)) continue;
         const d = Math.hypot(x - tx, y - ty);
         if (d < bd) { bd = d; best = [x, y]; }
       }
@@ -491,7 +508,8 @@ class Game {
   canPlace(key, team, tx, ty) {
     const def = BUILDINGS[key], m = this.map;
     for (let y = ty; y < ty + def.h; y++) for (let x = tx; x < tx + def.w; x++) {
-      if (!m.terrainPassable(x, y) || m.bld[m.idx(x, y)] >= 0) return false;
+      // a shipyard floats on open water; everything else stands on land
+      if ((def.water ? !m.isWater(x, y) : !m.terrainPassable(x, y)) || m.bld[m.idx(x, y)] >= 0) return false;
       if (team === this.player && !this.teams[team].isAI && !this.explored[m.idx(x, y)]) return false;
     }
     // must be near an existing friendly structure
@@ -680,6 +698,76 @@ class Game {
 
   toggleDig(u) { return u.dug || u.digging > 0 ? this.digOut(u) : this.digIn(u); }
 
+  // ---------- transports ----------
+  // Ground units (not aircraft or ships) can ride a transport of their own side while it has room.
+  canBoard(u, tr) {
+    if (!tr || tr.dead || !tr.def.transport || !u || u.dead || u === tr || u.air || u.def.naval || u.inside || u.aboard) return false;
+    if (tr.team !== u.team) return false;
+    return cargoUsed(tr) + cargoSize(u) <= tr.def.transport;
+  }
+
+  // sends as many as there is room for (counting others already on their way); returns those sent
+  commandBoard(units, tr) {
+    let free = tr.def.transport - cargoUsed(tr);
+    for (const o of this.entities) if (!o.dead && o.order && o.order.type === 'board' && o.order.target === tr && !units.includes(o)) free -= cargoSize(o);
+    const sent = [];
+    for (const u of units) {
+      if (!this.canBoard(u, tr) || cargoSize(u) > free) continue;
+      if (u.dug || u.digging) this.digOut(u);
+      u.order = { type: 'board', target: tr };
+      u.target = null; u.path = null; u.repathT = 0;
+      if (u.def.harvester) u.hstate = null;
+      sent.push(u); free -= cargoSize(u);
+    }
+    if (sent.length && sent[0].team === this.player) { this.sound('ack'); this.voice(sent[0], 'move'); }
+    return sent;
+  }
+
+  // like a garrison, a passenger leaves the field (flagged dead) until it is set down again
+  board(u, tr) {
+    tr.passengers.push(u);
+    u.aboard = tr; u.dead = true;
+    u.order = null; u.target = null; u.path = null; u.burst = 0;
+    this.sound('capture', tr.x, tr.y);
+  }
+
+  // Everyone off onto dry land next to the transport; it has to be on or right by a beach.
+  unload(tr) {
+    if (!tr.passengers || !tr.passengers.length || tr.dead) return false;
+    const spots = [];
+    for (let r = 0; r <= 3 && spots.length < tr.passengers.length; r++) {
+      for (let y = tr.ty - r; y <= tr.ty + r; y++) for (let x = tr.tx - r; x <= tr.tx + r; x++) {
+        if (Math.max(Math.abs(x - tr.tx), Math.abs(y - tr.ty)) === r && this.map.passable(x, y)) spots.push([x, y]);
+      }
+    }
+    if (!spots.length) { this.eva('Cannot unload here', tr.team); return false; }
+    const g = tr.passengers;
+    tr.passengers = [];
+    g.forEach((u, i) => {
+      const [x, y] = spots[i % spots.length];
+      u.aboard = null; u.dead = false;
+      u.x = x * TILE + 8 + Math.random() * 16; u.y = y * TILE + 8 + Math.random() * 16;
+      u.order = null; u.target = null; u.path = null; u.stuckT = 0; u.lastX = u.x; u.lastY = u.y;
+      if (u.def.harvester) u.hstate = 'seek';
+      if (!this.entities.includes(u)) this.entities.push(u);
+      this.byId.set(u.id, u);
+    });
+    this.teams[tr.team].recount();
+    this.fogDirty = true;
+    this.sound('place', tr.x, tr.y);
+    return true;
+  }
+
+  // a transport going down takes its passengers with it
+  sinkPassengers(tr, attacker) {
+    const g = tr.passengers;
+    tr.passengers = [];
+    for (const u of g) {
+      u.aboard = null; u.dead = false; u.x = tr.x; u.y = tr.y;
+      this.kill(u, attacker);
+    }
+  }
+
   // ---------- damage ----------
   damage(target, amount, warhead, attacker) {
     if (target.dead) return;
@@ -723,6 +811,7 @@ class Game {
   kill(e, attacker) {
     if (e.dead) return;
     this.removeEntity(e);
+    if (e.passengers && e.passengers.length) this.sinkPassengers(e, attacker);
     if (e.def.volatile && !e.blown) { e.blown = true; this.blast(e, e.def.weapon.damage * 0.6, e.def.weapon.splash); }
     if (this.mission) this.mission.onKill(e, attacker);
     const t = this.teamOf(e.team), civ = e.def.cat === 'civilian';
@@ -754,12 +843,25 @@ class Game {
         this.effects.push({ type: 'corpse', x: e.x, y: e.y, t: 0, life: 6, color: t.color });
       } else {
         this.explosion(e.x, e.y, e.def.radius * 2.2, true, 0, e.alt);
-        if (!e.air) this.decal(e.x, e.y, e.def.radius * 1.6);
-        else this.effects.push({ type: 'falling', x: e.x, y: e.y, alt: e.alt, t: 0, life: 0.6 });
+        if (e.air) this.effects.push({ type: 'falling', x: e.x, y: e.y, alt: e.alt, t: 0, life: 0.6 });
+        else if (this.map.isWater(e.tx, e.ty)) {
+          // a ship goes down: the burning hull settles into a ring of foam
+          this.effects.push({ type: 'sinking', key: e.key, team: e.team, x: e.x, y: e.y, facing: e.facing, t: 0, life: 2.4 });
+          this.effects.push({ type: 'splash', x: e.x, y: e.y, t: 0, life: 1.6, size: e.def.radius * 2 });
+        } else this.decal(e.x, e.y, e.def.radius * 1.6);
       }
       if (e.team === this.player) this.eva('Unit lost', e.team);
       if (e.def.mcv || e.def.harvester) t.recount();
     }
+  }
+
+  // foam trailing a ship under way
+  wake(u, dt) {
+    u.wakeT = (u.wakeT || 0) - dt;
+    if (u.wakeT > 0) return;
+    u.wakeT = 0.09;
+    const back = u.def.radius * 0.8, a = u.facing;
+    this.effects.push({ type: 'wake', x: u.x - Math.cos(a) * back, y: u.y - Math.sin(a) * back, a, t: 0, life: 1.6, size: u.def.radius * 0.6 });
   }
 
   explosion(x, y, size, big, delay = 0, z = 0) {
@@ -805,6 +907,7 @@ class Game {
     const d = e.def, w = [];
     if (d.weapon) w.push(d.weapon);
     if (d.weapon2) w.push(d.weapon2);
+    if (d.weapon3) w.push(d.weapon3);
     return w;
   }
 
@@ -819,10 +922,27 @@ class Game {
     return null;
   }
 
-  // whether a weapon can engage a target at all (air/ground, and 'only' for hackers)
+  // whether a weapon can engage a target at all (air/ground, 'only' for hackers and torpedoes;
+  // a submerged submarine only by anti-submarine weapons, torpedoes only what is afloat)
   fits(w, t) {
     if (!(t.air ? w.air : w.ground)) return false;
-    return !w.only || (t.kind === 'unit' && w.only.includes(t.def.cat) && !t.def.hero);
+    if (w.only && !(t.kind === 'unit' && w.only.includes(t.def.cat) && !t.def.hero)) return false;
+    if (t.def.submarine && !w.asw && this.submerged(t)) return false;
+    if (w.warhead === 'torpedo' && !this.map.isWater(t.tx, t.ty)) return false;
+    return true;
+  }
+
+  // a submarine runs submerged unless it fired in the last few seconds
+  submerged(u) { return !!u.def.submarine && this.time - (u.firedT || -99) > 3; }
+
+  // whether a team has anything close enough to pick out a submerged submarine
+  detects(team, u) {
+    if (u.detT === this.time && u.detTeam === team) return u.det;
+    const R = u.def.stealth * TILE;
+    let seen = this.unitsNear(u.x, u.y, R).some(o => this.allied(o.team, team) && Math.hypot(o.x - u.x, o.y - u.y) <= R);
+    if (!seen) seen = this.entities.some(b => b.kind === 'building' && !b.dead && this.allied(b.team, team) && distTo(u.x, u.y, b) <= R);
+    u.detT = this.time; u.detTeam = team; u.det = seen;
+    return seen;
   }
 
   maxRange(e) {
@@ -863,14 +983,18 @@ class Game {
 
   // ---------- commands ----------
   commandMove(units, tx, ty, attackMove, quiet) {
-    const ground = units.filter(u => !u.air), air = units.filter(u => u.air);
-    // spread destination tiles around the click
-    const spots = this.formationSpots(tx, ty, ground.length);
-    ground.sort((a, b) => Math.hypot(a.x - tx * TILE, a.y - ty * TILE) - Math.hypot(b.x - tx * TILE, b.y - ty * TILE));
-    ground.forEach((u, i) => {
-      const s = spots[i] || [tx, ty];
-      this.setMove(u, s[0], s[1], attackMove);
-    });
+    const air = units.filter(u => u.air);
+    // spread destination tiles around the click, separately for land units and ships
+    for (const mode of [MOVE_LAND, MOVE_WATER, MOVE_AMPHIB]) {
+      const ground = units.filter(u => !u.air && u.mode === mode);
+      if (!ground.length) continue;
+      const spots = this.formationSpots(tx, ty, ground.length, mode);
+      ground.sort((a, b) => Math.hypot(a.x - tx * TILE, a.y - ty * TILE) - Math.hypot(b.x - tx * TILE, b.y - ty * TILE));
+      ground.forEach((u, i) => {
+        const s = spots[i] || [tx, ty];
+        this.setMove(u, s[0], s[1], attackMove);
+      });
+    }
     air.forEach((u, i) => {
       const a = i * 2.4, r = Math.sqrt(i) * 1.1;
       this.setMove(u, tx + Math.cos(a) * r, ty + Math.sin(a) * r, attackMove);
@@ -878,13 +1002,14 @@ class Game {
     if (!quiet && units.length && units[0].team === this.player) { this.sound('ack'); this.voice(units[0], attackMove ? 'attack' : 'move'); }
   }
 
-  formationSpots(tx, ty, n) {
+  formationSpots(tx, ty, n, mode = MOVE_LAND) {
     const spots = [];
     const m = this.map;
-    for (let r = 0; spots.length < n && r < 10; r++) {
+    // ships spread wider: they are big, and a click on the shore should still find water
+    for (let r = 0; spots.length < n && r < (mode === MOVE_LAND ? 10 : 16); r++) {
       for (let y = ty - r; y <= ty + r; y++) for (let x = tx - r; x <= tx + r; x++) {
         if (Math.max(Math.abs(x - tx), Math.abs(y - ty)) !== r) continue;
-        if (m.passable(x, y)) spots.push([x, y]);
+        if (m.passable(x, y, mode) && (mode === MOVE_LAND || (x + y) % 2 === 0 || r > 6)) spots.push([x, y]);
       }
     }
     return spots;
@@ -939,7 +1064,7 @@ class Game {
   }
 
   computePath(u, tx, ty, range) {
-    const p = this.pf.find(u.tx, u.ty, Math.max(0, Math.min(this.map.w - 1, tx)), Math.max(0, Math.min(this.map.h - 1, ty)), range);
+    const p = this.pf.find(u.tx, u.ty, Math.max(0, Math.min(this.map.w - 1, tx)), Math.max(0, Math.min(this.map.h - 1, ty)), range, u.mode);
     u.path = p; u.pathI = 0; u.repath = false; u.stuckT = 0;
     u.goal = [tx, ty, range];
     return p;
@@ -1089,12 +1214,14 @@ class Game {
     if (team !== this.player || this.teams[team].isAI) return true;
     if (this.allied(e.team, team)) return true;
     if (e.kind === 'building') return e.seen;
+    if (e.def.submarine && this.submerged(e) && !this.detects(team, e)) return false;
     return this.isVisibleTile(e.tx, e.ty);
   }
 
   // ---------- unit behaviour ----------
   updateUnit(u, dt) {
-    u.cool -= dt; u.cool2 -= dt; u.anim += dt;
+    u.cool -= dt; u.cool2 -= dt; u.cool3 -= dt; u.anim += dt;
+    if (u.def.naval && u.moving && this.map.isWater(u.tx, u.ty)) this.wake(u, dt);
     u.moving = false;
     if (u.def.selfHeal && u.hp < u.maxHp && !(u.def.hero && this.time - (u.hitT || -99) < 4)) u.hp = Math.min(u.maxHp, u.hp + u.def.selfHeal * dt);
     if (u.rank === 2 && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.01 * dt);
@@ -1107,6 +1234,7 @@ class Game {
 
     // knocked out by an EMP: nothing moves or fires until it wears off
     if (u.stunT > this.time) return;
+    if (u.def.intercept) this.intercept(u, dt);
     if (u.def.harvester) { this.updateHarvester(u, dt); return; }
     if (u.def.jet) { this.updateJet(u, dt); return; }
     // the computer sends its SAS to plant C4 on whatever structure they are shooting at
@@ -1119,6 +1247,18 @@ class Game {
       if (u.dug) { u.path = null; u.cool = Math.max(u.cool, 0.2); }
     }
     const o = u.order;
+
+    if (o && o.type === 'board') {
+      const tr = o.target;
+      if (!this.canBoard(u, tr)) { u.order = null; return; }
+      // close enough to step aboard (a transport waiting off the beach counts once we are at the water's edge)
+      const d = Math.hypot(tr.x - u.x, tr.y - u.y);
+      if (d < TILE * 1.3 || (d < TILE * 2.6 && (!u.path || u.pathI >= u.path.length))) { this.board(u, tr); return; }
+      u.repathT = (u.repathT || 0) - dt;
+      if (!u.path || u.repathT <= 0 || u.repath) { this.pathToEntity(u, tr, 1); u.repathT = 1; }
+      this.moveAlong(u, dt);
+      return;
+    }
 
     if (o && o.type === 'garrison') {
       const b = o.target;
@@ -1198,15 +1338,14 @@ class Game {
       if (d <= range && d >= minR) {
         u.path = null;
         const a = Math.atan2(t.y - u.y, t.x - u.x);
-        const hasTurret = u.def.cat === 'vehicle';
+        const hasTurret = turreted(u.def);
         if (hasTurret) u.turret = turnToward(u.turret, a, 8 * dt); else u.facing = a;
         if (u.air) { u.facing = turnToward(u.facing, a, 5 * dt); this.hover(u, dt); }
-        const aimed = !hasTurret || Math.abs(angDiff(u.turret, a)) < 0.15;
-        const isW2 = w === u.def.weapon2;
-        if (aimed && (isW2 ? u.cool2 : u.cool) <= 0 && u.burst <= 0) {
+        const aimed = !hasTurret || Math.abs(angDiff(u.turret, a)) < 0.15 || w.proj === 'torpedo' || w.proj === 'sortie';
+        const slot = w === u.def.weapon2 ? 'cool2' : w === u.def.weapon3 ? 'cool3' : 'cool';
+        if (aimed && u[slot] <= 0 && u.burst <= 0) {
           this.fire(u, w, t);
-          const cd = w.cooldown * (u.rank === 2 ? 0.8 : 1) / rofOf(u);
-          if (isW2) u.cool2 = cd; else u.cool = cd;
+          u[slot] = w.cooldown * (u.rank === 2 ? 0.8 : 1) / rofOf(u);
           if (w.burst > 1) { u.burst = w.burst - 1; u.burstT = 0.18; u.burstW = w; u.burstTarget = t; }
         }
         return;
@@ -1309,7 +1448,7 @@ class Game {
   moveAlong(u, dt) {
     if (!u.path || u.pathI >= u.path.length) return true;
     const [tx, ty] = u.path[u.pathI];
-    if (!this.map.passable(tx, ty) && u.goal) {
+    if (!this.map.passable(tx, ty, u.mode) && u.goal) {
       this.computePath(u, u.goal[0], u.goal[1], u.goal[2]);
       if (!u.path.length) return true;
       return false;
@@ -1318,7 +1457,7 @@ class Game {
     const dx = px - u.x, dy = py - u.y, d = Math.hypot(dx, dy);
     const a = Math.atan2(dy, dx);
     let sp = u.def.speed * (u.speedMul || 1) * TILE * dt;
-    if (u.def.cat === 'vehicle') {
+    if (turreted(u.def)) {
       u.facing = turnToward(u.facing, a, (u.def.turn || 4) * dt);
       const diff = Math.abs(angDiff(u.facing, a));
       if (diff > 1.0) sp *= 0.1; else if (diff > 0.4) sp *= 0.5;
@@ -1374,7 +1513,7 @@ class Game {
   nudge(u, dx, dy) {
     if (u.dug) return;
     const nx = u.x + dx, ny = u.y + dy;
-    if (u.air || this.map.passable(Math.floor(nx / TILE), Math.floor(ny / TILE))) { u.x = nx; u.y = ny; }
+    if (u.air || this.map.passable(Math.floor(nx / TILE), Math.floor(ny / TILE), u.mode)) { u.x = nx; u.y = ny; }
   }
 
   // ---------- harvesting ----------
@@ -1524,22 +1663,23 @@ class Game {
     }
   }
 
-  // THAAD: shoots down the nearest hostile shell, missile or rocket in the air within range
+  // THAAD and the Aegis destroyer: shoot down the nearest hostile artillery round, missile or
+  // rocket in the air within range (not cannon shells, bombs, torpedoes or carrier jets)
   intercept(b, dt) {
-    b.cool -= dt;
-    if (b.cool > 0) return;
+    b.icool = (b.icool || 0) - dt;
+    if (b.icool > 0) return;
     const R = b.def.intercept.range * TILE;
     let best = null, bd = R;
     for (const p of this.projectiles) {
-      if (p.dead || p.drop || p.type === 'shell' || !this.hostile(p.team, b.team)) continue;
+      if (p.dead || p.drop || p.type === 'shell' || p.type === 'torpedo' || p.type === 'sortie' || !this.hostile(p.team, b.team)) continue;
       const d = Math.hypot(p.x - b.x, p.y - b.y);
       if (d < bd) { bd = d; best = p; }
     }
     if (!best) return;
     best.dead = true;
-    b.cool = b.def.intercept.cooldown / rofOf(b);
-    b.turret = Math.atan2(best.y - b.y, best.x - b.x);
-    this.effects.push({ type: 'beam', x: b.x, y: b.y, z: b.def.height, x2: best.x, y2: best.y, z2: best.z || 0, t: 0, life: 0.25, color: '255,240,200' });
+    b.icool = b.def.intercept.cooldown / rofOf(b);
+    if (b.kind === 'building') b.turret = Math.atan2(best.y - b.y, best.x - b.x);
+    this.effects.push({ type: 'beam', x: b.x, y: b.y, z: b.kind === 'building' ? b.def.height : muzzleZ(b) + 6, x2: best.x, y2: best.y, z2: best.z || 0, t: 0, life: 0.25, color: '255,240,200' });
     this.effects.push({ type: 'explosion', x: best.x, y: best.y, z: best.z || 0, size: 10, t: 0, life: 0.4 });
     if (b.team === this.player || this.isVisibleTile(Math.floor(b.x / TILE), Math.floor(b.y / TILE))) this.sound('rocket', b.x, b.y);
   }
@@ -1551,7 +1691,7 @@ class Game {
     b.healT = 0.5;
     const h = b.def.heal, amount = h.rate * 0.5 * (t.lowPower ? 0.5 : 1);
     for (const u of this.unitsNear(b.x, b.y, h.radius * TILE)) {
-      if (u.dead || !this.allied(u.team, b.team) || u.hp >= u.maxHp || u.def.harvester && u.hstate === 'mine') continue;
+      if (u.dead || !this.allied(u.team, b.team) || u.hp >= u.maxHp || u.def.harvester && u.hstate === 'mine' || (h.naval && !u.def.naval)) continue;
       u.hp = Math.min(u.maxHp, u.hp + amount);
       if (Math.random() < 0.3) this.effects.push({ type: 'spark', x: u.x, y: u.y, z: aimZ(u), t: 0, life: 0.5, color: '#7dff9a' });
     }
@@ -1565,7 +1705,7 @@ class Game {
     s.firedT = this.time;
     const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * this.teams[s.team].bonus('dmg', s.kind === 'unit' ? s.def.cat : categoryOf(s.key)) * (s.inside ? GARRISON.dmg : 1);
     s.recoil = 1;
-    const ang = s.def.cat === 'vehicle' || s.kind === 'building' ? s.turret : s.facing;
+    const ang = turreted(s.def) || s.kind === 'building' ? s.turret : s.facing;
     const len = s.kind === 'building' ? 12 : (s.def.radius || 6) + 2;
     const sx = s.x + Math.cos(ang) * len, sy = s.y + Math.sin(ang) * len, sz = muzzleZ(s);
     const tx = t.x, ty = t.y, tz = aimZ(t);
@@ -1633,6 +1773,22 @@ class Game {
         if (vis) this.sound('rail', sx, sy);
         break;
       }
+      case 'torpedo': {
+        // runs just under the surface and homes in on the hull
+        this.projectiles.push({ type: 'torpedo', x: sx, y: sy, z: 0, sx, sy, sz: 0, tz: 0, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: by,
+          dmg, warhead: w.warhead, splash: 0, speed: (w.speed || 8) * TILE, t: 0, ang: Math.atan2(ty - sy, tx - sx) });
+        this.effects.push({ type: 'splash', x: sx, y: sy, t: 0, life: 0.6, size: 6 });
+        if (vis) this.sound('rocket', sx, sy);
+        break;
+      }
+      case 'sortie': {
+        // a jet leaves the deck, loops out to the target, strikes and comes home
+        const a = s.facing + (Math.random() - 0.5) * 1.2;
+        this.projectiles.push({ type: 'sortie', x: sx, y: sy, z: sz, sz, tz, target: t, tx, ty, team: s.team, src: by, home: s,
+          dmg, warhead: w.warhead, splash: 0, speed: (w.speed || 9) * TILE, t: 0, ang: a, phase: 'out', aaT: 0.3 });
+        if (vis) this.sound('rocket', sx, sy);
+        break;
+      }
       case 'shell': case 'rocket': case 'arty': case 'bomb': {
         const p = {
           type: w.proj === 'bomb' ? 'arty' : w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: by,
@@ -1690,6 +1846,7 @@ class Game {
     for (const p of this.projectiles) {
       if (p.dead) continue; // shot down
       p.t += dt;
+      if (p.type === 'sortie') { if (this.updateSortie(p, dt)) keep.push(p); continue; }
       if (p.type === 'arty') {
         const k = Math.min(1, p.t / p.dur);
         p.x = p.sx + (p.tx - p.sx) * k; p.y = p.sy + (p.ty - p.sy) * k;
@@ -1707,9 +1864,59 @@ class Game {
       p.x += Math.cos(p.ang) * sp; p.y += Math.sin(p.ang) * sp;
       p.z = p.tz + (p.sz - p.tz) * Math.min(1, Math.max(0, d / p.d0));
       if (p.type === 'rocket' && Math.random() < 0.7) this.effects.push({ type: 'smoke', x: p.x, y: p.y, z: p.z, t: 0, life: 0.5, size: 2.5 });
+      if (p.type === 'torpedo') { p.z = 0; if (Math.random() < 0.5) this.effects.push({ type: 'foam', x: p.x, y: p.y, t: 0, life: 0.9, size: 2 }); }
       keep.push(p);
     }
     this.projectiles = keep;
+  }
+
+  // Carrier jets: fly out on a curving course, strike, then return to the deck. On the way out
+  // every enemy air defense in reach has a chance to shoot them down. Returns false when done.
+  updateSortie(p, dt) {
+    const out = p.phase === 'out';
+    if (out && p.target && !p.target.dead) { p.tx = p.target.x; p.ty = p.target.y; p.tz = aimZ(p.target); }
+    else if (out) p.phase = 'back';
+    const home = p.home && !p.home.dead ? p.home : null;
+    if (!out) { if (!home || p.t > 20) return false; p.tx = home.x; p.ty = home.y; p.tz = 6; }
+    const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+    p.ang = turnToward(p.ang, Math.atan2(dy, dx), 2.6 * dt);
+    const sp = p.speed * dt;
+    p.x += Math.cos(p.ang) * sp; p.y += Math.sin(p.ang) * sp;
+    p.z += ((d > 3 * TILE ? 46 : p.tz) - p.z) * Math.min(1, dt * 2);
+    if (Math.random() < 0.4) this.effects.push({ type: 'smoke', x: p.x, y: p.y, z: p.z, t: 0, life: 0.4, size: 1.6 });
+    if (out) {
+      if (d < 14 || p.t > 12) {
+        if (p.target && !p.target.dead) this.damage(p.target, p.dmg, p.warhead, p.src);
+        this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, z: p.tz, size: 12, t: 0, life: 0.45 });
+        p.phase = 'back';
+        if (this.isVisibleTile(Math.floor(p.tx / TILE), Math.floor(p.ty / TILE))) this.sound('pop', p.tx, p.ty);
+        return true;
+      }
+      p.aaT -= dt;
+      if (p.aaT <= 0) {
+        p.aaT = 0.3;
+        if (Math.random() < this.flakAt(p.x, p.y, p.team)) {
+          this.effects.push({ type: 'explosion', x: p.x, y: p.y, z: p.z, size: 10, t: 0, life: 0.5 });
+          this.effects.push({ type: 'falling', x: p.x, y: p.y, alt: p.z, t: 0, life: 0.6 });
+          return false;
+        }
+      }
+      return true;
+    }
+    return d > 16;
+  }
+
+  // chance that air defenses around a point bring down a passing jet in one 0.3 s check
+  flakAt(x, y, team) {
+    let miss = 1;
+    const shoot = e => {
+      if (e.dead || !this.hostile(e.team, team) || (e.stunT > this.time)) return;
+      if (e.kind === 'building' && (e.built < 1 || (e.def.needsPower && this.teams[e.team].lowPower))) return;
+      for (const w of this.weaponsOf(e)) if (w.air && distTo(x, y, e) < w.range * TILE) { miss *= w.warhead === 'flak' ? 0.86 : 0.94; return; }
+    };
+    for (const u of this.unitsNear(x, y, 10 * TILE)) shoot(u);
+    for (const b of this.entities) if (b.kind === 'building') shoot(b);
+    return 1 - miss;
   }
 
   impact(p) {
@@ -1725,10 +1932,14 @@ class Game {
         if (distTo(p.tx, p.ty, o) < R * 0.6) this.damage(o, p.dmg, p.warhead, p.src);
       }
       this.explosion(p.tx, p.ty, 22, false);
-      this.decal(p.tx, p.ty, 10);
+      if (this.map.isWater(Math.floor(p.tx / TILE), Math.floor(p.ty / TILE))) this.effects.push({ type: 'splash', x: p.tx, y: p.ty, t: 0, life: 1, size: 14 });
+      else this.decal(p.tx, p.ty, 10);
     } else if (p.target && !p.target.dead) {
       this.damage(p.target, p.dmg, p.warhead, p.src);
-      this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, z: p.tz, size: p.type === 'shell' ? 12 : 10, t: 0, life: 0.4 });
+      if (p.type === 'torpedo') this.effects.push({ type: 'splash', x: p.tx, y: p.ty, t: 0, life: 1.1, size: 16 });
+      this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, z: p.type === 'torpedo' ? 2 : p.tz, size: p.type === 'shell' ? 12 : 10, t: 0, life: 0.4 });
+    } else if (p.type === 'torpedo' || this.map.isWater(Math.floor(p.tx / TILE), Math.floor(p.ty / TILE))) {
+      this.effects.push({ type: 'splash', x: p.tx, y: p.ty, t: 0, life: 0.9, size: 9 });
     } else {
       this.effects.push({ type: 'explosion', x: p.tx, y: p.ty, z: p.tz || 0, size: 8, t: 0, life: 0.35 });
     }
