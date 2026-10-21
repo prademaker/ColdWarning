@@ -320,6 +320,7 @@ class Game {
     this.projectiles = []; this.effects = []; this.decals = [];
     this.messages = [];
     this.pendingStrikes = [];
+    this.pings = [];
     this.charges = [];
     this.shake = 0;
     this.teams = Game.makeTeams(opts, lineup);
@@ -792,7 +793,7 @@ class Game {
       if (target.team === this.player || attacker.team === this.player) this.heat += 1; // drives the music
       if (target.team === this.player) {
         this.eva(target.kind === 'building' ? 'Our base is under attack' : 'Unit under attack', target.team);
-        if (target.kind === 'building') this.alertPos = { x: target.x, y: target.y, t: this.time };
+        this.ping(target.x, target.y, target.kind === 'building' ? 'base' : 'unit');
       }
       const ai = this.ai[target.team];
       if (ai) ai.onAttacked(target, attacker);
@@ -1974,6 +1975,17 @@ class Game {
   // superweapon switch have no flag, so undefined counts as on)
   allows(key) {
     return this.superweapons !== false || !(BUILDINGS[key] && BUILDINGS[key].superweapon);
+  }
+
+  // an alert on the player's radar; Space jumps to the latest. Fresh hits next to a live ping
+  // keep that one going instead of stacking up new ones.
+  ping(x, y, kind) {
+    if (!this.pings) this.pings = [];
+    this.alertPos = { x, y, t: this.time };
+    const near = this.pings.find(p => this.time - p.t < 4 && Math.hypot(p.x - x, p.y - y) < TILE * 8);
+    if (near) { if (kind === 'base') near.kind = 'base'; return; }
+    this.pings.push({ x, y, t: this.time, kind });
+    if (this.pings.length > 8) this.pings.shift();
   }
 
   fireSuper(team, x, y) {

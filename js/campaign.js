@@ -450,7 +450,7 @@ class Mission {
   // where the camera opens; later calls flag the spot as the latest alert (Space jumps there)
   focusOn(tx, ty) {
     const x = tx * TILE + TILE / 2, y = ty * TILE + TILE / 2;
-    if (!this.focus) this.focus = [x, y]; else G.alertPos = { x, y, t: G.time };
+    if (!this.focus) this.focus = [x, y]; else G.ping(x, y, 'info');
   }
 
   // the tile d tiles from a toward b

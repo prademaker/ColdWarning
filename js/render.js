@@ -647,7 +647,7 @@ const Render = {
       if (BLD_TURRETS[fake.key]) Art.blit(ctx, buildingTurretSprite(fake, G.playerTeam), sx, sy);
       ctx.globalAlpha = 1;
     }
-    const sel = new Set(ui.selection);
+    const sel = new Set(ui.selection), groups = ui.groupOf();
     const ents = list.filter(it => it.e).map(it => it.e).concat(air);
     for (const e of ents) {
       const isSel = sel.has(e), hover = ui.hover === e, recent = e.hitT && G.time - e.hitT < 2.5;
@@ -657,7 +657,7 @@ const Render = {
         ctx.strokeStyle = G.hostile(e.team, G.player) ? '#f66' : '#fff'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.ellipse(x, y, 18, 9, 0, 0, Math.PI * 2); ctx.stroke();
       }
-      if (isSel || hover || recent || ui.showBars) this.drawHealth(ctx, e, isSel);
+      if (isSel || hover || recent || ui.showBars) this.drawHealth(ctx, e, isSel, isSel ? groups.get(e) : undefined);
     }
     if (G.mission) {
       ctx.font = '600 12px Oswald, sans-serif'; ctx.textAlign = 'center';
@@ -689,7 +689,7 @@ const Render = {
     ctx.stroke();
   },
 
-  drawHealth(ctx, e, sel) {
+  drawHealth(ctx, e, sel, group) {
     let x, y, w;
     if (e.kind === 'building') {
       const [cx, cy] = this.P(e.x, e.y, e.def.height + 10);
@@ -712,6 +712,11 @@ const Render = {
         const cx = x + w + 4, cy = y + 1 + i * 4;
         ctx.beginPath(); ctx.moveTo(cx - 3, cy); ctx.lineTo(cx, cy + 2.5); ctx.lineTo(cx + 3, cy); ctx.lineTo(cx + 3, cy + 1.5); ctx.lineTo(cx, cy + 4); ctx.lineTo(cx - 3, cy + 1.5); ctx.fill();
       }
+    }
+    if (group !== undefined) {
+      ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'right';
+      ctx.fillStyle = '#000'; ctx.fillText(group, x - 2, y + 5);
+      ctx.fillStyle = '#fff'; ctx.fillText(group, x - 3, y + 4);
     }
     if (e.kind === 'building' && e.repairing) {
       ctx.fillStyle = '#7f7'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
