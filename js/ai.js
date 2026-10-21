@@ -37,7 +37,7 @@ class AI {
     const yard = this.sea ? 'shipyard' : null;
     this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret', 'bunker',
       edge, 'airfield', 'power', 'tech', yard, 'sam', 'power', 'turret', 'bunker', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
-      edge2, 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => k && inRoster(k, team.faction));
+      edge2, 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => k && inRoster(k, team.faction) && G.allows(k));
     this.nextAttack = this.d.firstAttack;
     this.waves = 0;
     this.wave = null;          // the attack wave in the field: { ids, foe, state, stage, t, start, target }

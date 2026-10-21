@@ -124,6 +124,7 @@ class Team {
     for (const r of def.req || []) if (!this.countOf(r)) return false;
     if (UNITS[key] && !this.countOf(def.from)) return false;
     if (BUILDINGS[key] && !this.countOf('cc')) return false;
+    if (!G.allows(key)) return false;
     return true;
   }
 
@@ -307,6 +308,8 @@ class Game {
     this.time = 0;
     // a campaign mission brings its own teams, starting forces and objectives (campaign.js)
     const md = opts.mission ? missionDef(opts.mission) : null;
+    // skirmish and defense can switch superweapons off; missions script their own
+    this.superweapons = !!md || opts.superweapons !== false;
     this.mode = md ? 'campaign' : opts.mode === 'defense' ? 'defense' : 'skirmish';
     // alliance number per team, the human first; defense is the player against the waves
     const lineup = md ? md.teams.map(t => t.ally) : this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
@@ -1967,6 +1970,12 @@ class Game {
   }
 
   // ---------- superweapons ----------
+  // whether this match's rules allow building something at all (saves from before the
+  // superweapon switch have no flag, so undefined counts as on)
+  allows(key) {
+    return this.superweapons !== false || !(BUILDINGS[key] && BUILDINGS[key].superweapon);
+  }
+
   fireSuper(team, x, y) {
     const t = this.teams[team];
     if (!t.superReady) return false;
