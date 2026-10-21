@@ -30,7 +30,7 @@ const HOTKEY_HELP = [
     ['Right-click', 'Move, attack, board, garrison, harvest'],
     ['A then click · Ctrl+right-click', 'Attack-move'],
     ['S', 'Stop'],
-    ['D', 'Deploy MCV · dig in / get up · unload transport · empty garrison'],
+    ['D', 'Deploy MCV · dig in / get up · lay mine · unload transport · empty garrison'],
     ['Double-click', 'Select all of that type on screen'],
     ['Ctrl+double-click', 'Select all of that type on the map'],
     ['Ctrl+A', 'Select every combat unit'],

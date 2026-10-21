@@ -322,6 +322,7 @@ class Game {
     this.pendingStrikes = [];
     this.pings = [];
     this.charges = [];
+    this.mines = []; // anti-tank mines: { x, y, team, by, def, armT }
     this.shake = 0;
     this.teams = Game.makeTeams(opts, lineup);
     this.neutral = Game.makeNeutral();
@@ -461,6 +462,7 @@ class Game {
       this.map.bld[i] = b.id;
       this.map.ore[i] = 0; this.map.oreMax[i] = 0;
     }
+    this.mines = this.mines.filter(m => !(m.x >= tx * TILE && m.x < (tx + b.w) * TILE && m.y >= ty * TILE && m.y < (ty + b.h) * TILE));
     // push ground units and ships out of the footprint
     for (const e of this.entities) {
       if (e.kind !== 'unit' || e.air || e.dead) continue;
@@ -516,9 +518,11 @@ class Game {
       if ((def.water ? !m.isWater(x, y) : !m.terrainPassable(x, y)) || m.bld[m.idx(x, y)] >= 0) return false;
       if (team === this.player && !this.teams[team].isAI && !this.explored[m.idx(x, y)]) return false;
     }
-    // must be near an existing friendly structure
+    // an Ore Drill has to reach an ore field
+    if (def.nearOre && !this.oreNear(tx, ty, def.w, def.h, def.nearOre)) return false;
+    // must be near an existing friendly structure (walls don't stretch the build area)
     for (const e of this.entities) {
-      if (e.kind !== 'building' || e.team !== team || e.dead || e.def.cat === 'civilian') continue;
+      if (e.kind !== 'building' || e.team !== team || e.dead || e.def.cat === 'civilian' || e.def.wall) continue;
       const dx = Math.max(e.tx - (tx + def.w - 1), 0, tx - (e.tx + e.w - 1));
       const dy = Math.max(e.ty - (ty + def.h - 1), 0, ty - (e.ty + e.h - 1));
       if (Math.max(dx, dy) <= BUILD_RADIUS) {
@@ -529,6 +533,15 @@ class Game {
         }
         return true;
       }
+    }
+    return false;
+  }
+
+  // whether there is a worthwhile amount of ore within r tiles of a footprint
+  oreNear(tx, ty, w, h, r) {
+    const m = this.map;
+    for (let y = ty - r; y < ty + h + r; y++) for (let x = tx - r; x < tx + w + r; x++) {
+      if (m.inside(x, y) && (x < tx || x >= tx + w || y < ty || y >= ty + h) && m.ore[m.idx(x, y)] > 50) return true;
     }
     return false;
   }
@@ -666,7 +679,7 @@ class Game {
     const g = b.garrison;
     for (const u of g) { u.cool -= dt; u.cool2 -= dt; }
     const reach = (this.maxRange(b) + GARRISON.range) * TILE + Math.min(b.w, b.h) * TILE / 2;
-    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || !this.canHit(b, b.target) || distTo(b.x, b.y, b.target) > Math.min(reach + 8, this.stealthRange(b.target)))) b.target = null;
+    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || !this.canHit(b, b.target) || distTo(b.x, b.y, b.target) > Math.min(reach + 8, this.stealthRange(b.target, b)))) b.target = null;
     b.scanT -= dt;
     if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, reach / TILE); }
     const t = b.target;
@@ -939,11 +952,11 @@ class Game {
   // a submarine runs submerged unless it fired in the last few seconds
   submerged(u) { return !!u.def.submarine && this.time - (u.firedT || -99) > 3; }
 
-  // whether a team has anything close enough to pick out a submerged submarine
+  // whether a team has anything close enough (or a Sensor Tower) to pick out a stealth unit
   detects(team, u) {
     if (u.detT === this.time && u.detTeam === team) return u.det;
     const R = u.def.stealth * TILE;
-    let seen = this.unitsNear(u.x, u.y, R).some(o => this.allied(o.team, team) && Math.hypot(o.x - u.x, o.y - u.y) <= R);
+    let seen = this.spotted(u, team) || this.unitsNear(u.x, u.y, R).some(o => this.allied(o.team, team) && Math.hypot(o.x - u.x, o.y - u.y) <= R);
     if (!seen) seen = this.entities.some(b => b.kind === 'building' && !b.dead && this.allied(b.team, team) && distTo(u.x, u.y, b) <= R);
     u.detT = this.time; u.detTeam = team; u.det = seen;
     return seen;
@@ -955,35 +968,50 @@ class Game {
     return r;
   }
 
+  // Units come first (armed ones by preference), then structures; bombers go for structures
+  // first. Walls only draw fire when nothing else is in reach.
   findTarget(e, radiusTiles) {
     const R = radiusTiles * TILE;
+    const siege = e.def.prefer === 'structures';
     let best = null, bs = 1e9;
-    const cand = this.unitsNear(e.x, e.y, R + 32);
-    for (const o of cand) {
-      if (!this.hostile(o.team, e.team) || o.dead) continue;
-      if (!this.canHit(e, o)) continue;
-      const d = Math.hypot(o.x - e.x, o.y - e.y);
-      if (d > R || d > this.stealthRange(o)) continue;
-      let s = d;
-      if (o.def.weapon) s -= 64;
-      if (s < bs) { bs = s; best = o; }
+    if (!siege) {
+      best = this.findUnitTarget(e, R);
+      if (best) return best;
     }
-    if (best) return best;
     for (const o of this.entities) {
       if (o.kind !== 'building' || !this.hostile(o.team, e.team) || o.dead || !o.built) continue;
       if (!this.canHit(e, o)) continue;
       const d = distTo(e.x, e.y, o);
       if (d > R) continue;
-      let s = d + (o.def.weapon || (o.garrison && o.garrison.length) ? -64 : 96);
+      let s = d + (o.def.wall ? 200 : o.def.weapon || (o.garrison && o.garrison.length) ? -64 : 96);
+      if (s < bs) { bs = s; best = o; }
+    }
+    return best || (siege ? this.findUnitTarget(e, R) : null);
+  }
+
+  findUnitTarget(e, R) {
+    let best = null, bs = 1e9;
+    for (const o of this.unitsNear(e.x, e.y, R + 32)) {
+      if (!this.hostile(o.team, e.team) || o.dead) continue;
+      if (!this.canHit(e, o)) continue;
+      const d = Math.hypot(o.x - e.x, o.y - e.y);
+      if (d > R || d > this.stealthRange(o, e)) continue;
+      let s = d;
+      if (o.def.weapon) s -= 64;
       if (s < bs) { bs = s; best = o; }
     }
     return best;
   }
 
-  // how close a unit has to be before enemies can pick it out (commandos stay hidden until they shoot)
-  stealthRange(o) {
-    return o.def.stealth && this.time - (o.firedT || -99) > 3 ? o.def.stealth * TILE : 1e9;
+  // How close a stealth unit (commando, SAS, Phantom, submarine) has to be before an enemy can
+  // pick it out: hidden until it fires, unless a Sensor Tower of the onlooker's side has it spotted.
+  stealthRange(o, by) {
+    if (!o.def.stealth || this.time - (o.firedT || -99) <= 3) return 1e9;
+    return by && this.spotted(o, by.team) ? 1e9 : o.def.stealth * TILE;
   }
+
+  // picked out by a Sensor Tower of (or allied to) this team
+  spotted(o, team) { return o.spotT > this.time && this.allied(o.spotTeam, team); }
 
   // ---------- commands ----------
   commandMove(units, tx, ty, attackMove, quiet) {
@@ -1094,6 +1122,7 @@ class Game {
     if (this.waves) this.waves.update(dt);
     if (this.mission) this.mission.update(dt);
     this.updateCharges(dt);
+    this.updateMines(dt);
     this.auraT = (this.auraT || 0) - dt;
     if (this.auraT <= 0) { this.auraT = 0.25; this.updateAuras(); }
     const ents = this.entities;
@@ -1137,6 +1166,7 @@ class Game {
       const alive = this.entities.some(e => e.team === t.id && !e.dead && (e.kind === 'building' ? e.def.cat !== 'civilian' : e.def.mcv));
       if (!alive) {
         t.defeated = true;
+        this.mines = this.mines.filter(m => m.team !== t.id);
         // remaining units self-destruct; civilian buildings they held go back to nobody
         for (const e of this.entities) {
           if (e.team !== t.id || e.dead) continue;
@@ -1204,6 +1234,21 @@ class Game {
         if (b.kind === 'building' && !b.dead && this.hostile(b.team, s.team) && distTo(s.x, s.y, b) < R) b.rofDn = Math.min(b.rofDn, a.enemy.rof);
       }
     }
+    this.updateSensors();
+  }
+
+  // Sensor Towers (on power) mark stealth units and mines in range as spotted for their side.
+  updateSensors() {
+    for (const s of this.entities) {
+      if (s.kind !== 'building' || !s.def.detect || s.dead || s.built < 1 || s.team === NEUTRAL || this.teams[s.team].lowPower) continue;
+      const R = s.def.detect * TILE, until = this.time + 0.5;
+      for (const u of this.unitsNear(s.x, s.y, R)) {
+        if (u.def.stealth && this.hostile(u.team, s.team) && Math.hypot(u.x - s.x, u.y - s.y) <= R) { u.spotT = until; u.spotTeam = s.team; }
+      }
+      for (const m of this.mines) {
+        if (this.hostile(m.team, s.team) && Math.hypot(m.x - s.x, m.y - s.y) <= R) { m.spotT = until; m.spotTeam = s.team; }
+      }
+    }
   }
 
   isVisibleTile(tx, ty) {
@@ -1218,7 +1263,8 @@ class Game {
     if (team !== this.player || this.teams[team].isAI) return true;
     if (this.allied(e.team, team)) return true;
     if (e.kind === 'building') return e.seen;
-    if (e.def.submarine && this.submerged(e) && !this.detects(team, e)) return false;
+    // stealth units (and submerged submarines) show up only close by or under a Sensor Tower
+    if (e.def.stealth && this.time - (e.firedT || -99) > 3 && !this.detects(team, e)) return false;
     return this.isVisibleTile(e.tx, e.ty);
   }
 
@@ -1232,13 +1278,15 @@ class Game {
     if (u.burst > 0) {
       u.burstT -= dt;
       if (u.burstT <= 0 && u.burstTarget && !u.burstTarget.dead) {
-        this.fire(u, u.burstW, u.burstTarget); u.burst--; u.burstT = 0.18;
+        this.fire(u, u.burstW, u.burstTarget); u.burst--; u.burstT = u.def.jet ? 0.14 : 0.18;
       } else if (!u.burstTarget || u.burstTarget.dead) u.burst = 0;
     }
 
     // knocked out by an EMP: nothing moves or fires until it wears off
     if (u.stunT > this.time) return;
     if (u.def.intercept) this.intercept(u, dt);
+    if (u.def.mines) this.reloadMines(u, dt);
+    if (u.def.mend) this.mend(u, dt);
     if (u.def.harvester) { this.updateHarvester(u, dt); return; }
     if (u.def.jet) { this.updateJet(u, dt); return; }
     // the computer sends its SAS to plant C4 on whatever structure they are shooting at
@@ -1260,6 +1308,16 @@ class Game {
       if (d < TILE * 1.3 || (d < TILE * 2.6 && (!u.path || u.pathI >= u.path.length))) { this.board(u, tr); return; }
       u.repathT = (u.repathT || 0) - dt;
       if (!u.path || u.repathT <= 0 || u.repath) { this.pathToEntity(u, tr, 1); u.repathT = 1; }
+      this.moveAlong(u, dt);
+      return;
+    }
+
+    if (o && o.type === 'mend') {
+      const p = o.target;
+      if (!this.wantsMend(u, p)) { u.order = null; u.path = null; return; }
+      if (Math.hypot(p.x - u.x, p.y - u.y) < (u.def.mend.range - 0.8) * TILE) { u.path = null; return; }
+      u.repathT = (u.repathT || 0) - dt;
+      if (!u.path || u.repathT <= 0 || u.repath) { this.pathToEntity(u, p, 1); u.repathT = 1; }
       this.moveAlong(u, dt);
       return;
     }
@@ -1316,7 +1374,7 @@ class Game {
 
     // engage current target
     if (u.target && (u.target.dead || !this.hostile(u.target.team, u.team))) u.target = null;
-    if (u.target && (!this.canHit(u, u.target) || distTo(u.x, u.y, u.target) > this.stealthRange(u.target))) u.target = null;
+    if (u.target && (!this.canHit(u, u.target) || distTo(u.x, u.y, u.target) > this.stealthRange(u.target, u))) u.target = null;
     if (u.target && u.order && u.order.type === 'move') u.target = null;
 
     // auto-acquire when idle / attack-moving / guarding
@@ -1414,6 +1472,7 @@ class Game {
       if (d < w.range * TILE && Math.abs(angDiff(u.facing, a)) < 0.4 && (isW2 ? u.cool2 : u.cool) <= 0) {
         this.fire(u, w, t);
         if (isW2) u.cool2 = w.cooldown / rofOf(u); else u.cool = w.cooldown / rofOf(u);
+        if (w.burst > 1) { u.burst = w.burst - 1; u.burstT = 0.14; u.burstW = w; u.burstTarget = t; } // a bomber's stick of bombs
       }
       // pull out past the target before looping back for the next run
       if (d < TILE * 1.5) u.passT = 0.8;
@@ -1642,6 +1701,7 @@ class Game {
       }
     }
     if (b.def.heal) this.healAround(b, t, dt);
+    if (b.def.drill) this.drill(b, t, dt);
     if (b.garrison && b.garrison.length) { this.updateGarrison(b, dt); return; }
     if (b.stunT > this.time) return;
     if (b.def.intercept && !(b.def.needsPower && t.lowPower)) this.intercept(b, dt);
@@ -1653,7 +1713,7 @@ class Game {
       b.burstT -= dt;
       if (b.burstT <= 0 && b.target && !b.target.dead) { this.fire(b, w, b.target); b.burst--; b.burstT = 0.2; }
     }
-    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || distTo(b.x, b.y, b.target) > Math.min(w.range * TILE + 8, this.stealthRange(b.target)))) b.target = null;
+    if (b.target && (b.target.dead || !this.hostile(b.target.team, b.team) || distTo(b.x, b.y, b.target) > Math.min(w.range * TILE + 8, this.stealthRange(b.target, b)))) b.target = null;
     b.scanT -= dt;
     if (!b.target && b.scanT <= 0) { b.scanT = 0.3; b.target = this.findTarget(b, w.range); }
     if (b.target) {
@@ -1686,6 +1746,27 @@ class Game {
     this.effects.push({ type: 'beam', x: b.x, y: b.y, z: b.kind === 'building' ? b.def.height : muzzleZ(b) + 6, x2: best.x, y2: best.y, z2: best.z || 0, t: 0, life: 0.25, color: '255,240,200' });
     this.effects.push({ type: 'explosion', x: best.x, y: best.y, z: best.z || 0, size: 10, t: 0, life: 0.4 });
     if (b.team === this.player || this.isVisibleTile(Math.floor(b.x / TILE), Math.floor(b.y / TILE))) this.sound('rocket', b.x, b.y);
+  }
+
+  // Ore Drill: draws ore from the richest tile within reach and banks it straight away
+  // (at half speed on low power)
+  drill(b, t, dt) {
+    b.drillT = (b.drillT || 0) - dt;
+    if (b.drillT > 0) return;
+    b.drillT = 1;
+    const m = this.map, d = b.def.drill;
+    let best = -1, bo = 0;
+    for (let y = b.ty - d.radius; y < b.ty + b.h + d.radius; y++) for (let x = b.tx - d.radius; x < b.tx + b.w + d.radius; x++) {
+      if (!m.inside(x, y)) continue;
+      const i = m.idx(x, y);
+      if (m.ore[i] > bo) { bo = m.ore[i]; best = i; }
+    }
+    b.dry = best < 0;
+    if (b.dry || b.team === NEUTRAL) return;
+    const take = Math.min(m.ore[best], d.rate * (t.lowPower ? 0.5 : 1));
+    m.ore[best] -= take;
+    const v = take * t.incomeMult;
+    t.credits += v; t.stats.harvested += v;
   }
 
   // Support Hub: patches up friendly units nearby (at half speed on low power)
@@ -1968,6 +2049,100 @@ class Game {
       this.damage(b, c.damage, 'blast', by);
     }
     this.charges = this.charges.filter(c => c.t > 0 && !c.b.dead);
+  }
+
+  // ---------- support units ----------
+  wantsMend(u, p) {
+    return p && !p.dead && p !== u && p.hp < p.maxHp && !p.air && this.allied(p.team, u.team) && u.def.mend.cats.includes(p.def.cat);
+  }
+
+  // Medics and recovery vehicles treat the worst-hurt friendly in reach twice a second; when idle
+  // they walk over to anyone wounded within sight (but not too far from where they were left).
+  mend(u, dt) {
+    u.mendT = (u.mendT || 0) - dt;
+    if (u.mendT > 0) return;
+    u.mendT = 0.5;
+    const md = u.def.mend;
+    let best = null, bk = 1;
+    for (const p of this.unitsNear(u.x, u.y, md.range * TILE)) {
+      if (!this.wantsMend(u, p) || Math.hypot(p.x - u.x, p.y - u.y) > md.range * TILE) continue;
+      const k = p.hp / p.maxHp;
+      if (k < bk) { bk = k; best = p; }
+    }
+    if (best) {
+      best.hp = Math.min(best.maxHp, best.hp + md.rate * 0.5);
+      u.facing = Math.atan2(best.y - u.y, best.x - u.x);
+      this.effects.push({ type: 'beam', x: u.x, y: u.y, z: muzzleZ(u), x2: best.x, y2: best.y, z2: aimZ(best), t: 0, life: 0.4, color: '125,255,154', dash: true });
+      if (Math.random() < 0.5) this.effects.push({ type: 'spark', x: best.x, y: best.y, z: aimZ(best), t: 0, life: 0.5, color: '#7dff9a' });
+      return;
+    }
+    if (u.order) { if (u.order.type !== 'mend') u.guard = null; return; }
+    const home = u.guard || (u.guard = [u.x, u.y]);
+    let near = null, nd = u.def.sight * TILE;
+    for (const p of this.unitsNear(u.x, u.y, nd)) {
+      if (!this.wantsMend(u, p)) continue;
+      const d = Math.hypot(p.x - u.x, p.y - u.y);
+      if (d < nd && Math.hypot(p.x - home[0], p.y - home[1]) < (u.def.sight + 3) * TILE) { nd = d; near = p; }
+    }
+    if (near) { u.order = { type: 'mend', target: near }; u.path = null; u.repathT = 0; }
+  }
+
+  reloadMines(u, dt) {
+    const md = u.def.mines;
+    if (u.minesLeft === undefined) u.minesLeft = md.carry;
+    if (u.minesLeft >= md.carry) { u.mineReload = 0; return; }
+    u.mineReload = (u.mineReload || 0) + dt;
+    if (u.mineReload >= md.reload) { u.mineReload = 0; u.minesLeft++; }
+  }
+
+  // ---------- mines ----------
+  // A Mine Layer drops one where it stands; it arms after a moment.
+  layMine(u) {
+    const md = u.def.mines;
+    if (!md || u.dead) return false;
+    if (u.minesLeft === undefined) u.minesLeft = md.carry;
+    const x = u.tx * TILE + TILE / 2, y = u.ty * TILE + TILE / 2;
+    if (u.minesLeft <= 0 || !this.map.passable(u.tx, u.ty) || this.mines.some(m => Math.hypot(m.x - x, m.y - y) < TILE * 0.9)) return false;
+    u.minesLeft--;
+    this.mines.push({ x, y, team: u.team, by: u, def: md, armT: this.time + 1.5 });
+    this.sound('place', x, y);
+    return true;
+  }
+
+  // Armed mines go off under enemy vehicles; enemy infantry stepping on one defuse it.
+  updateMines(dt) {
+    this.mineT = (this.mineT || 0) - dt;
+    if (this.mineT > 0 || !this.mines.length) return;
+    this.mineT = 0.1;
+    for (const m of this.mines) {
+      if (m.armT > this.time) continue;
+      for (const o of this.unitsNear(m.x, m.y, TILE)) {
+        if (o.air || !this.hostile(o.team, m.team)) continue;
+        const d = Math.hypot(o.x - m.x, o.y - m.y);
+        if (o.def.cat === 'infantry' && d < TILE * 0.5) {
+          m.gone = true;
+          this.effects.push({ type: 'spark', x: m.x, y: m.y, z: 2, t: 0, life: 0.6, color: '#ffd27a' });
+          if (o.team === this.player) this.eva('Mine cleared', o.team);
+          break;
+        }
+        if (o.def.cat === 'vehicle' && d < TILE * m.def.trigger) { this.detonate(m); break; }
+      }
+    }
+    this.mines = this.mines.filter(m => !m.gone);
+  }
+
+  detonate(m) {
+    m.gone = true;
+    const md = m.def, R = md.splash * TILE;
+    const by = m.by && !m.by.dead && m.by.team === m.team ? m.by : null;
+    for (const o of this.unitsNear(m.x, m.y, R + 16)) {
+      if (o.air || !this.hostile(o.team, m.team)) continue;
+      const d = Math.hypot(o.x - m.x, o.y - m.y);
+      if (d < R) this.damage(o, md.damage * (1 - d / R * 0.6), 'blast', by);
+    }
+    this.explosion(m.x, m.y, 40, true);
+    this.decal(m.x, m.y, 12);
+    this.eva('Mine detonated', m.team);
   }
 
   // ---------- superweapons ----------

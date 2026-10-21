@@ -39,6 +39,22 @@ Both factions put to sea from a Naval Shipyard built out on the water:
 | HMS Queen Elizabeth | United Kingdom | aircraft carrier: F-35B strikes on anything within 16 tiles; air defenses can shoot the jets down |
 | Maya-class Aegis Destroyer | Japan | shoots down incoming missiles, rockets and artillery around the fleet |
 
+Both factions also share a set of support units and defenses, with one bloc pick each:
+
+| Unit or structure | Who | Role |
+| --- | --- | --- |
+| Field Medic | everyone | unarmed; treats wounded infantry nearby and walks over to anyone hurt within sight |
+| Recovery Vehicle | everyone | unarmed armored workshop; repairs damaged vehicles nearby |
+| Phantom Stealth Tank | Allies | hidden until it fires or an enemy comes within 2 tiles; twin missiles for ambushes |
+| Mine Layer | Axis | `D` drops a hidden anti-tank mine (carries 6, reloads); enemy infantry walking over a mine defuse it |
+| Strike Bomber | everyone | heavy bomber; drops a stick of four bombs per pass and goes for structures first |
+| Concrete Wall | everyone | cheap, tough, blocks ground units; placement stays active so you can lay a line |
+| Mortar Pit | everyone | lobs shells over walls at infantry 9 tiles out, needs no power |
+| Missile Nest | Allies | long-range missiles against armor and aircraft |
+| Flame Tower | Axis | armored flamethrower post, burns infantry out of cover |
+| Sensor Tower | everyone | sees far; reveals stealth units, submarines and mines within 8 tiles |
+| Ore Drill | everyone | built next to an ore field, pumps out a steady 6 credits a second while ore lasts |
+
 ## Play
 
 No build step or install. Open `index.html` in a modern browser (Chrome, Edge, Firefox, Safari).
@@ -49,8 +65,8 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 - Deploy your MCV into a Command Center and grow a base with a classic sidebar: build queues, hold/cancel, READY-to-place structures.
 - Economy: harvesters mine gold ore and lithium crystals; fields slowly regrow.
 - Power grid: low power slows production, disables the radar minimap and shuts off powered defenses.
-- 31 unit types: infantry, engineers (capture buildings), faction-specific infantry, scouts and artillery, main battle tanks, super-tanks, a special unit for every country, attack helicopters, fighter jets and warships.
-- Defenses: gatling turrets, rail turrets, SAM sites, battle bunkers. Superweapons on a five-minute charge.
+- 36 unit types: infantry, engineers (capture buildings), medics, faction-specific infantry, scouts and artillery, main battle tanks, super-tanks, a stealth tank, a mine layer, recovery vehicles, a special unit for every country, attack helicopters, fighter jets, bombers and warships.
+- Defenses: gatling turrets, rail turrets, SAM sites, battle bunkers, concrete walls, mortar pits, Missile Nests (Allies) and Flame Towers (Axis), Sensor Towers that unmask stealth units and mines. Superweapons on a five-minute charge (they can be switched off for skirmish and defense).
 - Navy: a shipyard that launches and repairs warships, submarines that run hidden, hovercraft landings (right-click a
   hovercraft with troops to board, beach it and press D to unload), carrier strikes and ships trailing wakes. The computer
   builds a navy when the sea near its base reaches the enemy: it extends its base to the shore, gathers a fleet off its
@@ -66,7 +82,10 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   they strike and wait until the odds look good, losing waves pull back, raiders hunt harvesters, and on Normal and
   Brutal engineers ride along to capture key structures. Computer allies pick the same target. Riflemen waiting at the
   rally point dig in, bunkers get manned, a civilian building on its side of the map becomes an outpost, and attack waves
-  send a few troopers into cover when they fight next to one.
+  send a few troopers into cover when they fight next to one. It also walls off the front of its gun line, plants Ore Drills
+  by nearby fields, sows mines across the approach to its base, sends medics and recovery vehicles along with its waves,
+  flies bombers in pairs at the structure with the least air cover, and puts up Sensor Towers once something it couldn't see
+  starts shooting at it.
 - Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
 - Campaign, *Operation Northwind*: five Allies vs Axis missions with briefings, radio chatter, objectives and a mission select screen
@@ -94,9 +113,9 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | Move / attack / harvest / capture / garrison | Right click |
 | Attack-move | `A` then click, or Ctrl + right click |
 | Stop / deploy MCV | `S` / `D` (or click a selected MCV) |
-| Dig riflemen in or out / empty a garrison | `D` with them (or the building) selected |
+| Dig riflemen in or out / empty a garrison / lay a mine | `D` with them (or the building, or a Mine Layer) selected |
 | Control groups | Ctrl+`1-9` to assign, `1-9` to recall (twice to jump) |
-| Build tabs / hotkeys | `Tab`, `Q` `W` `E` `R` `T` `Y` `U` `I` |
+| Build tabs / hotkeys | `Tab`, `Q` `W` `E` `R` `T` `Y` `U` `I` `O` `L` (shown on each icon) |
 | Sell / repair / superweapon | `Z` / `X` / `F` |
 | Set rally point | Select a Barracks/Factory/Airfield, right click on the map |
 | Primary production building | Double-click it |

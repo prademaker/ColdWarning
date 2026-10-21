@@ -394,6 +394,7 @@ function infantryParts(key, T, C, frame) {
   if (key === 'shock') out.push(box(-4.5, -3.2, -2, 2, 5, 10, '#d6ac2c'), box(0, 7, 1.5, 2.3, 6, 7, '#3a3c38'));
   if (key === 'sas') out.push(box(0, 9, 1.5, 2.3, 7, 8, '#1b1c1a'), box(-1.2, 1.4, -1.6, 1.4, 11.6, 12.6, '#5a2a2a'));
   if (key === 'hacker') out.push(box(-4.6, -3.2, -2, 2, 5, 10, '#3a3d40'), box(-4.2, -3.6, -0.3, 0.3, 10, 15, '#9aa3ab'), box(1, 4, -2, 2, 7, 7.6, '#78ff96', { light: true }));
+  if (key === 'medic') out.push(box(-1.1, 1.3, -1.2, 1.2, 9.5, 12, '#e4e6e4'), box(-0.4, 0.6, -0.5, 0.5, 12, 12.4, '#be2822'));
   if (key === 'commando') out.push(box(0, 9, 1.5, 2.3, 7, 8, '#1b1c1a'), box(-1.2, 1.4, -1.6, 1.4, 11.6, 12.6, T.color));
   return out;
 }
@@ -424,6 +425,7 @@ const SPRITE_FOR = {
   rifle: 'rifle_vox', rocket: 'rocket_vox', engineer: 'engineer_vox',
   sniper: 'sniper_vox', shock: 'shock_vox', commando: 'commando_vox', flak: 'flak_vox', tos: 'tos_vox', iskander: 'iskander_vox', drone: 'drone_vox', kirov: 'kirov_vox',
   sas: 'sas_vox', hacker: 'hacker_vox', aegis: 'aegis_vox', raijin: 'raijin_vox', demotruck: 'demotruck_vox',
+  medic: 'medic_vox', recovery: 'recovery_vox', phantom: 'phantom_vox', minelayer: 'minelayer_vox', bomber: 'bomber_vox',
   patrol: 'patrol_vox', destroyer: 'destroyer_vox', sub: 'sub_vox', hover: 'hover_vox', cruiser: 'cruiser_vox',
   battleship: 'battleship_vox', carrier: 'carrier_vox', maya: 'maya_vox',
 };
@@ -665,8 +667,17 @@ const BLD_MODELS = {
   },
 };
 
+// stand-in for structures that only have a voxel model, until its sheet has loaded
+function plainBlock(T, st, b) {
+  const W = b.w * TILE, H = b.h * TILE;
+  return [...foundation(W, H), box(4, W - 4, 4, H - 4, 2, Math.min(24, b.def.height * 0.6), '#8e9399', { topColor: T.color })];
+}
+
 // rotating weapons on defensive structures (pivot at the footprint centre)
 const BLD_TURRETS = {
+  mortar: { z: 2, parts: () => [box(-4, 4, -4, 4, 0, 1, '#3a4047'), box(-1, 9, -1.2, 1.2, 2, 9, '#3a3c38')] },
+  missilenest: { z: 12, parts: T => [box(-6, 8, -6, 6, 0, 10, tone(T.color, -0.15)), box(8, 8.8, -5, 5, 2, 9, '#151617')] },
+  flametower: { z: 22, parts: T => [box(-6, 4, -6, 6, 0, 8, tone(T.color, -0.15)), box(4, 18, -1.2, 1.2, 2, 5, '#3a3d40'), box(18, 20, -1.6, 1.6, 2, 5, '#ff9a40', { light: true })] },
   koksan: { z: 16, parts: T => [box(-10, 8, -9, 9, 0, 8, tone(T.color, -0.2)), box(8, 36, -1.6, 1.6, 4, 7, '#3a3d40')] },
   thaad: { z: 14, parts: T => [box(-12, 12, -9, 9, 0, 4, '#4d545b'), box(-10, 10, -8, 8, 4, 12, tone(T.color, -0.15)), box(10, 10.6, -7, 7, 5, 11, '#e8e8e8')] },
   laser: { z: 18, parts: T => [cyl(0, 0, 6, 0, 6, tone(T.color, -0.1), 6, 10), box(2, 22, -1, 1, 3, 5, '#3a3d40'), box(21, 24, -2, 2, 2.5, 5.5, '#e03a2e', { light: true })] },
@@ -710,7 +721,8 @@ function buildingSprite(b, team) {
   if (v) return v;
   return Art.get(`B|${b.key}|${team.faction}|${team.color}|${st}`, () => {
     // structures wear a slightly muted team colour so roofs don't overpower the scene
-    const m = BLD_MODELS[b.key](Object.assign({}, team, { color: tone(team.color, -0.18) }), st);
+    const model = BLD_MODELS[b.key] || plainBlock;
+    const m = model(Object.assign({}, team, { color: tone(team.color, -0.18) }), st, b);
     const parts = m.parts || m;
     let prisms = place(parts);
     if (m.extra) prisms = prisms.concat(m.extra);
@@ -757,6 +769,26 @@ function auraRing(ctx, P, b, t, rgb, low) {
 }
 
 const BLD_LIVE = {
+  // a sweep over the area the Sensor Tower watches
+  sensor(ctx, P, b, team, t, low) {
+    const [x, y] = P(15, 15, 46); blink(ctx, x, y, !low && Math.sin(t * 5) > 0, '#60e0ff');
+    if (low || team.id !== G.player) return;
+    const R = b.def.detect * TILE, a = t * 1.2;
+    ctx.strokeStyle = 'rgba(96,224,255,0.22)'; ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = 0; i <= 40; i++) { const [px, py] = P(TILE / 2 + Math.cos(i / 40 * Math.PI * 2) * R, TILE / 2 + Math.sin(i / 40 * Math.PI * 2) * R, 1); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }
+    const [cx, cy] = P(TILE / 2, TILE / 2, 1), [ex, ey] = P(TILE / 2 + Math.cos(a) * R, TILE / 2 + Math.sin(a) * R, 1);
+    ctx.moveTo(cx, cy); ctx.lineTo(ex, ey);
+    ctx.stroke();
+  },
+  // the walking beam nods while ore is coming up
+  drill(ctx, P, b, team, t, low) {
+    if (b.dry) return;
+    const k = Math.sin(t * (low ? 2 : 4));
+    const [x0, y0] = P(20, 20, 54), [x1, y1] = P(20, 20, 48 + k * 4);
+    ctx.strokeStyle = '#2b2b26'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+  },
   krasukha(ctx, P, b, team, t, low) { auraRing(ctx, P, b, t, '255,90,90', low); const [x, y] = P(46, 30, 20); blink(ctx, x, y, !low && Math.sin(t * 7) > 0, '#ff5050'); },
   propaganda(ctx, P, b, team, t, low) { auraRing(ctx, P, b, t, '255,200,80', low); const [x, y] = P(8, 8, 3); flagpole(ctx, x, y, team.faction, t); },
   gchq(ctx, P, b, team, t, low) { const [x, y] = P(48, 12, 41); blink(ctx, x, y, !low && Math.sin(t * 3) > 0, '#60e0ff'); },
