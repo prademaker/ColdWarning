@@ -225,6 +225,12 @@ function soldier(kind, frame) {
     g.box(0, 0, Y - 1, Y + 1, 6, 11, C.steelDark); g.box(0, 0, Y, Y, 12, 16, C.steel); g.box(0, 0, Y - 2, Y + 2, 17, 17, C.white);
     g.box(4, 5, Y + 1, Y + 2, 7, 8, C.rail);
   }
+  if (kind === 'medic') {
+    // white helmet and armband with a red cross, aid bag on the hip
+    g.box(1, 4, Y - 1, Y + 1, 12, 13, C.white); g.set(4, Y, 12, C.white); g.set(2, Y - 1, 13, C.red); g.set(2, Y + 1, 13, C.red); g.box(2, 3, Y, Y, 13, 13, C.red);
+    g.box(2, 3, Y + 2, Y + 2, 8, 9, C.white); g.set(2, Y + 2, 9, C.red);
+    g.box(3, 5, Y - 3, Y - 2, 5, 7, C.white); g.set(4, Y - 3, 6, C.red);
+  }
   if (kind === 'commando') {
     // campaign hero: dark fatigues, team-coloured beret instead of a helmet, suppressed rifle, C4 on the chest
     for (const [, e] of g.v) if (e[2] >= 6 && e[2] <= 10 && e[3] !== TEAM) e[3] = e[2] === 8 ? C.steel : C.steelDark;
@@ -236,7 +242,7 @@ function soldier(kind, frame) {
   }
   return g;
 }
-for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando', 'sas', 'hacker']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
+for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando', 'sas', 'hacker', 'medic']) for (let f = 0; f < 3; f++) writeVox(`${kind}_${f}.vox`, soldier(kind, f));
 
 // ======== bloc and nation specials ========
 
@@ -388,4 +394,80 @@ for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'commando'
   h.box(2, 17, 6, 7, 11, 11, C.hazard);                 // warning tape
   h.set(26, 3, 5, C.light); h.set(26, 10, 5, C.light);
   writeVox('demotruck.vox', h);
+}
+
+// ======== support and specialist units ========
+
+// ---------- Recovery Vehicle: tracked hull, workshop box, crane jib that swings round ----------
+{
+  const h = grid();
+  trackRun(h, 1, 27, 0, 3); trackRun(h, 1, 27, 14, 17);
+  h.camo(2, 26, 3, 14, 2, 7, 101);
+  slopeFront(h, 22, 26, 3, 14, 7);
+  for (let x = 2; x <= 26; x++) { h.set(x, 3, 7, TEAM_DARK); h.set(x, 14, 7, TEAM_DARK); }
+  h.camo(3, 12, 4, 13, 8, 11, 103);                                   // workshop box
+  h.box(3, 12, 4, 13, 12, 12, TEAM);
+  h.box(13, 13, 6, 11, 8, 10, C.hazard);                              // amber beacons and tool racks
+  h.set(12, 4, 13, C.flame); h.set(12, 13, 13, C.flame);
+  h.box(27, 28, 4, 13, 1, 3, C.steelDark);                            // dozer blade
+  h.set(26, 5, 4, C.light); h.set(26, 12, 4, C.light);
+  writeVox('recovery_hull.vox', h);
+  const t = grid(), O = 5;
+  t.box(O - 3, O + 3, O - 3, O + 3, 0, 2, C.steelDark);               // crane base
+  t.box(O - 1, O + 1, O - 1, O + 1, 3, 5, C.hazard);
+  for (let i = 0; i <= 12; i++) t.set(O + i, O, 5 + Math.floor(i / 3), (i >> 1) % 2 ? C.hazard : C.grille); // jib
+  t.box(O + 12, O + 12, O, O, 3, 8, C.steel); t.set(O + 12, O, 2, C.gunDark); // cable + hook
+  writeVox('recovery_turret.vox', t);
+}
+
+// ---------- Phantom Stealth Tank (Allies): low faceted hull, twin missile box ----------
+{
+  const h = grid();
+  trackRun(h, 1, 25, 0, 3, 3); trackRun(h, 1, 25, 13, 16, 3);
+  h.box(2, 24, 3, 13, 2, 5, C.camoDark);
+  slopeFront(h, 20, 24, 3, 13, 5);
+  for (let x = 4; x <= 18; x++) for (let y = 4; y <= 12; y++) if ((x + y) % 5 === 0) h.set(x, y, 5, C.steelDark); // radar-absorbent facets
+  for (let x = 2; x <= 23; x++) { h.set(x, 3, 5, TEAM_DARK); h.set(x, 13, 5, TEAM_DARK); }
+  h.box(2, 3, 5, 11, 6, 6, C.grille);
+  writeVox('phantom_hull.vox', h);
+  const t = grid(), O = 6;
+  t.box(O - 5, O + 4, O - 4, O + 4, 0, 2, C.camoDark);
+  for (const y of [O - 3, O + 1]) { t.box(O - 3, O + 6, y, y + 2, 3, 5, C.camo); t.set(O + 6, y + 1, 4, C.gunDark); } // two missile boxes
+  t.band(1, TEAM);
+  t.set(O - 3, O, 3, C.glassDark);
+  writeVox('phantom_turret.vox', t);
+}
+
+// ---------- Mine Layer (Axis): 6x6 truck with a mine hopper and a roof machine gun ----------
+{
+  const h = grid();
+  for (const x of [4, 9, 22]) { wheel(h, x, 0, 1); wheel(h, x, 12, 13); }
+  h.box(1, 27, 2, 11, 2, 3, C.steelDark);
+  h.camo(20, 27, 1, 12, 4, 10, 107);                                  // armoured cab
+  slopeFront(h, 25, 27, 1, 12, 10);
+  h.box(27, 27, 3, 10, 6, 8, C.glassDark);
+  for (let x = 20; x <= 27; x++) { h.set(x, 1, 7, TEAM_DARK); h.set(x, 12, 7, TEAM_DARK); }
+  h.camo(2, 18, 1, 12, 4, 9, 109);                                    // hopper
+  for (let x = 4; x <= 16; x += 3) for (const y of [3, 6, 9]) h.box(x, x + 1, y, y + 1, 10, 10, C.olive); // stacked mines
+  h.box(0, 1, 4, 9, 2, 5, C.hazard);                                  // dispenser chute
+  h.box(23, 23, 6, 7, 11, 12, C.steelDark); h.box(24, 27, 6, 6, 12, 12, C.gunDark); // roof MG
+  h.set(27, 3, 5, C.light); h.set(27, 10, 5, C.light);
+  writeVox('minelayer.vox', h);
+}
+
+// ---------- Strike Bomber: big swept-wing jet, grey with team tail ----------
+{
+  const h = grid(), Y = 17;
+  for (let x = 0; x <= 39; x++) {
+    const half = x > 35 ? 0 : x > 31 ? 1 : 2;
+    for (let y = Y - half; y <= Y + half; y++) for (let z = 0; z <= (x > 36 ? 2 : 4); z++) h.set(x, y, z, C.jetGrey);
+  }
+  for (let x = 8; x <= 27; x++) { const span = Math.round((27 - x) * 0.85); for (let y = Y - 2 - span; y <= Y + 2 + span; y++) h.box(x, x, y, y, 1, 2, C.jetGrey); }
+  for (let x = 0; x <= 7; x++) { const span = 2 + Math.round((7 - x) * 0.8); for (let y = Y - 2 - span; y <= Y + 2 + span; y++) h.set(x, y, 2, C.jetDark); }
+  h.box(1, 6, Y, Y, 5, 10, TEAM);                                     // tail fin
+  for (const y of [Y - 9, Y - 5, Y + 5, Y + 9]) h.box(12, 17, y, y, 0, 0, C.gunDark); // engine pods
+  h.box(30, 34, Y - 1, Y + 1, 5, 5, C.glassDark);                     // cockpit
+  h.box(14, 22, Y - 1, Y + 1, 0, 0, C.grille);                        // bomb bay
+  for (const y of [Y - 16, Y + 16]) h.box(9, 10, y, y, 1, 2, TEAM);   // wingtips
+  writeVox('bomber.vox', h);
 }

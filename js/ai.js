@@ -9,6 +9,7 @@ const AI_TARGET_VALUE = {
   super_lance: 14, super_silo: 14, factory: 10, refinery: 9, tech: 8, power: 7, cc: 7,
   airfield: 6, hub: 6, robotics: 7, gchq: 5, krasukha: 5, propaganda: 4, barracks: 5, radar: 5,
   laser: 3, thaad: 4, koksan: 4, railturret: 3, turret: 3, bunker: 3, sam: 2,
+  drill: 6, sensor: 3, mortar: 3, missilenest: 3, flametower: 3, wall: 0,
 };
 const AI_RAIDERS = ['heli', 'drone'];
 // warships the AI buys, by preference (pick() skips what this nation can't build)
@@ -35,9 +36,10 @@ class AI {
     // a navy only where there is a sea by our base that also reaches the enemy (see seaPlan)
     this.sea = this.seaPlan();
     const yard = this.sea ? 'shipyard' : null;
-    this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'radar', 'power', 'railturret', 'bunker',
-      edge, 'airfield', 'power', 'tech', yard, 'sam', 'power', 'turret', 'bunker', 'railturret', sup, 'power', 'sam', 'refinery', 'power',
-      edge2, 'railturret', 'factory', 'turret', 'sam', 'power'].filter(k => k && inRoster(k, team.faction) && G.allows(k));
+    // Missile Nests and Flame Towers are bloc defenses: the filter keeps whichever this side has
+    this.plan = ['power', 'refinery', 'barracks', 'power', 'factory', 'turret', 'refinery', 'mortar', 'radar', 'power', 'railturret', 'bunker',
+      edge, 'missilenest', 'flametower', 'airfield', 'power', 'drill', 'tech', yard, 'sam', 'sensor', 'power', 'turret', 'bunker', 'railturret', sup,
+      'power', 'sam', 'refinery', 'mortar', 'power', edge2, 'missilenest', 'flametower', 'railturret', 'factory', 'drill', 'turret', 'sam', 'power'].filter(k => k && inRoster(k, team.faction) && G.allows(k));
     this.nextAttack = this.d.firstAttack;
     this.waves = 0;
     this.wave = null;          // the attack wave in the field: { ids, foe, state, stage, t, start, target }
@@ -155,7 +157,7 @@ class AI {
     for (const e of foes) {
       if (all && e.kind === 'unit') { this.intel.set(e.id, { e, x: e.x, y: e.y, t: G.time }); continue; }
       const pad = e.kind === 'building' ? Math.max(e.w, e.h) * TILE / 2 : 0;
-      const hidden = e.def.submarine && G.submerged(e); // a submerged submarine only shows up close
+      const hidden = G.stealthRange(e, { team: me }) < 1e9; // stealth units and submerged submarines only show up close
       for (const s of src) {
         const r = (hidden ? e.def.stealth * TILE : s.def.sight * TILE) + pad, dx = e.x - s.x, dy = e.y - s.y;
         if (dx > r || dx < -r || dy > r || dy < -r || dx * dx + dy * dy > r * r) continue;
@@ -202,8 +204,8 @@ class AI {
   buildStructures() {
     const t = this.team;
     const sq = t.queues.structure, dq = t.queues.defense;
-    if (sq.ready) { if (!this.placeReady('structure')) sq.cancel(sq.head); }
-    if (dq.ready) { if (!this.placeReady('defense')) dq.cancel(dq.head); }
+    // nowhere to put it (an Ore Drill with no ore in reach, say): skip it in the plan for a while
+    for (const q of [sq, dq]) if (q.ready && !this.placeReady(q.type)) { this.noRoom()[q.head] = G.time + 90; q.cancel(q.head); }
 
     const margin = t.powerOut - t.powerIn;
     if (!sq.items.length) {
@@ -213,13 +215,50 @@ class AI {
       else if (t.credits > 4000 && margin < 120) sq.add('power');
     }
     if (!dq.items.length && t.credits > 1200) {
-      const next = this.reactiveDefense() || this.nextFromPlan('defense');
+      const next = this.reactiveDefense() || this.nextFromPlan('defense') || this.wallPlan();
       if (next) dq.add(next);
     }
   }
 
+  // A few wall sections in front of the forward guns once the base has some money to spare.
+  wallPlan() {
+    const t = this.team;
+    if (!t.canBuild('wall') || t.credits < 2500) return null;
+    const guns = this.myBuildings().filter(b => b.def.cat === 'defense' && b.def.weapon && b.def.weapon.ground).length;
+    return guns >= 2 && t.countOf('wall') < Math.min(18, guns * 3) && this.wallSpot() ? 'wall' : null;
+  }
+
+  // A tile two steps out from one of our ground defenses, toward the enemy, where a wall won't
+  // box anything in: nothing but other walls on the tiles around it, and no ore underneath.
+  wallSpot() {
+    const t = this.team, m = G.map, [hx, hy] = this.home();
+    const foe = this.nearestFoe();
+    const [ex, ey] = foe ? this.startPx(foe.id) : [m.w * TILE / 2, m.h * TILE / 2];
+    const guns = this.myBuildings().filter(b => b.def.cat === 'defense' && b.def.weapon && b.def.weapon.ground && !b.def.wall)
+      .sort((a, b) => Math.hypot(a.x - ex, a.y - ey) - Math.hypot(b.x - ex, b.y - ey));
+    for (const g of guns) {
+      const a = Math.atan2(ey - g.y, ex - g.x), cx = g.tx + Math.round(Math.cos(a) * 2), cy = g.ty + Math.round(Math.sin(a) * 2);
+      const px = -Math.sin(a), py = Math.cos(a);
+      for (const k of [0, -1, 1]) {
+        const x = cx + Math.round(px * k), y = cy + Math.round(py * k);
+        if (!m.inside(x, y) || m.ore[m.idx(x, y)] > 0 || Math.hypot(x * TILE - hx, y * TILE - hy) < 6 * TILE) continue;
+        let ok = true;
+        for (let dy = -1; dy <= 1 && ok; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const id = m.inside(x + dx, y + dy) ? m.bld[m.idx(x + dx, y + dy)] : -1, b = id >= 0 && G.byId.get(id);
+          if (b && !b.def.wall) { ok = false; break; }
+        }
+        if (ok && G.canPlace('wall', t.id, x, y)) return [x, y];
+      }
+    }
+    return null;
+  }
+
+  noRoom() { return this.blocked || (this.blocked = {}); } // key -> time to try placing it again
+
   // extra SAM sites when scouts report a large air force
   reactiveDefense() {
+    // a Sensor Tower or two once something we couldn't see has been shooting at us
+    if (this.d.counter && this.sawStealth && this.team.canBuild('sensor') && this.team.countOf('sensor') < 2) return 'sensor';
     if (!this.d.counter || !this.team.canBuild('sam')) return null;
     const mix = this.enemyMix();
     const want = Math.min(6, Math.floor(mix.air / 2500));
@@ -232,10 +271,10 @@ class AI {
       need[key] = (need[key] || 0) + 1;
       if (queueTypeOf(key) !== qtype) {
         // defenses follow the plan's pacing: wait until earlier structures exist
-        if (qtype === 'defense' && t.countOf(key) < need[key]) return null;
+        if (qtype === 'defense' && t.countOf(key) < need[key] && !(this.noRoom()[key] > G.time)) return null;
         continue;
       }
-      if (t.countOf(key) >= need[key]) continue;
+      if (t.countOf(key) >= need[key] || this.noRoom()[key] > G.time) continue;
       // a navy once the first wave is out or money piles up, and the base has reached the water
       if (key === 'shipyard' && ((!this.waves && t.credits < 3000) || !this.shipyardSpot())) continue;
       if (t.canBuild(key)) return key;
@@ -249,6 +288,7 @@ class AI {
     const blds = this.myBuildings();
     if (!blds.length) return false;
     if (def.water) { const s = this.shipyardSpot(true); return !!s && G.tryPlace(t.id, qtype, s[0], s[1]); }
+    if (def.wall) { const s = this.wallSpot(); return !!s && G.tryPlace(t.id, qtype, s[0], s[1]); }
     // once the air force is up and the shipyard has nowhere to go, the base grows toward the shore
     const shore = this.sea && t.countOf('airfield') && this.waves && !t.countOf('shipyard') && !this.shipyardSpot() ? this.sea.shore : null;
     const [hx, hy] = this.home();
@@ -281,7 +321,7 @@ class AI {
       if (def.cat === 'defense') {
         const along = ((px - hx) * Math.cos(toE) + (py - hy) * Math.sin(toE)) / TILE;
         score = Math.abs(dHome - 9) * 1.5 - along * 0.8 + Math.random() * 3;
-      } else if (key === 'refinery') {
+      } else if (key === 'refinery' || def.drill) {
         score = this.oreDist(tx + 1, ty + 1) * 2 + dHome * 0.3;
       } else if (shore) {
         score = dHome * 0.3 + Math.hypot(tx + def.w / 2 - shore[0], ty + def.h / 2 - shore[1]) + Math.random() * 2;
@@ -350,6 +390,8 @@ class AI {
     if (sq && t.canBuild(sig) && !sq.items.length && t.credits > 800 + reserve &&
       units.filter(u => u.key === sig).length < 2 + Math.floor(this.waves / 2)) sq.add(sig);
 
+    this.produceSupport(units, reserve);
+
     const army = units.filter(u => u.def.weapon && !u.def.naval).length;
     // the land army comes first; warships only once it has some weight behind it
     if (this.sea && army >= 10 + this.waves * 2) this.produceFleet(units, this.enemyMix(), reserve);
@@ -359,8 +401,8 @@ class AI {
     // lean the mix toward whatever counters the enemy army we have seen
     // (pick() skips whatever this nation can't build, so both blocs share one table)
     let inf = { rifle: 5, rocket: 5, sniper: 1.5, shock: 2.5, sas: 1, hacker: 1 };
-    let veh = { ifv: 2, flak: 2, tank: 5, mlrs: 1.5, tos: 1.5, railtank: 3, titan: 3, iskander: 1, aegis: 1, raijin: 2, demotruck: 1.5 };
-    let air = { heli: 6, drone: 4, kirov: 3, jet: 4 };
+    let veh = { ifv: 2, flak: 2, tank: 5, mlrs: 1.5, tos: 1.5, railtank: 3, titan: 3, iskander: 1, aegis: 1, raijin: 2, demotruck: 1.5, phantom: 1.5 };
+    let air = { heli: 6, drone: 4, kirov: 3, jet: 4, bomber: 1.5 };
     const mix = this.enemyMix();
     if (d.counter && mix.total > 1500) {
       const f = k => mix[k] / mix.total, armor = f('light') + f('heavy');
@@ -369,8 +411,8 @@ class AI {
         sas: 0.5 + def * 2, hacker: armor * 3 };
       veh = { ifv: 1 + f('air') * 5 + f('infantry') * 2, flak: 1 + f('air') * 7 + f('infantry') * 2, tank: 3 + f('light') * 4 + f('heavy') * 2,
         mlrs: 1 + f('infantry') * 3 + def * 3, tos: 1 + f('infantry') * 3 + def * 3, railtank: 2 + f('heavy') * 4, titan: 2 + f('heavy') * 3 + f('air') * 3,
-        iskander: def * 3, aegis: 1, raijin: 1 + armor * 2 + f('air') * 2 + def, demotruck: 1 + def * 2 + f('heavy') * 2 };
-      air = { heli: 3 + armor * 6, drone: 3 + armor * 4, kirov: 2 + def * 3 + f('infantry') * 2, jet: 2 + f('air') * 10 };
+        iskander: def * 3, aegis: 1, raijin: 1 + armor * 2 + f('air') * 2 + def, demotruck: 1 + def * 2 + f('heavy') * 2, phantom: 1 + armor * 2 };
+      air = { heli: 3 + armor * 6, drone: 3 + armor * 4, kirov: 2 + def * 3 + f('infantry') * 2, jet: 2 + f('air') * 10, bomber: 1 + def * 4 };
     }
     // helicopters (or Reaper drones) for the raiding party: they fly over defenses and don't hold up the war factory
     if (d.raid && units.filter(u => AI_RAIDERS.includes(u.key)).length < d.raid) { air.heli += 5; air.drone += 5; }
@@ -398,6 +440,19 @@ class AI {
     }
   }
 
+  // Medics for an infantry army, a recovery vehicle or two for the armor, and a mine layer to
+  // seed the approaches to the base.
+  produceSupport(units, reserve) {
+    const t = this.team, Q = t.queues, count = k => units.filter(u => u.key === k).length + Q[queueTypeOf(k)].items.filter(i => i === k).length;
+    const inf = units.filter(u => u.def.cat === 'infantry' && u.def.weapon).length;
+    const veh = units.filter(u => u.def.cat === 'vehicle' && u.def.weapon).length;
+    if (t.canBuild('medic') && Q.infantry.items.length < 2 && t.credits > 600 + reserve && count('medic') < Math.min(3, Math.floor(inf / 6))) Q.infantry.add('medic');
+    if (!Q.vehicle.items.length && t.credits > 1500 + reserve) {
+      if (t.canBuild('recovery') && count('recovery') < (veh >= 14 ? 2 : veh >= 6 ? 1 : 0)) Q.vehicle.add('recovery');
+      else if (this.d.counter && t.canBuild('minelayer') && (this.waves || t.credits > 3000) && count('minelayer') < 1) Q.vehicle.add('minelayer');
+    }
+  }
+
   // Warships while we have a shipyard: more of them the longer the war goes on, leaning toward
   // submarines against an enemy fleet, destroyers against submarines and air defense against aircraft.
   produceFleet(units, mix, reserve) {
@@ -422,17 +477,21 @@ class AI {
     if (this.raid) for (const id of this.raid.ids) busy.add(id);
     if (this.scout) busy.add(this.scout.id);
 
-    // warships keep to the sea and answer to manageFleet instead
-    const home = units.filter(u => (u.def.weapon || u.def.engineer) && !u.def.harvester && !u.def.naval && !busy.has(u.id));
-    const fighters = home.filter(u => u.def.weapon);
+    // warships keep to the sea and answer to manageFleet instead; mine layers and bombers have
+    // jobs of their own (manageMines, manageBombers); medics and recovery vehicles tag along
+    const home = units.filter(u => (u.def.weapon || u.def.engineer || u.def.mend) && !u.def.harvester && !u.def.naval && !busy.has(u.id));
+    const fighters = home.filter(u => u.def.weapon && !u.def.mines && u.def.prefer !== 'structures');
+    const support = home.filter(u => u.def.engineer || u.def.mend);
     const [rx, ry] = this.rallyTile();
     const [hx, hy] = this.home();
-    for (const u of home) {
-      if (u.order || u.target || u.def.engineer) continue;
+    for (const u of fighters) {
+      if (u.order || u.target) continue;
       if (Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, true, true);
       else if (u.def.dig && !u.dug && !u.digging) G.digIn(u); // riflemen waiting at the rally point dig in
     }
-    for (const u of home) if (u.def.engineer && !u.order && Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, false, true);
+    for (const u of support) if (!u.order && Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, false, true);
+    this.manageMines(home.filter(u => u.def.mines));
+    this.manageBombers(home.filter(u => u.def.prefer === 'structures'));
 
     this.manageScout(fighters);
     this.manageRaid(fighters);
@@ -450,7 +509,7 @@ class AI {
         const foe = this.chooseFoe(), mine = pool.reduce((s, u) => s + aiWorth(u), 0);
         const ratio = this.d.counter ? 1.5 : 0;
         if (foe && (mine >= this.foeStrength(foe) * ratio || pool.length >= 32 || G.time - this.nextAttack > 240)) {
-          this.launch(foe, pool, home.filter(u => u.def.engineer));
+          this.launch(foe, pool, support);
         }
       }
     }
@@ -489,14 +548,16 @@ class AI {
     const w = this.wave;
     const live = this.units(w.ids);
     if (!live.length) { this.wave = null; return; }
-    const fighters = live.filter(u => u.def.weapon), engineers = live.filter(u => u.def.engineer);
+    const fighters = live.filter(u => u.def.weapon), engineers = live.filter(u => u.def.engineer), medics = live.filter(u => u.def.mend);
     if (!fighters.length) {
-      for (const e of engineers) G.commandMove([e], ...this.rallyTile(), false, true);
+      for (const e of engineers.concat(medics)) G.commandMove([e], ...this.rallyTile(), false, true);
       this.wave = null;
       return;
     }
     const cx = fighters.reduce((s, u) => s + u.x, 0) / fighters.length, cy = fighters.reduce((s, u) => s + u.y, 0) / fighters.length;
     const strength = fighters.reduce((s, u) => s + aiWorth(u), 0);
+    // medics and recovery vehicles keep up with the wave (they treat whoever is hurt on their own)
+    for (const m of medics) if (!m.order && Math.hypot(m.x - cx, m.y - cy) > 4 * TILE) G.commandMove([m], Math.floor(cx / TILE), Math.floor(cy / TILE), false, true);
     if (w.foe.defeated) { w.foe = this.chooseFoe() || w.foe; w.target = null; }
 
     if (w.state === 'stage') {
@@ -591,6 +652,64 @@ class AI {
       if (this.threatNear(best.x, best.y, 6) < 800) G.commandCapture(eng, best);
       else if (!eng.order) G.commandMove([eng], Math.floor(cx / TILE), Math.floor(cy / TILE), false, true);
     }
+  }
+
+  // ---------- mines and bombers ----------
+  // The mine layer works along an arc across the approach to the base, one mine every couple of
+  // tiles, and comes back to the rally point to wait for reloads.
+  manageMines(layers) {
+    for (const u of layers) {
+      if (u.order || u.target) continue;
+      const spots = this.mineSpots || (this.mineSpots = this.planMines());
+      if (!spots.length) continue;
+      if ((u.minesLeft ?? u.def.mines.carry) <= 0) {
+        const [rx, ry] = this.rallyTile();
+        if (Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 4) G.commandMove([u], rx, ry, false, true);
+        continue;
+      }
+      this.mineI = (this.mineI || 0) % spots.length;
+      const [sx, sy] = spots[this.mineI];
+      if (Math.hypot(u.x / TILE - sx - 0.5, u.y / TILE - sy - 0.5) < 1.2) {
+        G.layMine(u);
+        this.mineI++;
+      } else if (u.mineSpot === this.mineI && G.time - (u.mineGo || 0) > 20) this.mineI++; // can't get there: next one
+      else { u.mineSpot = this.mineI; u.mineGo = G.time; G.commandMove([u], sx, sy, false, true); }
+    }
+  }
+
+  planMines() {
+    const [hx, hy] = this.home(), foe = this.nearestFoe();
+    const [ex, ey] = foe ? this.startPx(foe.id) : [G.map.w * TILE / 2, G.map.h * TILE / 2];
+    const a = Math.atan2(ey - hy, ex - hx), out = [];
+    for (const r of [12, 15]) for (let k = -4; k <= 4; k++) {
+      const b = a + k * 0.16 + (r === 15 ? 0.08 : 0);
+      const x = Math.round(hx / TILE + Math.cos(b) * r), y = Math.round(hy / TILE + Math.sin(b) * r);
+      if (G.map.passable(x, y) && !G.map.ore[G.map.idx(x, y)]) out.push([x, y]);
+    }
+    return out;
+  }
+
+  // Bombers fly as a pair at the most valuable enemy structure with the least air defense near it,
+  // and come home once it is down.
+  manageBombers(bombers) {
+    const [hx, hy] = this.home();
+    const idle = bombers.filter(u => !u.target || u.target.dead);
+    for (const u of idle) if (Math.hypot(u.x - hx, u.y - hy) > 10 * TILE && (!u.order || u.order.type === 'attack')) G.commandMove([u], Math.floor(hx / TILE), Math.floor(hy / TILE), false, true);
+    const ready = idle.filter(u => Math.hypot(u.x - hx, u.y - hy) <= 12 * TILE && u.hp > u.maxHp * 0.5);
+    if (ready.length < Math.min(2, bombers.length)) return;
+    let best = null, bs = -1e9;
+    for (const r of this.intel.values()) {
+      const e = r.e;
+      if (e.kind !== 'building' || e.def.wall || e.def.cat === 'civilian') continue;
+      let aa = 0;
+      for (const o of this.intel.values()) {
+        const w = o.e.def.weapon, w2 = o.e.def.weapon2;
+        if (((w && w.air) || (w2 && w2.air)) && (o.e.kind === 'building' || G.time - o.t < 30) && Math.hypot(o.x - r.x, o.y - r.y) < 9 * TILE) aa += o.e.def.cost;
+      }
+      const s = (AI_TARGET_VALUE[e.key] || 2) * 400 - aa - Math.hypot(r.x - hx, r.y - hy) / TILE * 10;
+      if (s > bs) { bs = s; best = e; }
+    }
+    if (best) G.commandAttack(ready, best);
   }
 
   // ---------- garrisons ----------
@@ -931,6 +1050,7 @@ class AI {
 
   onAttacked(target, attacker) {
     this.grudge[attacker.team] = G.time;
+    if (attacker.def.stealth && !attacker.def.submarine) this.sawStealth = true;
     this.intel.set(attacker.id, { e: attacker, x: attacker.x, y: attacker.y, t: G.time });
     // harvesters run for the nearest refinery
     if (target.def.harvester && target.hp < target.maxHp * 0.65 && target.hstate !== 'toRef') {

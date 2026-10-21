@@ -16,7 +16,7 @@ const FACTIONS = {
     color: '#3d8bff', dark: '#1d4e9e', light: '#9cc6ff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#a08f68', '#7a6b4b', '#c2b088'],
-    names: { rifle: 'Rifleman', tank: 'M1A3 Abrams', ifv: 'Stryker IFV', mlrs: 'M142 HIMARS', sniper: 'Marine Sniper', heli: 'AH-64E Apache', jet: 'F-35 Lightning II', sam: 'Patriot SAM', patrol: 'Mk VI Patrol Boat', destroyer: 'Arleigh Burke Destroyer', sub: 'Virginia-class Submarine', cruiser: 'Ticonderoga Cruiser' },
+    names: { rifle: 'Rifleman', tank: 'M1A3 Abrams', ifv: 'Stryker IFV', mlrs: 'M142 HIMARS', sniper: 'Marine Sniper', heli: 'AH-64E Apache', jet: 'F-35 Lightning II', sam: 'Patriot SAM', patrol: 'Mk VI Patrol Boat', destroyer: 'Arleigh Burke Destroyer', sub: 'Virginia-class Submarine', cruiser: 'Ticonderoga Cruiser', bomber: 'B-21 Raider' },
     bonus: { hp: { air: 1.25 } }, bonusText: 'Aircraft +25% armor', signature: 'drone', edge: 'thaad',
   },
   eu: {
@@ -24,7 +24,7 @@ const FACTIONS = {
     color: '#4a72ff', dark: '#22379c', light: '#a9bcff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#5f6a55', '#454d3e', '#7b8670'],
-    names: { rifle: 'Special Forces', tank: 'Leopard 2A7', ifv: 'Boxer IFV', mlrs: 'MARS II', sniper: 'Designated Marksman', heli: 'NH90 TTH', jet: 'Eurofighter Typhoon', sam: 'IRIS-T SLM', patrol: 'Combattante Patrol Boat', destroyer: 'Horizon Frigate', sub: 'Type 212 Submarine', cruiser: 'FREMM Missile Frigate' },
+    names: { rifle: 'Special Forces', tank: 'Leopard 2A7', ifv: 'Boxer IFV', mlrs: 'MARS II', sniper: 'Designated Marksman', heli: 'NH90 TTH', jet: 'Eurofighter Typhoon', sam: 'IRIS-T SLM', patrol: 'Combattante Patrol Boat', destroyer: 'Horizon Frigate', sub: 'Type 212 Submarine', cruiser: 'FREMM Missile Frigate', bomber: 'Tornado IDS' },
     bonus: { hp: { defense: 1.3 }, dmg: { defense: 1.2 } }, bonusText: 'Defenses +30% armor, +20% firepower', signature: 'aegis', edge: 'laser',
   },
   uk: {
@@ -32,7 +32,7 @@ const FACTIONS = {
     color: '#5b6ee8', dark: '#2a358c', light: '#b3bcff',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#8a8466', '#655f48', '#a8a282'],
-    names: { rifle: 'Royal Marine', tank: 'Challenger 3', ifv: 'Ajax Recon', mlrs: 'M270A2 MLRS', sniper: 'Royal Marines Sniper', heli: 'Apache AH-64E', jet: 'F-35B Lightning', sam: 'Sky Sabre', patrol: 'River-class Patrol Ship', destroyer: 'Type 45 Destroyer', sub: 'Astute-class Submarine', cruiser: 'Type 26 Frigate' },
+    names: { rifle: 'Royal Marine', tank: 'Challenger 3', ifv: 'Ajax Recon', mlrs: 'M270A2 MLRS', sniper: 'Royal Marines Sniper', heli: 'Apache AH-64E', jet: 'F-35B Lightning', sam: 'Sky Sabre', patrol: 'River-class Patrol Ship', destroyer: 'Type 45 Destroyer', sub: 'Astute-class Submarine', cruiser: 'Type 26 Frigate', bomber: 'Tempest Strike' },
     bonus: { hp: { infantry: 1.25 } }, bonusText: 'Infantry +25% armor', signature: 'sas', edge: 'gchq',
   },
   japan: {
@@ -40,7 +40,7 @@ const FACTIONS = {
     color: '#3ea8d8', dark: '#1b5a85', light: '#a3d6f7',
     alt: { color: '#24b8a4', dark: '#126b5f', light: '#93ecdf' },
     camo: ['#5b6b4a', '#3f4c33', '#788a64'],
-    names: { rifle: 'JGSDF Infantry', tank: 'Type 10', ifv: 'Type 16 MCV', mlrs: 'Type 19 MLRS', sniper: 'JGSDF Marksman', heli: 'AH-64DJ Apache', jet: 'Mitsubishi F-X', sam: 'Type 03 Chu-SAM', patrol: 'Hayabusa Patrol Boat', destroyer: 'Mogami Frigate', sub: 'Taigei-class Submarine', cruiser: 'Atago Destroyer' },
+    names: { rifle: 'JGSDF Infantry', tank: 'Type 10', ifv: 'Type 16 MCV', mlrs: 'Type 19 MLRS', sniper: 'JGSDF Marksman', heli: 'AH-64DJ Apache', jet: 'Mitsubishi F-X', sam: 'Type 03 Chu-SAM', patrol: 'Hayabusa Patrol Boat', destroyer: 'Mogami Frigate', sub: 'Taigei-class Submarine', cruiser: 'Atago Destroyer', bomber: 'F-2B Strike' },
     bonus: { hp: { vehicle: 1.15 } }, bonusText: 'Vehicles +15% armor', signature: 'raijin', edge: 'robotics',
   },
   russia: {
@@ -48,7 +48,7 @@ const FACTIONS = {
     color: '#e8413a', dark: '#8c1f1b', light: '#ff9e98',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6e7048', '#4f5134', '#8c8d60'],
-    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', flak: 'Pantsir-SM', tos: 'TOS-2 Tosochka', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf', patrol: 'Raptor Patrol Boat', destroyer: 'Admiral Gorshkov Frigate', sub: 'Yasen-class Submarine', battleship: 'Pyotr Velikiy' },
+    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', flak: 'Pantsir-SM', tos: 'TOS-2 Tosochka', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf', patrol: 'Raptor Patrol Boat', destroyer: 'Admiral Gorshkov Frigate', sub: 'Yasen-class Submarine', battleship: 'Pyotr Velikiy', bomber: 'Tu-160M Blackjack' },
     bonus: { dmg: { vehicle: 1.15 } }, bonusText: 'Armor +15% firepower', signature: 'iskander', edge: 'krasukha',
   },
   china: {
@@ -56,7 +56,7 @@ const FACTIONS = {
     color: '#e5322d', dark: '#86160f', light: '#ff9a92',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#566f48', '#3e5235', '#71895e'],
-    names: { rifle: 'PLA Trooper', tank: 'Type 99A', flak: 'PGZ-09 SPAAG', tos: 'PCH-191 Thermobaric', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM', patrol: 'Type 022 Missile Boat', destroyer: 'Type 055 Destroyer', sub: 'Type 093 Submarine', battleship: 'Type 055B Battlecruiser' },
+    names: { rifle: 'PLA Trooper', tank: 'Type 99A', flak: 'PGZ-09 SPAAG', tos: 'PCH-191 Thermobaric', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM', patrol: 'Type 022 Missile Boat', destroyer: 'Type 055 Destroyer', sub: 'Type 093 Submarine', battleship: 'Type 055B Battlecruiser', bomber: 'H-20 Stealth Bomber' },
     bonus: { speed: { structure: 1.25, defense: 1.25 } }, bonusText: 'Structures build 25% faster', signature: 'hacker', edge: 'hub',
   },
   soviet: {
@@ -64,7 +64,7 @@ const FACTIONS = {
     color: '#d92b2b', dark: '#7d1212', light: '#ff9a9a',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6a6a3e', '#4c4c2c', '#86865a'],
-    names: { rifle: 'Motor Rifle', tank: 'T-90M', flak: '2S6 Tunguska', tos: 'TOS-1A Solntsepyok', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM', patrol: 'Osa Missile Boat', destroyer: 'Sovremenny Destroyer', sub: 'Akula-class Submarine', battleship: 'Orlan Battlecruiser' },
+    names: { rifle: 'Motor Rifle', tank: 'T-90M', flak: '2S6 Tunguska', tos: 'TOS-1A Solntsepyok', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM', patrol: 'Osa Missile Boat', destroyer: 'Sovremenny Destroyer', sub: 'Akula-class Submarine', battleship: 'Orlan Battlecruiser', bomber: 'Tu-22M3 Backfire' },
     bonus: { cost: { infantry: 0.75 } }, bonusText: 'Infantry 25% cheaper', signature: 'kirov', edge: 'propaganda',
   },
   northkorea: {
@@ -72,7 +72,7 @@ const FACTIONS = {
     color: '#c8302f', dark: '#701616', light: '#f59a95',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#5f6640', '#444a2c', '#7b8358'],
-    names: { rifle: 'KPA Rifleman', tank: 'Chonma-20', flak: 'M1992 SPAAG', tos: 'KN-25 Launcher', heli: 'Mi-24 Hind', jet: 'MiG-29 Fulcrum', sam: 'Pongae-5 SAM', patrol: 'Nampo Patrol Boat', destroyer: 'Choe Hyon Destroyer', sub: 'Sinpo Submarine', battleship: 'Juche Battlecruiser' },
+    names: { rifle: 'KPA Rifleman', tank: 'Chonma-20', flak: 'M1992 SPAAG', tos: 'KN-25 Launcher', heli: 'Mi-24 Hind', jet: 'MiG-29 Fulcrum', sam: 'Pongae-5 SAM', patrol: 'Nampo Patrol Boat', destroyer: 'Choe Hyon Destroyer', sub: 'Sinpo Submarine', battleship: 'Juche Battlecruiser', bomber: 'Il-28 Beagle' },
     bonus: { cost: { defense: 0.75 } }, bonusText: 'Defenses 25% cheaper', signature: 'demotruck', edge: 'koksan',
   },
 };
@@ -271,6 +271,39 @@ const UNITS = {
     weapon2: { warhead: 'cannon', damage: 55, range: 5, cooldown: 1.6, proj: 'rocket', speed: 16, ground: true, air: false },
     desc: 'Supersonic multirole fighter. Wins the skies, strafes ground targets.',
   },
+  // ---- support and specialist units ----
+  // mend: patches up friendly units of the listed categories within range (no weapon of its own)
+  medic: {
+    name: 'Field Medic', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks'],
+    cost: 400, time: 5, hp: 100, speed: 1.35, sight: 6, radius: 5, key: 'Y',
+    mend: { rate: 16, range: 3.5, cats: ['infantry'] },
+    desc: 'Unarmed. Treats wounded infantry nearby, and walks over to anyone hurt within sight when idle.',
+  },
+  recovery: {
+    name: 'Recovery Vehicle', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory'],
+    cost: 900, time: 9, hp: 520, speed: 2.4, sight: 7, radius: 11, turn: 5, key: 'I',
+    mend: { rate: 28, range: 3.5, cats: ['vehicle'] },
+    desc: 'Unarmed armored workshop. Repairs damaged vehicles nearby while the fighting goes on.',
+  },
+  phantom: {
+    name: 'Phantom Stealth Tank', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory', 'radar'], side: 'allies',
+    cost: 1100, time: 11, hp: 340, speed: 2.9, sight: 8, radius: 10, turn: 6, key: 'O', stealth: 2.5,
+    weapon: { warhead: 'rocket', damage: 46, range: 6, cooldown: 2.4, proj: 'rocket', speed: 12, burst: 2, ground: true, air: false },
+    desc: 'Allies only. Adaptive camouflage keeps it hidden until it fires or an enemy comes within 2 tiles. Twin missiles for ambushes on armor and harvesters.',
+  },
+  minelayer: {
+    name: 'Mine Layer', cat: 'vehicle', armor: 'light', from: 'factory', req: ['factory'], side: 'axis',
+    cost: 800, time: 8, hp: 400, speed: 2.5, sight: 7, radius: 10, turn: 5, key: 'O',
+    weapon: { warhead: 'bullet', damage: 14, range: 4.5, cooldown: 0.45, proj: 'tracer', ground: true, air: true },
+    mines: { carry: 6, reload: 12, damage: 360, splash: 1.3, trigger: 0.7 },
+    desc: 'Axis only. Press D to drop an anti-tank mine (carries 6, reloads one every 12 s). Mines stay hidden and blow up under enemy vehicles; infantry walking over one defuses it.',
+  },
+  bomber: {
+    name: 'Strike Bomber', cat: 'air', armor: 'air', from: 'airfield', req: ['airfield', 'tech'],
+    cost: 1800, time: 16, hp: 480, speed: 5.2, sight: 8, radius: 16, key: 'R', air: true, jet: true, prefer: 'structures',
+    weapon: { warhead: 'blast', damage: 210, range: 1.6, cooldown: 7, proj: 'bomb', splash: 1.5, burst: 4, ground: true, air: false },
+    desc: 'Heavy bomber that drops a stick of four bombs on each pass, then circles round for the next. Built to flatten structures; easy prey for fighters and SAMs.',
+  },
   // ---- navy: built at a Naval Shipyard, sail only on water (the hovercraft also drives on land) ----
   patrol: {
     name: 'Patrol Boat', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard'], naval: true,
@@ -426,6 +459,35 @@ const BUILDINGS = {
     name: 'Battle Bunker', cat: 'defense', w: 1, h: 1, hp: 1100, cost: 500, time: 6, power: 0, sight: 7, height: 18, req: ['barracks'], key: 'T', garrison: 4,
     desc: 'Concrete bunker for up to 4 infantry, who fire out of it with extra range. Needs no power.',
   },
+  wall: {
+    name: 'Concrete Wall', cat: 'defense', w: 1, h: 1, hp: 1400, cost: 100, time: 1.5, power: 0, sight: 2, height: 14, req: ['barracks'], key: 'Y', wall: true,
+    desc: 'Blocks the way for everything on the ground. Placement stays active so you can lay a line; right-click or Esc to stop.',
+  },
+  mortar: {
+    name: 'Mortar Pit', cat: 'defense', w: 1, h: 1, hp: 800, cost: 700, time: 7, power: 0, sight: 9, height: 10, req: ['barracks'], key: 'U',
+    weapon: { warhead: 'artillery', damage: 48, range: 9.5, minRange: 2.5, cooldown: 3.2, proj: 'arty', speed: 7, splash: 1.3, ground: true, air: false },
+    desc: 'Sandbagged mortar that lobs shells over walls and buildings. Breaks up infantry pushes; can\'t hit anything right next to it. Needs no power.',
+  },
+  missilenest: {
+    name: 'Missile Nest', cat: 'defense', w: 1, h: 1, hp: 750, cost: 1100, time: 9, power: -40, sight: 9, height: 18, req: ['factory'], key: 'I', needsPower: true, side: 'allies',
+    weapon: { warhead: 'rocket', damage: 80, range: 8.5, cooldown: 2.6, proj: 'rocket', speed: 12, ground: true, air: true },
+    desc: 'Allies only. Fire-and-forget missiles that outrange tanks and also bring down aircraft. Requires power.',
+  },
+  flametower: {
+    name: 'Flame Tower', cat: 'defense', w: 1, h: 1, hp: 1150, cost: 800, time: 7, power: 0, sight: 6, height: 24, req: ['barracks'], key: 'I', side: 'axis',
+    weapon: { warhead: 'fire', damage: 24, range: 4, cooldown: 0.3, proj: 'flame', ground: true, air: false },
+    desc: 'Axis only. Armored flamethrower post: roasts infantry, burns troops out of buildings and scorches anything that gets close. Needs no power.',
+  },
+  sensor: {
+    name: 'Sensor Tower', cat: 'defense', w: 1, h: 1, hp: 600, cost: 600, time: 6, power: -20, sight: 12, height: 40, req: ['radar'], key: 'O', needsPower: true,
+    detect: 8,
+    desc: 'Sees far, and reveals stealth units, submarines and mines within 8 tiles, so your forces can open fire on hidden units. Requires power.',
+  },
+  drill: {
+    name: 'Ore Drill', cat: 'building', w: 2, h: 2, hp: 900, cost: 1500, time: 10, power: -30, sight: 5, height: 36, req: ['refinery'], key: 'L', nearOre: 3,
+    drill: { rate: 6, radius: 3 },
+    desc: 'Pumps ore straight out of a nearby field: a steady 6 credits a second while there is ore within 3 tiles. Must be built next to an ore field.',
+  },
   // Civilian buildings stand on the map from the start. They belong to nobody until infantry
   // garrison them, then to whoever holds them until the last occupant leaves.
   civ_house: {
@@ -461,11 +523,11 @@ const NEUTRAL = -1;
 const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory', air: 'airfield', naval: 'shipyard' };
 
 const TABS = [
-  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'gchq', 'robotics', 'krasukha', 'propaganda', 'shipyard', 'super_lance', 'super_silo'] },
-  { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser', 'thaad', 'koksan', 'bunker'] },
-  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'sas', 'hacker', 'engineer'] },
-  { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'aegis', 'raijin', 'demotruck', 'harvester', 'mcv'] },
-  { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet'] },
+  { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'gchq', 'robotics', 'krasukha', 'propaganda', 'drill', 'shipyard', 'super_lance', 'super_silo'] },
+  { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser', 'thaad', 'koksan', 'bunker', 'wall', 'mortar', 'missilenest', 'flametower', 'sensor'] },
+  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'sas', 'hacker', 'medic', 'engineer'] },
+  { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'aegis', 'raijin', 'demotruck', 'phantom', 'minelayer', 'recovery', 'harvester', 'mcv'] },
+  { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet', 'bomber'] },
   { id: 'naval', label: 'Navy', list: ['patrol', 'destroyer', 'sub', 'cruiser', 'battleship', 'carrier', 'maya', 'hover'] },
 ];
 
@@ -549,6 +611,6 @@ const DEFENSE = {
   // units a wave can field, by the wave they first appear in
   pool: [
     ['rifle', 1, 1], ['rocket', 1, 1], ['ifv', 2, 1.2], ['tank', 3, 2], ['heli', 4, 0.8],
-    ['mlrs', 5, 0.7], ['railtank', 7, 1], ['titan', 7, 1], ['jet', 9, 0.6],
+    ['mlrs', 5, 0.7], ['phantom', 6, 0.6], ['railtank', 7, 1], ['titan', 7, 1], ['jet', 9, 0.6], ['bomber', 10, 0.4],
   ],
 };

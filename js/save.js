@@ -173,6 +173,7 @@ const Save = {
     const fresh = new GameMap(g.map.w, g.map.seed, g.map.theater, g.map.players, g.map.water);
     for (const k of SaveCodec.skip.GameMap) g.map[k] = fresh[k];
     if (!g.map.waterId) g.map.labelWater(); // saves from before the navy
+    if (!g.mines) g.mines = []; // saves from before mines
     g.pf = new PathFinder(g.map);
     g.neutral = Game.makeNeutral();
     g.listeners = { eva: [], sound: [], voice: [] };

@@ -574,6 +574,17 @@ const Render = {
   // overlays that lie on the ground (drawn through the iso transform, in world units)
   drawGroundOverlays(ctx, ui) {
     const pid = G.player;
+    // mines: the owner's side always sees them, enemies only under a Sensor Tower
+    for (const m of G.mines) {
+      if (!G.allied(m.team, pid) && !G.spotted(m, pid)) continue;
+      if (!G.explored[Math.floor(m.y / TILE) * G.map.w + Math.floor(m.x / TILE)]) continue;
+      const tm = G.teamOf(m.team);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.arc(m.x + 1, m.y + 1, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#4b4f3a'; ctx.beginPath(); ctx.arc(m.x, m.y, 5.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = tm.color; ctx.beginPath(); ctx.arc(m.x, m.y, 3, 0, Math.PI * 2); ctx.fill();
+      const on = m.armT <= G.time && Math.sin(G.time * 4 + m.x) > 0.6;
+      ctx.fillStyle = on ? '#ff3b2f' : '#3a1410'; ctx.beginPath(); ctx.arc(m.x, m.y, 1.3, 0, Math.PI * 2); ctx.fill();
+    }
     for (const s of G.pendingStrikes) {
       if (s.done) continue;
       const R = s.sw.radius * TILE * (1 - s.t / s.delay * 0.3);

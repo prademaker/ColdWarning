@@ -202,8 +202,13 @@ const UI = {
     if (e.button === 2) { this.onRight(w, e); return; }
     if (e.button !== 0) return;
     if (this.placing) {
-      const ok = G.tryPlace(G.player, this.placing.qtype, this.placing.tx, this.placing.ty);
-      if (ok) this.placing = null; else { Sfx.play('error'); G.eva('Cannot deploy here', G.player); }
+      const pl = this.placing, q = G.playerTeam.queues[pl.qtype];
+      if (pl.sticky && !q.ready) return; // the next wall section is still on its way
+      const ok = G.tryPlace(G.player, pl.qtype, pl.tx, pl.ty);
+      if (!ok) { Sfx.play('error'); G.eva('Cannot deploy here', G.player); return; }
+      // walls: queue the next section and stay in placement, so a line can be laid click by click
+      if (BUILDINGS[pl.key].wall && !q.items.length && G.playerTeam.canBuild(pl.key)) { q.add(pl.key); pl.sticky = true; }
+      else this.placing = null;
       return;
     }
     if (this.superTargeting) {
@@ -425,6 +430,7 @@ const UI = {
       if (diggers.length) Sfx.play('ack');
       for (const b of this.ownSelected()) if (b.kind === 'building' && b.garrison && b.garrison.length) { G.evacuate(b); Sfx.play('ack'); }
       for (const u of units) if (u.passengers && u.passengers.length) { if (G.unload(u)) Sfx.play('ack'); else Sfx.play('error'); }
+      for (const u of units) if (u.def.mines) { if (G.layMine(u)) Sfx.play('ack'); else Sfx.play('error'); }
       return;
     }
     if (lower === 'h') { this.jumpHome(); return; }
@@ -533,7 +539,7 @@ const UI = {
       this.placing.tx = Math.floor(this.mouseWorld.x / TILE - def.w / 2 + 0.5);
       this.placing.ty = Math.floor(this.mouseWorld.y / TILE - def.h / 2 + 0.5);
       const q = G.playerTeam.queues[this.placing.qtype];
-      if (!q.ready) this.placing = null;
+      if (!q.ready && !(this.placing.sticky && q.head === this.placing.key)) this.placing = null;
     }
     this.selection = this.selection.filter(e => !e.dead && (e.team === G.player || G.isVisibleTo(e, G.player)));
     for (const c of this.clickMarks) c.t += dt;
@@ -862,7 +868,7 @@ const UI = {
   updateSelInfo() {
     const el = document.getElementById('sel-info');
     const sel = this.selection.filter(e => !e.dead);
-    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy / dig in · Ctrl+# group · F1 all keys</div>'; return; }
+    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy / dig in / lay mine · Ctrl+# group · F1 all keys</div>'; return; }
     if (sel.length === 1) {
       const e = sel[0];
       const tm = G.teamOf(e.team);
@@ -873,7 +879,10 @@ const UI = {
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';
         else if (e.def.engineer) extra += 'Right-click enemy structure to capture';
         else if (e.def.demo) extra += `${G.stealthRange(e) < 1e9 ? 'Hidden' : 'Spotted'} · Kills: ${e.kills} · Right-click a structure for C4`;
+        else if (e.def.mines) extra += `Mines ${e.minesLeft ?? e.def.mines.carry}/${e.def.mines.carry}` + (e.team === G.player ? ' · D to lay a mine' : '');
+        else if (e.def.mend) extra += e.def.cat === 'infantry' ? 'Treats wounded infantry nearby' : 'Repairs damaged vehicles nearby';
         else if (e.def.transport) extra += `Carrying ${cargoUsed(e)}/${e.def.transport}` + (e.team === G.player ? (e.passengers.length ? ' · D to unload' : ' · Right-click it with troops to board') : '');
+        else if (e.def.stealth && !e.def.submarine) extra += `${G.stealthRange(e) < 1e9 ? 'Hidden' : 'Revealed'} · Kills: ${e.kills}`;
         else if (e.def.submarine) extra += `${G.submerged(e) ? 'Submerged' : 'Surfaced'} · Kills: ${e.kills}`;
         else extra += `Kills: ${e.kills}`;
         if (e.def.dig && e.team === G.player) extra += e.dug ? ' · Dug in, D to get up' : ' · D to dig in';

@@ -319,3 +319,90 @@ for (const open of [false, true]) {
   g.set(8, 8, 24, C.red); g.set(8, 8, 25, C.red);
   writeVox('b_propaganda.vox', g);
 }
+
+// ======== more structures and defences ========
+
+// ---------- Concrete Wall (1x1): fills its tile so neighbouring sections join up ----------
+{
+  const g = grid();
+  g.box(0, 15, 0, 15, 0, 5, M.concrete);
+  for (let x = 0; x <= 15; x += 4) for (let z = 1; z <= 5; z++) { g.set(x, 15, z, M.concreteDark); g.set(15, x, z, M.concreteDark); } // slab joints
+  g.box(1, 14, 1, 14, 6, 6, M.wall);
+  g.box(6, 9, 6, 9, 6, 6, TEAM);
+  writeVox('b_wall.vox', g);
+}
+
+// ---------- Mortar Pit (1x1): sandbag ring, the tube turns ----------
+{
+  const g = grid();
+  cylinder(g, 8, 8, 7, 0, 3, (x, y, z) => (x * 3 + y + z) % 4 ? C.camo : C.camoDark);
+  cylinder(g, 8, 8, 4.5, 1, 3, C.olive);
+  g.clear(4, 12, 4, 12, 2, 3);
+  for (const [x, y] of [[3, 12], [4, 12], [3, 11]]) g.box(x, x, y, y, 2, 3, C.hazard);          // ammo crates
+  writeVox('b_mortar.vox', g);
+  const t = grid(), O = 4;
+  t.box(O - 2, O + 2, O - 2, O + 2, 0, 0, C.steelDark);                                         // baseplate
+  for (let i = 0; i <= 6; i++) t.box(O + i - 1, O + i, O, O, 1 + i, 1 + i, i === 6 ? C.gunDark : C.gun); // tube at 45 degrees
+  t.box(O + 2, O + 2, O - 2, O + 2, 1, 2, C.steel);                                             // bipod
+  t.set(O - 2, O + 2, 1, TEAM); t.set(O - 2, O - 2, 1, TEAM);
+  writeVox('b_mortar_gun.vox', t);
+}
+
+// ---------- Missile Nest (Allies, 1x1): low bunker, a four-tube launcher on a turntable ----------
+{
+  const g = grid();
+  g.box(1, 14, 1, 14, 0, 0, M.wallDark); hazardStripe(g, 1, 14, 14, 1);
+  g.box(3, 12, 3, 12, 1, 4, M.wall); g.box(3, 12, 3, 12, 5, 5, M.roof);
+  writeVox('b_missilenest.vox', g);
+  const t = grid(), O = 5;
+  t.box(O - 3, O + 3, O - 3, O + 3, 0, 1, C.steelDark);
+  t.box(O - 2, O + 4, O - 3, O + 3, 2, 6, TEAM);
+  for (const y of [O - 2, O + 1]) for (const z of [3, 5]) t.box(O + 5, O + 5, y, y + 1, z, z, M.dark); // tube mouths
+  t.box(O - 3, O - 3, O - 1, O + 1, 3, 5, C.glassDark);                                         // seeker
+  writeVox('b_missilenest_gun.vox', t);
+}
+
+// ---------- Flame Tower (Axis, 1x1): squat armoured tower with fuel tanks, nozzle turret ----------
+{
+  const g = grid();
+  g.box(0, 15, 0, 15, 0, 0, M.wallDark);
+  g.box(3, 12, 3, 12, 1, 9, C.steelDark);
+  for (let z = 2; z <= 8; z += 3) for (let x = 3; x <= 12; x++) { g.set(x, 12, z, C.steel); g.set(12, x, z, C.steel); } // rivet bands
+  for (const [x, y] of [[1, 13], [13, 1]]) g.box(x, x + 1, y, y + 1, 1, 7, C.hazard);           // fuel tanks
+  g.box(4, 11, 4, 11, 10, 10, M.dark);
+  writeVox('b_flametower.vox', g);
+  const t = grid(), O = 4;
+  t.box(O - 3, O + 2, O - 3, O + 3, 0, 3, TEAM); t.box(O - 2, O + 1, O - 2, O + 2, 4, 4, TEAM_LIGHT);
+  t.box(O + 3, O + 8, O, O, 1, 2, C.gunDark); t.box(O + 8, O + 9, O - 1, O + 1, 1, 2, C.steel); t.set(O + 10, O, 1, C.flame); // flame nozzle with pilot light
+  writeVox('b_flametower_gun.vox', t);
+}
+
+// ---------- Sensor Tower (1x1): lattice mast with a radome on top ----------
+{
+  const g = grid();
+  g.box(2, 13, 2, 13, 0, 0, M.concreteDark);
+  for (let z = 1; z <= 20; z++) for (const [x, y] of [[5, 5], [10, 5], [5, 10], [10, 10]]) g.set(x, y, z, C.steel); // legs
+  for (let z = 3; z <= 19; z += 4) { for (let i = 5; i <= 10; i++) { g.set(i, 5, z, C.steelDark); g.set(i, 10, z, C.steelDark); g.set(5, i, z, C.steelDark); g.set(10, i, z, C.steelDark); } }
+  g.box(4, 11, 4, 11, 21, 21, TEAM);
+  dome(g, 7.5, 7.5, 22, 4, M.concrete);
+  g.box(3, 4, 11, 12, 1, 3, M.wall);                                                          // equipment cabinet
+  writeVox('b_sensor.vox', g);
+}
+
+// ---------- Ore Drill (2x2): derrick over a wellhead with a hopper and pipework ----------
+{
+  const g = grid(); foundation(g, 32, 32);
+  block(g, 3, 13, 18, 29, 1, 8, M.wall, TEAM);                                                 // pump house
+  windowsY(g, 4, 12, 29, 5);
+  cylinder(g, 22, 22, 6, 1, 6, C.ore, 4);                                                      // ore hopper
+  cylinder(g, 22, 22, 3, 6, 7, C.oreDark);
+  for (let z = 1; z <= 26; z++) {                                                             // derrick
+    const k = Math.round((z - 1) / 26 * 4);
+    for (const [x, y] of [[4 + k, 4 + k], [16 - k, 4 + k], [4 + k, 16 - k], [16 - k, 16 - k]]) g.set(x, y, z, C.hazard);
+    if (z % 5 === 0) for (let i = 4 + k; i <= 16 - k; i++) { g.set(i, 4 + k, z, M.dark); g.set(i, 16 - k, z, M.dark); g.set(4 + k, i, z, M.dark); g.set(16 - k, i, z, M.dark); }
+  }
+  g.box(8, 12, 8, 12, 27, 28, M.wallDark);
+  g.box(9, 11, 9, 11, 1, 3, C.steelDark);                                                      // wellhead
+  g.box(12, 18, 10, 11, 2, 2, C.steel); g.box(18, 19, 10, 18, 2, 2, C.steel);                  // pipe to the hopper
+  writeVox('b_drill.vox', g);
+}
