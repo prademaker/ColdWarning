@@ -49,6 +49,7 @@ const HOTKEY_HELP = [
     [BUILD_KEYS.split('').join(' · '), 'Build the item with that letter on the current tab'],
     ['Shift+letter', 'Queue five units'],
     ['Z / X', 'Sell / repair mode'],
+    ["'", 'Upgrade mode: click structures to refit them to Mk II (or use Upgrade on a selected one)'],
     ['F', 'Fire the superweapon'],
   ] },
   { title: 'Camera and radar', rows: [

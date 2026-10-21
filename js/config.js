@@ -514,6 +514,70 @@ const BUILDINGS = {
   },
 };
 
+// ---- research ----
+// Bought on a production tab like a unit (that production line waits while it runs), once per
+// match. From then on it applies to every unit of its kind the team fields, even after the
+// structure that researched it is gone. hp / dmg multiply by unit category; vet: new units of
+// those categories roll out as Veterans; evade: share of damage aircraft still take from those
+// warheads; regen: share of max HP warships patch up each second when not under fire; hot: the
+// category's shots glow green. show is the unit the sidebar picture shows wearing the upgrade.
+const UPGRADES = {
+  up_armor: {
+    name: 'Ballistic Armor', research: true, cat: 'infantry', from: 'barracks', req: ['barracks', 'radar'],
+    cost: 1200, time: 25, show: 'rifle', hp: { infantry: 1.3 },
+    desc: 'Plate carriers, shoulder guards and heavier helmets for every soldier: infantry take 30% more punishment. Your troops wear the new kit.',
+  },
+  up_training: {
+    name: 'Combat Training', research: true, cat: 'infantry', from: 'barracks', req: ['barracks', 'tech'],
+    cost: 1500, time: 30, show: 'rifle', vet: ['infantry'],
+    desc: 'Live-fire drills: new infantry leave the barracks as Veterans, with 25% more firepower and tougher hides.',
+  },
+  up_era: {
+    name: 'Reactive Armor', research: true, cat: 'vehicle', from: 'factory', req: ['factory', 'radar'],
+    cost: 1500, time: 30, show: 'tank', hp: { vehicle: 1.25 },
+    desc: 'Explosive reactive armor bricks bolted onto every hull and turret: vehicles get 25% more armor. Your vehicles show the bricks.',
+  },
+  up_du: {
+    name: 'Depleted Uranium Rounds', research: true, cat: 'vehicle', from: 'factory', req: ['factory', 'tech'],
+    cost: 2000, time: 35, show: 'tank', dmg: { vehicle: 1.2 }, hot: ['vehicle'],
+    desc: 'Denser penetrators for every vehicle weapon: they hit 20% harder, and their tracers and shells burn green.',
+  },
+  up_flares: {
+    name: 'Countermeasures', research: true, cat: 'air', from: 'airfield', req: ['airfield', 'radar'],
+    cost: 1200, time: 25, show: 'heli', evade: { rocket: 0.6, flak: 0.6 },
+    desc: 'Flare and chaff dispensers: aircraft take 40% less damage from missiles and flak, popping flares as the missiles come in.',
+  },
+  up_damage: {
+    name: 'Damage Control', research: true, cat: 'naval', from: 'shipyard', req: ['shipyard', 'radar'],
+    cost: 1200, time: 25, show: 'destroyer', hp: { naval: 1.15 }, regen: 0.01,
+    desc: 'Damage-control parties on every warship: 15% more armor, and ships patch themselves up when out of the fight. Watch for the welding sparks.',
+  },
+};
+
+// ---- Mk II structures ----
+// Select one of your structures and press Upgrade (or ' and click it). Paid up front; the refit
+// takes a while (half speed on low power) and the structure keeps working meanwhile. Needs a
+// Radar Station. hp multiplies max HP; power a plant's output; income what a refinery pays per
+// load; prod: the structure counts double for production speed; rate an Ore Drill's pumping;
+// dmg / range the weapon; detect a Sensor Tower's reach; reload a THAAD battery's.
+const MK2_DEFENSE = { hp: 1.5, dmg: 1.25, range: 1.15, text: '+50% armor, +25% damage, +15% range' };
+const STRUCTURE_UPGRADES = {
+  power: { hp: 1.25, power: 1.6, text: 'Second turbine: +60% power' },
+  refinery: { hp: 1.25, income: 1.25, text: 'Ore purifier: +25% credits from every load' },
+  barracks: { hp: 1.25, prod: true, text: 'Second training hall: trains like two barracks' },
+  factory: { hp: 1.25, prod: true, text: 'Second assembly line: builds like two war factories' },
+  airfield: { hp: 1.25, prod: true, text: 'Extra hangar: builds like two airfields' },
+  shipyard: { hp: 1.25, prod: true, text: 'Second slipway: builds like two shipyards' },
+  drill: { hp: 1.25, rate: 1.6, text: 'Second pump: +60% ore pumped' },
+  turret: MK2_DEFENSE, railturret: MK2_DEFENSE, sam: MK2_DEFENSE, laser: MK2_DEFENSE, mortar: MK2_DEFENSE,
+  missilenest: MK2_DEFENSE, flametower: MK2_DEFENSE, koksan: MK2_DEFENSE,
+  thaad: { hp: 1.5, reload: 0.65, range: 1.15, text: '+50% armor, faster interceptors with 15% more reach' },
+  sensor: { hp: 1.5, detect: 1.5, text: '+50% armor, spots hidden units 50% farther out' },
+};
+const STRUCTURE_UPGRADE_REQ = 'radar';
+function upgradeCostOf(key) { return Math.round(BUILDINGS[key].cost * 0.6 / 50) * 50; }
+function upgradeTimeOf(key) { return BUILDINGS[key].time * 1.5; }
+
 // Infantry inside a structure fire out of it with extra reach and punch, and take no damage
 // until the structure falls. Flame and thermobaric weapons burn them out: each hit has this
 // chance to kill one occupant.
@@ -525,10 +589,10 @@ const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory',
 const TABS = [
   { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'gchq', 'robotics', 'krasukha', 'propaganda', 'drill', 'shipyard', 'super_lance', 'super_silo'] },
   { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser', 'thaad', 'koksan', 'bunker', 'wall', 'mortar', 'missilenest', 'flametower', 'sensor'] },
-  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'sas', 'hacker', 'medic', 'engineer'] },
-  { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'aegis', 'raijin', 'demotruck', 'phantom', 'minelayer', 'recovery', 'harvester', 'mcv'] },
-  { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet', 'bomber'] },
-  { id: 'naval', label: 'Navy', list: ['patrol', 'destroyer', 'sub', 'cruiser', 'battleship', 'carrier', 'maya', 'hover'] },
+  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'sas', 'hacker', 'medic', 'engineer', 'up_armor', 'up_training'] },
+  { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'aegis', 'raijin', 'demotruck', 'phantom', 'minelayer', 'recovery', 'harvester', 'mcv', 'up_era', 'up_du'] },
+  { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet', 'bomber', 'up_flares'] },
+  { id: 'naval', label: 'Navy', list: ['patrol', 'destroyer', 'sub', 'cruiser', 'battleship', 'carrier', 'maya', 'hover', 'up_damage'] },
 ];
 
 // The two factions. Each fields its own scout vehicle, artillery and special infantry; SIDE_SWAP
@@ -540,7 +604,7 @@ const SIDES = {
 const SIDE_SWAP = { axis: { sniper: 'shock', ifv: 'flak', mlrs: 'tos' }, allies: { shock: 'sniper', flak: 'ifv', tos: 'mlrs' } };
 function sideKey(key, faction) { const sw = SIDE_SWAP[FACTIONS[faction].side]; return (sw && sw[key]) || key; }
 
-function defOf(key) { return UNITS[key] || BUILDINGS[key]; }
+function defOf(key) { return UNITS[key] || BUILDINGS[key] || UPGRADES[key]; }
 
 // whether a faction's roster includes a unit or structure at all (tech package, side, country)
 function inRoster(key, faction) {
@@ -554,7 +618,7 @@ function inRoster(key, faction) {
 
 function queueTypeOf(key) {
   if (BUILDINGS[key]) return BUILDINGS[key].cat === 'defense' ? 'defense' : 'structure';
-  const u = UNITS[key];
+  const u = UNITS[key] || UPGRADES[key];
   return u.cat === 'infantry' ? 'infantry' : u.cat === 'air' ? 'air' : u.cat === 'naval' ? 'naval' : 'vehicle';
 }
 

@@ -25,6 +25,7 @@ class ProdQueue {
   isStructure() { return this.type === 'structure' || this.type === 'defense'; }
 
   add(key) {
+    if (UPGRADES[key] && this.items.includes(key)) return false;
     if (this.isStructure()) {
       if (this.items.length) return false;
     } else if (this.items.length >= 15) return false;
@@ -52,7 +53,8 @@ class ProdQueue {
   update(dt) {
     if (!this.items.length || this.ready || this.paused) return;
     const t = this.team;
-    const producers = t.countOf(PRODUCER_OF[this.type === 'defense' ? 'structure' : this.type]);
+    const prod = PRODUCER_OF[this.type === 'defense' ? 'structure' : this.type];
+    const producers = t.countOf(prod) + t.countOf('mk2:' + prod);
     if (!producers) { this.clear(); return; }
     const key = this.items[0], def = defOf(key);
     if (!t.canBuild(key)) { this.cancel(key); return; }
@@ -75,7 +77,7 @@ class ProdQueue {
       } else {
         this.items.shift();
         this.progress = 0; this.spent = 0;
-        t.spawnProduced(key);
+        if (UPGRADES[key]) t.research(key); else t.spawnProduced(key);
       }
     }
   }
@@ -100,6 +102,7 @@ class Team {
     this.counts = {};
     this.stats = blankStats();
     this.rally = {};
+    this.upgrades = {}; // research done: key -> true
   }
 
   countOf(key) { return this.counts[key] || 0; }
@@ -110,6 +113,49 @@ class Team {
     return (b && b[cat]) || 1;
   }
   costOf(key) { return Math.round(defOf(key).cost * this.bonus('cost', categoryOf(key))); }
+  // faction bonus and research together: max HP and firepower multipliers for a unit category
+  hpMult(cat) { return this.bonus('hp', cat) * this.upgradeMult('hp', cat); }
+  dmgMult(cat) { return this.bonus('dmg', cat) * this.upgradeMult('dmg', cat); }
+  upgradeMult(kind, cat) {
+    let m = 1;
+    for (const k in this.upgrades) { const u = UPGRADES[k]; if (u && u[kind] && u[kind][cat]) m *= u[kind][cat]; }
+    return m;
+  }
+  // whether research gives units of a category something listed (vet, hot)
+  upgraded(kind, cat) {
+    for (const k in this.upgrades) { const u = UPGRADES[k]; if (u && u[kind] && u[kind].includes(cat)) return true; }
+    return false;
+  }
+  // share of damage an aircraft still takes from a warhead, after countermeasures
+  evade(warhead) {
+    let m = 1;
+    for (const k in this.upgrades) { const u = UPGRADES[k]; if (u && u.evade && u.evade[warhead]) m *= u.evade[warhead]; }
+    return m;
+  }
+  regen() {
+    let r = 0;
+    for (const k in this.upgrades) { const u = UPGRADES[k]; if (u && u.regen) r += u.regen; }
+    return r;
+  }
+
+  // Research done: units already in the field get the new armor straight away (keeping their
+  // share of health), as do soldiers in garrisons and passengers in transports.
+  research(key) {
+    if (this.upgrades[key]) return;
+    this.upgrades[key] = true;
+    const each = u => {
+      const max = Math.round(u.def.hp * this.hpMult(u.def.cat));
+      if (max !== u.maxHp) { u.hp = u.hp * max / u.maxHp; u.maxHp = max; }
+    };
+    for (const e of G.entities) {
+      if (e.team !== this.id || e.dead && !e.inside && !e.aboard) continue;
+      if (e.kind === 'unit') each(e);
+      for (const u of e.garrison || []) each(u);
+      for (const u of e.passengers || []) each(u);
+    }
+    G.eva('Upgrade complete', this.id);
+    G.sound('ready');
+  }
   // production speed-up from structures such as the Robotics Plant (whoever holds one gets it)
   boost(type) {
     let m = 1;
@@ -122,7 +168,8 @@ class Team {
     if (!def || def.buildable === false) return false;
     if (!inRoster(key, this.faction)) return false;
     for (const r of def.req || []) if (!this.countOf(r)) return false;
-    if (UNITS[key] && !this.countOf(def.from)) return false;
+    if ((UNITS[key] || UPGRADES[key]) && !this.countOf(def.from)) return false;
+    if (UPGRADES[key] && (this.upgrades[key] || Object.values(this.queues).some(q => q.items.includes(key)) && !this.queues[queueTypeOf(key)].items.includes(key))) return false;
     if (BUILDINGS[key] && !this.countOf('cc')) return false;
     if (!G.allows(key)) return false;
     return true;
@@ -138,7 +185,8 @@ class Team {
       c[e.key] = (c[e.key] || 0) + 1;
       if (e.kind === 'building') {
         const p = e.def.power;
-        if (p > 0) out += p * Math.max(0.3, e.hp / e.maxHp); else use -= p;
+        if (e.level > 1) c['mk2:' + e.key] = (c['mk2:' + e.key] || 0) + 1;
+        if (p > 0) out += p * mk2(e, 'power') * Math.max(0.3, e.hp / e.maxHp); else use -= p;
       }
     }
     this.counts = c;
@@ -178,6 +226,7 @@ class Team {
       u.facing = Math.PI / 2;
       if (spot) { u.order = { type: 'move', tx: spot[0], ty: spot[1] }; u.path = [[spot[0], spot[1]]]; u.pathI = 0; }
     }
+    if (this.upgraded('vet', def.cat)) u.rank = Math.max(u.rank, 1);
     this.stats.built++;
     this.stats.made[key] = (this.stats.made[key] || 0) + 1;
     G.eva(def.cat === 'infantry' ? 'Unit ready' : def.air ? 'Drone ready' : def.naval ? 'Vessel ready' : 'Unit ready', this.id);
@@ -240,16 +289,31 @@ class Building {
     this.cool = 0; this.target = null; this.scanT = 0; this.burst = 0; this.burstT = 0;
     this.repairing = false; this.rally = null; this.seen = false;
     this.anim = Math.random() * 10;
+    this.level = 1; this.refit = null; // Mk II: level 2; refit is the upgrade's progress while it runs
   }
 }
 
 const BOOSTERS = Object.keys(BUILDINGS).filter(k => BUILDINGS[k].boost);
+
+// a Mk II structure's multiplier of a kind (1 for anything else)
+function mk2(b, kind) {
+  if (!(b.level > 1)) return 1;
+  const u = STRUCTURE_UPGRADES[b.key];
+  return (u && u[kind]) || 1;
+}
+// a Mk II defence's weapon: the same gun with its longer reach (made once per structure type)
+const MK2_WEAPONS = {};
+function mk2Weapon(key, w) {
+  const id = key + (w === BUILDINGS[key].weapon ? '' : '2');
+  return MK2_WEAPONS[id] || (MK2_WEAPONS[id] = Object.assign({}, w, { range: w.range * (STRUCTURE_UPGRADES[key].range || 1) }));
+}
 // effective rate of fire from auras (Propaganda Tower up, Krasukha jamming down)
 function rofOf(e) { return (e.rofUp || 1) * (e.rofDn || 1); }
 
 // bonus category of a unit or structure key
 function categoryOf(key) {
   if (BUILDINGS[key]) return BUILDINGS[key].cat === 'defense' ? 'defense' : 'structure';
+  if (UPGRADES[key]) return 'research';
   return UNITS[key].cat;
 }
 
@@ -421,6 +485,7 @@ class Game {
       isAI: true, lowPower: false, credits: 0, counts: {},
       stats: blankStats(),
       bonus() { return 1; }, boost() { return 1; }, costOf() { return 0; }, countOf() { return 0; }, recount() {},
+      upgrades: {}, hpMult() { return 1; }, dmgMult() { return 1; }, upgraded() { return false; }, evade() { return 1; }, regen() { return 0; },
     };
   }
   teamOf(id) { return id === NEUTRAL ? this.neutral : this.teams[id]; }
@@ -447,7 +512,7 @@ class Game {
   // ---------- entity management ----------
   spawnUnit(key, team, x, y) {
     const u = new Unit(key, team, x, y);
-    u.hp = u.maxHp = Math.round(u.def.hp * this.teams[team].bonus('hp', u.def.cat));
+    u.hp = u.maxHp = Math.round(u.def.hp * this.teamOf(team).hpMult(u.def.cat));
     this.entities.push(u); this.byId.set(u.id, u);
     this.fogDirty = true;
     return u;
@@ -561,7 +626,7 @@ class Game {
   sell(b) {
     if (b.dead || b.kind !== 'building' || b.def.cat === 'civilian') return;
     const t = this.teams[b.team];
-    t.credits += Math.round(t.costOf(b.key) * 0.5 * b.hp / b.maxHp);
+    t.credits += Math.round((t.costOf(b.key) + (b.level > 1 ? upgradeCostOf(b.key) : 0)) * 0.5 * b.hp / b.maxHp);
     this.spawnSurvivors(b, 2);
     this.removeEntity(b);
     t.recount();
@@ -596,6 +661,37 @@ class Game {
     if (e.garrison && e.garrison.length) this.evacuate(e, e.hp <= 0 ? 0.5 : 1);
     e.dead = true;
     if (e.kind === 'building') this.removeBuildingTiles(e);
+  }
+
+  // ---------- Mk II structures ----------
+  canUpgrade(b) {
+    if (!b || b.dead || b.kind !== 'building' || b.team === NEUTRAL || b.built < 1) return false;
+    return !!STRUCTURE_UPGRADES[b.key] && !(b.level > 1) && (b.refit === null || b.refit === undefined) &&
+      this.teams[b.team].countOf(STRUCTURE_UPGRADE_REQ) > 0;
+  }
+
+  // pays up front and starts the refit; returns whether it could
+  upgradeStructure(b) {
+    if (!this.canUpgrade(b)) return false;
+    const t = this.teams[b.team], cost = upgradeCostOf(b.key);
+    if (t.credits < cost) { this.eva('Insufficient funds', t.id); return false; }
+    t.credits -= cost; t.stats.spent += cost;
+    b.refit = 0;
+    this.eva('Upgrading', t.id);
+    this.sound('place', b.x, b.y);
+    return true;
+  }
+
+  updateRefit(b, t, dt) {
+    b.refit += dt / upgradeTimeOf(b.key) * (t.lowPower ? 0.5 : 1);
+    if (Math.random() < dt * 6) this.effects.push({ type: 'spark', x: b.tx * TILE + Math.random() * b.w * TILE, y: b.ty * TILE + Math.random() * b.h * TILE, z: b.def.height * (0.4 + Math.random() * 0.6), t: 0, life: 0.4, color: '#ffe08a' });
+    if (b.refit < 1) return;
+    b.refit = null; b.level = 2;
+    const max = Math.round(b.maxHp * STRUCTURE_UPGRADES[b.key].hp);
+    b.hp = b.hp * max / b.maxHp; b.maxHp = max;
+    t.recount();
+    this.eva('Structure upgraded', t.id);
+    if (b.team === this.player) this.sound('ready');
   }
 
   // ---------- garrisons ----------
@@ -795,6 +891,17 @@ class Game {
     if (target.dug) dmg *= target.def.dig.armor;
     if (target.armorMul) dmg *= target.armorMul;
     if (target.markT > this.time) dmg *= MARK_DAMAGE;
+    if (target.air) {
+      const ev = this.teamOf(target.team).evade(warhead);
+      if (ev < 1) {
+        dmg *= ev;
+        // flares: a burst of them now and then as the missiles come in
+        if (!(target.flareT > this.time)) {
+          target.flareT = this.time + 1.5;
+          for (let i = 0; i < 4; i++) this.effects.push({ type: 'flare', x: target.x, y: target.y, z: target.alt, a: target.facing + Math.PI + (i - 1.5) * 0.5, t: -i * 0.06, life: 1.1 });
+        }
+      }
+    }
     const fx = attacker && attacker.def.onHit;
     if (fx) this.onHit(target, fx);
     if (target.garrison && target.garrison.length && Math.random() < (GARRISON.clear[warhead] || 0)) this.killOccupant(target, attacker);
@@ -922,6 +1029,7 @@ class Game {
     if (e.garrison && e.garrison.length) { const w = []; for (const u of e.garrison) w.push(...this.weaponsOf(u)); return w; }
     if (e.dug) return [e.def.dig.weapon];
     const d = e.def, w = [];
+    if (e.level > 1 && d.weapon) return [mk2Weapon(e.key, d.weapon)];
     if (d.weapon) w.push(d.weapon);
     if (d.weapon2) w.push(d.weapon2);
     if (d.weapon3) w.push(d.weapon3);
@@ -1241,7 +1349,7 @@ class Game {
   updateSensors() {
     for (const s of this.entities) {
       if (s.kind !== 'building' || !s.def.detect || s.dead || s.built < 1 || s.team === NEUTRAL || this.teams[s.team].lowPower) continue;
-      const R = s.def.detect * TILE, until = this.time + 0.5;
+      const R = s.def.detect * mk2(s, 'detect') * TILE, until = this.time + 0.5;
       for (const u of this.unitsNear(s.x, s.y, R)) {
         if (u.def.stealth && this.hostile(u.team, s.team) && Math.hypot(u.x - s.x, u.y - s.y) <= R) { u.spotT = until; u.spotTeam = s.team; }
       }
@@ -1275,6 +1383,14 @@ class Game {
     u.moving = false;
     if (u.def.selfHeal && u.hp < u.maxHp && !(u.def.hero && this.time - (u.hitT || -99) < 4)) u.hp = Math.min(u.maxHp, u.hp + u.def.selfHeal * dt);
     if (u.rank === 2 && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.01 * dt);
+    // Damage Control: warships patch themselves up once out of the fight for a few seconds
+    if (u.def.naval && u.hp < u.maxHp && this.time - (u.hitT || -99) > 5) {
+      const r = this.teamOf(u.team).regen();
+      if (r) {
+        u.hp = Math.min(u.maxHp, u.hp + u.maxHp * r * dt);
+        if (Math.random() < dt * 4) this.effects.push({ type: 'spark', x: u.x + (Math.random() - 0.5) * u.def.radius, y: u.y + (Math.random() - 0.5) * u.def.radius, z: 8, t: 0, life: 0.4, color: '#bfe8ff' });
+      }
+    }
     if (u.burst > 0) {
       u.burstT -= dt;
       if (u.burstT <= 0 && u.burstTarget && !u.burstTarget.dead) {
@@ -1653,7 +1769,7 @@ class Game {
         u.facing = turnToward(u.facing, Math.atan2(ref.y - u.y, ref.x - u.x), 3 * dt);
         const amt = Math.min(u.cargo, 400 * dt);
         u.cargo -= amt;
-        const v = amt * t.incomeMult;
+        const v = amt * t.incomeMult * mk2(ref, 'income');
         t.credits += v; t.stats.harvested += v;
         if (u.cargo <= 0.5) { u.cargo = 0; u.hstate = 'seek'; }
         break;
@@ -1700,12 +1816,13 @@ class Game {
         if (t.credits >= cost) { t.credits -= cost; b.hp += hp; }
       }
     }
+    if (b.refit !== null && b.refit !== undefined) this.updateRefit(b, t, dt);
     if (b.def.heal) this.healAround(b, t, dt);
     if (b.def.drill) this.drill(b, t, dt);
     if (b.garrison && b.garrison.length) { this.updateGarrison(b, dt); return; }
     if (b.stunT > this.time) return;
     if (b.def.intercept && !(b.def.needsPower && t.lowPower)) this.intercept(b, dt);
-    const w = b.def.weapon;
+    const w = b.def.weapon && (b.level > 1 ? mk2Weapon(b.key, b.def.weapon) : b.def.weapon);
     if (!w) return;
     if (b.def.needsPower && t.lowPower) { b.target = null; return; }
     b.cool -= dt;
@@ -1732,7 +1849,7 @@ class Game {
   intercept(b, dt) {
     b.icool = (b.icool || 0) - dt;
     if (b.icool > 0) return;
-    const R = b.def.intercept.range * TILE;
+    const R = b.def.intercept.range * mk2(b, 'range') * TILE;
     let best = null, bd = R;
     for (const p of this.projectiles) {
       if (p.dead || p.drop || p.type === 'shell' || p.type === 'torpedo' || p.type === 'sortie' || !this.hostile(p.team, b.team)) continue;
@@ -1741,7 +1858,7 @@ class Game {
     }
     if (!best) return;
     best.dead = true;
-    b.icool = b.def.intercept.cooldown / rofOf(b);
+    b.icool = b.def.intercept.cooldown * mk2(b, 'reload') / rofOf(b);
     if (b.kind === 'building') b.turret = Math.atan2(best.y - b.y, best.x - b.x);
     this.effects.push({ type: 'beam', x: b.x, y: b.y, z: b.kind === 'building' ? b.def.height : muzzleZ(b) + 6, x2: best.x, y2: best.y, z2: best.z || 0, t: 0, life: 0.25, color: '255,240,200' });
     this.effects.push({ type: 'explosion', x: best.x, y: best.y, z: best.z || 0, size: 10, t: 0, life: 0.4 });
@@ -1763,7 +1880,7 @@ class Game {
     }
     b.dry = best < 0;
     if (b.dry || b.team === NEUTRAL) return;
-    const take = Math.min(m.ore[best], d.rate * (t.lowPower ? 0.5 : 1));
+    const take = Math.min(m.ore[best], d.rate * mk2(b, 'rate') * (t.lowPower ? 0.5 : 1));
     m.ore[best] -= take;
     const v = take * t.incomeMult;
     t.credits += v; t.stats.harvested += v;
@@ -1788,7 +1905,9 @@ class Game {
   fire(s, w, t) {
     const by = s.inside || s;
     s.firedT = this.time;
-    const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * this.teams[s.team].bonus('dmg', s.kind === 'unit' ? s.def.cat : categoryOf(s.key)) * (s.inside ? GARRISON.dmg : 1);
+    const tm = this.teamOf(s.team), cat = s.kind === 'unit' ? s.def.cat : categoryOf(s.key);
+    const dmg = w.damage * (s.kind === 'unit' ? RANK_DMG[s.rank] : 1) * tm.dmgMult(cat) * mk2(s, 'dmg') * (s.inside ? GARRISON.dmg : 1);
+    const hot = s.kind === 'unit' && tm.upgraded('hot', cat) || undefined; // depleted uranium: green tracers and shells
     s.recoil = 1;
     const ang = turreted(s.def) || s.kind === 'building' ? s.turret : s.facing;
     const len = s.kind === 'building' ? 12 : (s.def.radius || 6) + 2;
@@ -1798,7 +1917,7 @@ class Game {
     switch (w.proj) {
       case 'tracer': {
         const jx = (Math.random() - 0.5) * 8, jy = (Math.random() - 0.5) * 8;
-        this.effects.push({ type: 'tracer', x: sx, y: sy, z: sz, x2: tx + jx, y2: ty + jy, z2: tz, t: 0, life: 0.08 });
+        this.effects.push({ type: 'tracer', x: sx, y: sy, z: sz, x2: tx + jx, y2: ty + jy, z2: tz, t: 0, life: 0.08, hot });
         this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.06, size: 5 });
         this.damage(t, dmg, w.warhead, by);
         if (vis) this.sound(w.warhead === 'flak' ? 'flak' : 'gun', sx, sy);
@@ -1878,7 +1997,7 @@ class Game {
         const p = {
           type: w.proj === 'bomb' ? 'arty' : w.proj, x: sx, y: sy, z: sz, sx, sy, sz, tz, d0: Math.hypot(tx - sx, ty - sy) || 1, target: t, tx, ty, team: s.team, src: by,
           dmg, warhead: w.warhead, splash: w.splash || 0, speed: (w.speed || 12) * TILE, t: 0,
-          ang: Math.atan2(ty - sy, tx - sx),
+          ang: Math.atan2(ty - sy, tx - sx), hot,
         };
         if (w.proj === 'arty') {
           p.tx += (Math.random() - 0.5) * TILE * 1.5; p.ty += (Math.random() - 0.5) * TILE * 1.5;
@@ -1917,6 +2036,9 @@ class Game {
     const old = u.team;
     u.team = team; u.order = null; u.target = null; u.path = null; u.guard = null; u.burst = 0;
     u.hackP = 0; u.hackTeam = null; u.lastAttacker = null;
+    // armor research belongs to the side, so it changes hands with the vehicle
+    const max = Math.round(u.def.hp * this.teams[team].hpMult(u.def.cat));
+    u.hp = u.hp * max / u.maxHp; u.maxHp = max;
     if (u.def.harvester) { u.hstate = 'seek'; u.dockRef = null; }
     this.teams[old].stats.lost++; this.teams[team].stats.kills++;
     this.eva('Vehicle hijacked', team); this.eva('Unit lost', old);

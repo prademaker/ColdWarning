@@ -77,6 +77,12 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   changes hands with its occupants; flamethrowers, thermobaric rockets and bombs burn the occupants out.
 - Riflemen dig in behind sandbags: half the damage taken and a longer-ranged gun, but they can't move until they get up again.
 - Veterancy (Veteran / Elite), tanks crushing infantry, fog of war, rally points, control groups, attack-move.
+- Upgrades. Research sits at the end of the Infantry, Armor, Air and Navy tabs (one at a time per tab, once per match):
+  Ballistic Armor and Combat Training (Veteran recruits) at the Barracks, Reactive Armor and Depleted Uranium Rounds at
+  the War Factory, Countermeasures (flares) at the Airfield, Damage Control at the Shipyard. Armor research changes how
+  the units look: soldiers get plate carriers and bigger helmets, vehicles reactive-armor bricks. With a Radar Station,
+  power plants, refineries, producers, the Ore Drill, Sensor Tower and gun defenses can be refitted to Mk II (Upgrade
+  button on the selected structure, or `'` and click), which adds the upgraded model and its bonus.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.
   It plays by what it has seen: scouts look for enemy bases, the unit mix adapts to your army, waves gather before
   they strike and wait until the odds look good, losing waves pull back, raiders hunt harvesters, and on Normal and
@@ -117,6 +123,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | Control groups | Ctrl+`1-9` to assign, `1-9` to recall (twice to jump) |
 | Build tabs / hotkeys | `Tab`, `Q` `W` `E` `R` `T` `Y` `U` `I` `O` `L` (shown on each icon) |
 | Sell / repair / superweapon | `Z` / `X` / `F` |
+| Upgrade a structure to Mk II | `'` then click it, or Upgrade on its panel |
 | Set rally point | Select a Barracks/Factory/Airfield, right click on the map |
 | Primary production building | Double-click it |
 | Jump to base / last alert | `H` / `Space` |
@@ -184,5 +191,7 @@ team colour ramp and 9-11 the camouflage, both stored as greys and painted per p
 `node render.js <models> <key>...`, e.g. `tank_vox`). Infantry have three walk frames and the harvester
 has an empty and a loaded model. Structures are voxel models too (`tools/sprites/voxel_buildings.js`,
 one voxel = 2 game pixels): concrete and steel with team-coloured roofs, while flags, lights, the radar
-dish and superweapon effects are drawn live on top. Defences have separately rotating guns. Open the game with `?style=model` to use the ITHappy tank, IFV and
+dish and superweapon effects are drawn live on top. Defences have separately rotating guns. The upgraded looks (`*_up`) come from
+`tools/sprites/voxel_upgrades.js`, which reads the finished models and bolts on the upgrade kits; run it after the
+other voxel scripts. The game only downloads those sheets once a player has the upgrade. Open the game with `?style=model` to use the ITHappy tank, IFV and
 helicopter instead.

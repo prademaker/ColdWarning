@@ -135,7 +135,15 @@ const UI = {
       e.preventDefault(); Sfx.resume();
       this.recallGroup(b.dataset.g, e.shiftKey);
     });
-    for (const [id, fn] of [['btn-repair', () => this.toggleMode('repair')], ['btn-sell', () => this.toggleMode('sell')],
+    // the Upgrade button on a selected structure's panel (the panel is redrawn every frame, so
+    // listen on the box and act on the press)
+    document.getElementById('sel-info').addEventListener('mousedown', e => {
+      const b = e.target.closest('[data-upgrade]');
+      if (!b || !G || G.over || Main.paused) return;
+      e.preventDefault(); Sfx.resume();
+      this.upgrade(G.byId.get(+b.dataset.upgrade));
+    });
+    for (const [id, fn] of [['btn-repair', () => this.toggleMode('repair')], ['btn-sell', () => this.toggleMode('sell')], ['btn-upgrade', () => this.toggleMode('upgrade')],
       ['btn-super', () => this.startSuper()], ['btn-pause', () => Main.togglePause()], ['btn-sound', () => this.toggleSound()], ['btn-music', () => this.toggleMusic()]]) {
       document.getElementById(id).addEventListener('click', () => { Sfx.resume(); fn(); });
     }
@@ -175,7 +183,7 @@ const UI = {
   updateCursor() {
     let cur = 'default';
     if (this.mode === 'sell') cur = 'cell';
-    else if (this.mode === 'repair') cur = 'help';
+    else if (this.mode === 'repair' || this.mode === 'upgrade') cur = 'help';
     else if (this.mode === 'amove' || this.superTargeting) cur = 'crosshair';
     else if (this.hover && G.hostile(this.hover.team, G.player) && this.ownUnits().length) cur = 'crosshair';
     else if (this.hover && this.hover.team === G.player) cur = 'pointer';
@@ -224,6 +232,11 @@ const UI = {
     if (this.mode === 'repair') {
       if (ent && ent.kind === 'building' && ent.team === G.player) { ent.repairing = !ent.repairing; Sfx.play('click'); }
       else Sfx.play('error');
+      return;
+    }
+    if (this.mode === 'upgrade') {
+      // stays on so several structures can be refitted in a row; right-click or Esc to stop
+      this.upgrade(ent && ent.kind === 'building' && ent.team === G.player ? ent : null);
       return;
     }
     if (this.mode === 'amove') {
@@ -443,6 +456,7 @@ const UI = {
     }
     if (lower === 'z') { this.toggleMode('sell'); return; }
     if (lower === 'x') { this.toggleMode('repair'); return; }
+    if (e.code === 'Quote') { this.toggleMode('upgrade'); return; }
     if (lower === 'f') { this.startSuper(); return; }
     const tab = Object.keys(TAB_KEYS).find(id => TAB_KEYS[id].toLowerCase() === lower);
     if (tab) { this.setTab(tab); Sfx.play('click'); return; }
@@ -450,6 +464,15 @@ const UI = {
     const ch = { ':': ';', '{': '[', '}': ']' }[k] || lower; // Shift+; still means ;
     const item = Object.keys(this.hotkeys || {}).find(key => this.hotkeys[key].toLowerCase() === ch);
     if (item) this.clickBuild(item, false, e.shiftKey);
+  },
+
+  // refit one of our structures to Mk II, explaining why not when it can't be
+  upgrade(b) {
+    if (!b || b.team !== G.player || !STRUCTURE_UPGRADES[b.key]) { Sfx.play('error'); return; }
+    if (b.level > 1) { G.eva('Already upgraded', G.player); Sfx.play('error'); return; }
+    if (b.refit !== null && b.refit !== undefined) { G.eva('Upgrade in progress', G.player); Sfx.play('error'); return; }
+    if (!G.playerTeam.countOf(STRUCTURE_UPGRADE_REQ)) { G.eva('Upgrades require a ' + BUILDINGS[STRUCTURE_UPGRADE_REQ].name, G.player); Sfx.play('error'); return; }
+    if (G.upgradeStructure(b)) Sfx.play('click'); else Sfx.play('error');
   },
 
   isCombat(u) { return !u.def.harvester && !u.def.mcv && !u.def.engineer && !u.inside && !u.aboard; },
@@ -738,13 +761,14 @@ const UI = {
     const reqs = (def.req || []).filter(r => !t.countOf(r)).map(r => BUILDINGS[r].name);
     if (UNITS[key] && !t.countOf(def.from)) reqs.unshift(BUILDINGS[def.from].name);
     let stats = '';
-    if (BUILDINGS[key]) stats = `Power: ${def.power > 0 ? '+' : ''}${def.power}`;
+    if (UPGRADES[key]) stats = t.upgrades[key] ? 'Researched' : `Research · ${def.time}s · once per match`;
+    else if (BUILDINGS[key]) stats = `Power: ${def.power > 0 ? '+' : ''}${def.power}` + (STRUCTURE_UPGRADES[key] ? ` · Mk II for $${upgradeCostOf(key)}: ${STRUCTURE_UPGRADES[key].text}` : '');
     else if (def.weapon) stats = `HP ${def.hp} · Speed ${def.speed} · Range ${def.weapon.range}`;
     else stats = `HP ${def.hp} · Speed ${def.speed}`;
     const role = nameOf(key, t.faction) !== def.name ? `<div class="trole">${def.name}</div>` : '';
     tip.innerHTML = `<b>${nameOf(key, t.faction)}</b> <span class="tcost">$${t.costOf(key)}</span>${role}<div>${def.desc}</div><div class="tstat">${stats}</div>` +
       (reqs.length ? `<div class="treq">Requires: ${[...new Set(reqs)].join(', ')}</div>` : '') +
-      `<div class="thelp">${this.hotkeys && this.hotkeys[key] ? `<kbd>${this.hotkeys[key]}</kbd> · ` : ''}Left: build${BUILDINGS[key] ? ' / place' : ' (Shift ×5)'} · Right: hold / cancel</div>`;
+      `<div class="thelp">${this.hotkeys && this.hotkeys[key] ? `<kbd>${this.hotkeys[key]}</kbd> · ` : ''}Left: ${UPGRADES[key] ? 'research' : 'build'}${BUILDINGS[key] ? ' / place' : UPGRADES[key] ? '' : ' (Shift ×5)'} · Right: hold / cancel</div>`;
     tip.hidden = false;
     const r = el.getBoundingClientRect();
     tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - 8, r.top) + 'px';
@@ -773,7 +797,8 @@ const UI = {
       const n = q.items.filter(k => k === key).length;
       b.count.textContent = n > 1 ? n : '';
       let st = '';
-      if (isHead && q.ready) st = 'READY';
+      if (UPGRADES[key] && t.upgrades[key]) st = 'DONE';
+      else if (isHead && q.ready) st = 'READY';
       else if (isHead && q.paused) st = 'ON HOLD';
       else if (isHead && q.broke) st = 'NO FUNDS';
       b.status.textContent = st;
@@ -824,6 +849,7 @@ const UI = {
     this.updateMission(ebox.hidden && wbox.hidden ? 12 : 52);
     document.getElementById('btn-sell').classList.toggle('on', this.mode === 'sell');
     document.getElementById('btn-repair').classList.toggle('on', this.mode === 'repair');
+    document.getElementById('btn-upgrade').classList.toggle('on', this.mode === 'upgrade');
     this.updateSelInfo();
     this.updateGroups();
   },
@@ -876,6 +902,8 @@ const UI = {
       let extra = '';
       if (e.kind === 'unit') {
         if (e.rank) extra += `<span class="rank">${e.rank === 2 ? 'ELITE' : 'VETERAN'}</span> `;
+        const research = Object.keys(tm.upgrades || {}).filter(k => UPGRADES[k] && UPGRADES[k].cat === e.def.cat).map(k => UPGRADES[k].name);
+        if (research.length) extra += `<span class="uptag">${research.join(' · ')}</span><br>`;
         if (e.def.harvester) extra += `Cargo: ${Math.round(e.cargo)}/${e.def.capacity}`;
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';
         else if (e.def.engineer) extra += 'Right-click enemy structure to capture';
@@ -893,8 +921,17 @@ const UI = {
         if (e.team === G.player && n) extra += ' · D to evacuate';
         else if (e.team === NEUTRAL || e.team === G.player) extra += ' · Right-click with infantry to garrison';
       } else {
-        extra = `Power ${e.def.power > 0 ? '+' : ''}${e.def.power}`;
+        const p = e.def.power > 0 ? Math.round(e.def.power * (e.level > 1 ? STRUCTURE_UPGRADES[e.key].power || 1 : 1)) : e.def.power;
+        extra = `Power ${p > 0 ? '+' : ''}${p}`;
         if (e.def.produces && e.def.produces !== 'structure' && e.team === G.player) extra += ' · Right-click map to set rally';
+      }
+      const up = e.kind === 'building' && STRUCTURE_UPGRADES[e.key];
+      if (up && e.level > 1) extra = `<span class="rank">MK II</span> ${up.text} · ` + extra;
+      else if (up && e.refit !== null && e.refit !== undefined) extra = `<span class="rank">UPGRADING ${Math.floor(e.refit * 100)}%</span> ` + extra;
+      else if (up && e.team === G.player) {
+        const ok = G.canUpgrade(e) && G.playerTeam.credits >= upgradeCostOf(e.key);
+        const why = !G.playerTeam.countOf(STRUCTURE_UPGRADE_REQ) ? `Needs a ${BUILDINGS[STRUCTURE_UPGRADE_REQ].name}` : up.text;
+        extra += `<button class="upbtn${ok ? '' : ' off'}" data-upgrade="${e.id}" title="${up.text} (or press ' and click a structure)">Upgrade to Mk II · $${upgradeCostOf(e.key)}</button><div class="uptext">${why}</div>`;
       }
       const html = `<div class="sname" style="color:${tm.light}">${nameOf(e.key, tm.faction)}</div>
         <div class="shp"><div style="width:${e.hp / e.maxHp * 100}%"></div></div>

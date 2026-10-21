@@ -121,6 +121,13 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 #sb-buttons button, #btn-super { flex: 1; background: var(--panel2); border: 1px solid var(--edge2); color: var(--text); padding: 5px; font-size: 13px;
   border-radius: 2px; font-family: var(--head); letter-spacing: 2px; text-transform: uppercase; }
 #sb-buttons button.on { border-color: var(--gold); color: var(--gold); }
+#sb-buttons button { letter-spacing: 1px; min-width: 0; }
+.upbtn { display: block; width: 100%; margin-top: 5px; background: #3a2c08; border: 1px solid var(--gold); color: var(--gold); padding: 4px; font-family: var(--head);
+  font-size: 12px; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border-radius: 2px; }
+.upbtn:hover { background: #57420c; }
+.upbtn.off { opacity: .45; }
+.uptext { margin-top: 3px; color: var(--dim); font-size: 11px; }
+.uptag { color: #ffd24a; }
 #btn-super { flex: none; font-size: 12px; letter-spacing: 1px; }
 #btn-super.ready { background: #6a1010; border-color: #f55; color: #fff; animation: blink .5s infinite alternate; }
 #tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--edge2); }
