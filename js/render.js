@@ -291,6 +291,7 @@ const Render = {
       drawUnitArt(ctx, u, team, sx, sy + roll + (under ? 3 : 0));
       ctx.globalAlpha = 1;
       this.drawStatus(ctx, u, sx, sy);
+      if (u.def.ultimate) ultMark(ctx, sx, sy - ULT_BADGE[u.key], u.def.tier);
       return;
     }
     if (!u.air) {
@@ -314,6 +315,8 @@ const Render = {
       ctx.fillStyle = '#ffd27a'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(sx, y + 5); ctx.lineTo(sx - 4, y); ctx.lineTo(sx, y - 5); ctx.lineTo(sx + 4, y); ctx.closePath(); ctx.fill(); ctx.stroke();
     }
+    // an ultimate carries its rank badge: a gold star and one pip per Mk
+    if (u.def.ultimate) ultMark(ctx, sx, sy - bob - (u.alt || 0) - ULT_BADGE[u.key], u.def.tier);
   },
 
   // shield shimmer, EMP sparks, laser designation and hack progress on a unit

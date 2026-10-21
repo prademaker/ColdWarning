@@ -83,6 +83,12 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   the units look: soldiers get plate carriers and bigger helmets, vehicles reactive-armor bricks. With a Radar Station,
   power plants, refineries, producers, the Ore Drill, Sensor Tower and gun defenses can be refitted to Mk II (Upgrade
   button on the selected structure, or `'` and click), which adds the upgraded model and its bonus.
+- Ultimate units, one per production tab and one of each in the field at a time (they need a Tech Lab):
+  the Goliath Exosuit (Barracks), the Behemoth Siege Tank (War Factory), the Valkyrie Gunship (Airfield) and the
+  Leviathan Dreadnought (Shipyard). Each has a refit researched three times on its tab, Mk II to Mk IV: every Mk adds
+  armour and weapons and shows on the model, and a Mk IV beats a much bigger army of the same cost. Ultimates fire all
+  their weapons at once, can't be hacked, crushed or carried, and wear a gold star with one pip per Mk. They can be
+  switched off for skirmish and defense, and campaign missions leave them out.
 - Computer opponent that builds a base, harvests, defends, attacks in growing waves and fires its superweapon. Easy / Normal / Brutal.
   It plays by what it has seen: scouts look for enemy bases, the unit mix adapts to your army, waves gather before
   they strike and wait until the odds look good, losing waves pull back, raiders hunt harvesters, and on Normal and
@@ -193,5 +199,7 @@ has an empty and a loaded model. Structures are voxel models too (`tools/sprites
 one voxel = 2 game pixels): concrete and steel with team-coloured roofs, while flags, lights, the radar
 dish and superweapon effects are drawn live on top. Defences have separately rotating guns. The upgraded looks (`*_up`) come from
 `tools/sprites/voxel_upgrades.js`, which reads the finished models and bolts on the upgrade kits; run it after the
-other voxel scripts. The game only downloads those sheets once a player has the upgrade. Open the game with `?style=model` to use the ITHappy tank, IFV and
+other voxel scripts. The game only downloads those sheets once a player has the upgrade. The ultimate units have one
+model per Mk (`*_t2` to `*_t4` after the Mk I), built by `tools/sprites/voxel_ultimates.js`; the refitted ones load
+the same way, when first needed. Open the game with `?style=model` to use the ITHappy tank, IFV and
 helicopter instead.

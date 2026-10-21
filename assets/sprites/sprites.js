@@ -2146,5 +2146,333 @@ const SPRITE_META = {
     },
     "style": "voxel",
     "camo": true
+  },
+  "goliath_vox_0": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_1": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_2": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -4.050000000000001,
+    "camo": true
+  },
+  "valkyrie_vox": {
+    "cell": 160,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 80,
+    "ay": 105.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
+  },
+  "goliath_vox_t2_0": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_t2_1": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_t2_2": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox_t2": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -4.050000000000001,
+    "camo": true
+  },
+  "valkyrie_vox_t2": {
+    "cell": 160,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 80,
+    "ay": 105.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox_t2": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
+  },
+  "goliath_vox_t3_0": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_t3_1": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_t3_2": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox_t3": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -4.050000000000001,
+    "camo": true
+  },
+  "valkyrie_vox_t3": {
+    "cell": 160,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 80,
+    "ay": 105.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox_t3": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
+  },
+  "goliath_vox_t4_0": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_t4_1": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_t4_2": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox_t4": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -4.050000000000001,
+    "camo": true
+  },
+  "valkyrie_vox_t4": {
+    "cell": 160,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 80,
+    "ay": 105.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox_t4": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
   }
 };

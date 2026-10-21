@@ -671,7 +671,7 @@ const UI = {
   setTab(id) { this.tab = id; this.buildGridKey = null; this.updateSidebar(); },
 
   icon(key, team = G.playerTeam) {
-    const k = key + team.faction + team.color + '|' + Art.version;
+    const k = key + team.faction + team.color + '|' + Art.version + '|' + (team.upgrades ? ULTIMATES.map(u => team.upgrades[UNITS[u].refit] || 0).join('') : '');
     if (!this.iconCache[k]) this.iconCache[k] = drawIcon(key, team, 92, 81);
     return this.iconCache[k];
   },
@@ -708,7 +708,7 @@ const UI = {
       const b = document.createElement('div');
       b.className = 'bitem';
       b.appendChild(this.cameo(key));
-      const name = document.createElement('div'); name.className = 'bname'; name.textContent = nameOf(key, t.faction); b.appendChild(name);
+      const name = document.createElement('div'); name.className = 'bname'; name.textContent = this.itemName(key); b.appendChild(name);
       const cost = document.createElement('div'); cost.className = 'bcost'; cost.textContent = '$' + t.costOf(key); b.appendChild(cost);
       if (this.hotkeys[key]) { const hk = document.createElement('div'); hk.className = 'bkey'; hk.textContent = this.hotkeys[key]; b.appendChild(hk); }
       const prog = document.createElement('div'); prog.className = 'bprog'; b.appendChild(prog);
@@ -761,18 +761,30 @@ const UI = {
     const reqs = (def.req || []).filter(r => !t.countOf(r)).map(r => BUILDINGS[r].name);
     if (UNITS[key] && !t.countOf(def.from)) reqs.unshift(BUILDINGS[def.from].name);
     let stats = '';
-    if (UPGRADES[key]) stats = t.upgrades[key] ? 'Researched' : `Research · ${def.time}s · once per match`;
+    const lv = t.levelOf(key);
+    if (def.levels) stats = t.researched(key) ? `Fully refitted: Mk IV` : `${lv.text} · ${lv.time}s`;
+    else if (UPGRADES[key]) stats = t.upgrades[key] ? 'Researched' : `Research · ${def.time}s · once per match`;
+    else if (def.ultimate) {
+      const u = t.ultDef(key);
+      stats = `Mk ${MK[u.tier - 1]} · HP ${u.hp} · Speed ${u.speed} · Range ${Math.max(...[u.weapon, u.weapon2, u.weapon3].filter(Boolean).map(w => w.range))} · one at a time` + (t.countOf(key) ? ' · in the field' : '');
+    }
     else if (BUILDINGS[key]) stats = `Power: ${def.power > 0 ? '+' : ''}${def.power}` + (STRUCTURE_UPGRADES[key] ? ` · Mk II for $${upgradeCostOf(key)}: ${STRUCTURE_UPGRADES[key].text}` : '');
     else if (def.weapon) stats = `HP ${def.hp} · Speed ${def.speed} · Range ${def.weapon.range}`;
     else stats = `HP ${def.hp} · Speed ${def.speed}`;
     const role = nameOf(key, t.faction) !== def.name ? `<div class="trole">${def.name}</div>` : '';
-    tip.innerHTML = `<b>${nameOf(key, t.faction)}</b> <span class="tcost">$${t.costOf(key)}</span>${role}<div>${def.desc}</div><div class="tstat">${stats}</div>` +
+    tip.innerHTML = `<b>${this.itemName(key)}</b> <span class="tcost">$${t.costOf(key)}</span>${role}<div>${def.desc}</div><div class="tstat">${stats}</div>` +
       (reqs.length ? `<div class="treq">Requires: ${[...new Set(reqs)].join(', ')}</div>` : '') +
       `<div class="thelp">${this.hotkeys && this.hotkeys[key] ? `<kbd>${this.hotkeys[key]}</kbd> · ` : ''}Left: ${UPGRADES[key] ? 'research' : 'build'}${BUILDINGS[key] ? ' / place' : UPGRADES[key] ? '' : ' (Shift ×5)'} · Right: hold / cancel</div>`;
     tip.hidden = false;
     const r = el.getBoundingClientRect();
     tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - 8, r.top) + 'px';
     tip.style.left = (r.left - tip.offsetWidth - 10) + 'px';
+  },
+  // a build item's name; an ultimate refit says which Mk it fits next
+  itemName(key) {
+    const def = defOf(key), t = G.playerTeam;
+    if (!def.levels) return nameOf(key, t.faction);
+    return `${UNITS[def.ult].name.split(' ')[0]} Mk ${MK[Math.min(3, (t.upgrades[key] || 0) + 1)]}`;
   },
   hideTip() { document.getElementById('tooltip').hidden = true; },
 
@@ -786,7 +798,7 @@ const UI = {
       el.classList.toggle('disabled', !t.countOf(prod));
       el.classList.toggle('ready', t.queues[id].ready);
     }
-    const gridKey = this.tab + '|' + t.faction + '|' + Art.version;
+    const gridKey = this.tab + '|' + t.faction + '|' + Art.version + '|' + ULTIMATES.map(k => t.ultTier(k)).join('');
     if (this.buildGridKey !== gridKey) { this.buildGridKey = gridKey; this.buildGrid(); }
     const q = t.queues[this.tab];
     for (const key in this.buttons) {
@@ -797,7 +809,8 @@ const UI = {
       const n = q.items.filter(k => k === key).length;
       b.count.textContent = n > 1 ? n : '';
       let st = '';
-      if (UPGRADES[key] && t.upgrades[key]) st = 'DONE';
+      if (UPGRADES[key] && t.researched(key)) st = 'DONE';
+      else if (UNITS[key] && UNITS[key].ultimate && t.countOf(key)) st = 'DEPLOYED';
       else if (isHead && q.ready) st = 'READY';
       else if (isHead && q.paused) st = 'ON HOLD';
       else if (isHead && q.broke) st = 'NO FUNDS';
@@ -902,7 +915,11 @@ const UI = {
       let extra = '';
       if (e.kind === 'unit') {
         if (e.rank) extra += `<span class="rank">${e.rank === 2 ? 'ELITE' : 'VETERAN'}</span> `;
-        const research = Object.keys(tm.upgrades || {}).filter(k => UPGRADES[k] && UPGRADES[k].cat === e.def.cat).map(k => UPGRADES[k].name);
+        if (e.def.ultimate) {
+          extra += `<span class="rank">ULTIMATE MK ${MK[e.def.tier - 1]}</span> `;
+          if (e.team === G.player && e.def.tier < 4) extra += `<span class="uptag">Next refit at the ${BUILDINGS[e.def.from].name}: ${UPGRADES[e.def.refit].levels[e.def.tier - 1].text}</span><br>`;
+        }
+        const research = Object.keys(tm.upgrades || {}).filter(k => UPGRADES[k] && UPGRADES[k].cat === e.def.cat && !UPGRADES[k].ult).map(k => UPGRADES[k].name);
         if (research.length) extra += `<span class="uptag">${research.join(' · ')}</span><br>`;
         if (e.def.harvester) extra += `Cargo: ${Math.round(e.cargo)}/${e.def.capacity}`;
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';

@@ -18,7 +18,7 @@ const Main = {
     const params = new URLSearchParams(location.search);
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
-      mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true,
+      mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true,
       seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null,
     };
     this.buildMenu();
@@ -42,6 +42,7 @@ const Main = {
         seed: params.has('seed') ? +params.get('seed') : this.settings.seed,
         speed: params.has('speed') ? +params.get('speed') : 1,
         superweapons: params.get('superweapons') !== '0',
+        ultimates: params.get('ultimates') !== '0',
       }));
     }
   },
@@ -86,13 +87,14 @@ const Main = {
     };
     opts('mode', [['skirmish', 'Skirmish'], ['defense', 'Defense'], ['campaign', 'Campaign']], 'mode');
     const camp = s.mode === 'campaign';
-    for (const id of ['faction-box', 'mapsize-box', 'water-box', 'skirmish-row', 'seed-box', 'super-box']) document.getElementById(id).hidden = camp;
+    for (const id of ['faction-box', 'mapsize-box', 'water-box', 'skirmish-row', 'seed-box', 'super-box', 'ult-box']) document.getElementById(id).hidden = camp;
     document.getElementById('campaign').hidden = !camp;
     if (camp) this.buildCampaign();
     opts('lineup', Object.entries(LINEUPS).map(([id, l]) => [id, l.label]), 'lineup');
     opts('mapsize', Object.entries(MAP_SIZES).map(([id, m]) => [id, m.label]), 'mapSize');
     opts('water', Object.entries(MAP_WATER).map(([id, m]) => [id, m.label]), 'water');
     opts('superweapons', [[true, 'On'], [false, 'Off']], 'superweapons');
+    opts('ultimates', [[true, 'On'], [false, 'Off']], 'ultimates');
     document.getElementById('lineup-box').hidden = s.mode !== 'skirmish';
     document.getElementById('enemy-title').textContent = s.mode === 'defense' ? 'Attacker' : 'Opponent';
     const ebox = document.getElementById('enemy');
