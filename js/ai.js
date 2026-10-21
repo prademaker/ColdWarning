@@ -160,7 +160,7 @@ class AI {
       const pad = e.kind === 'building' ? Math.max(e.w, e.h) * TILE / 2 : 0;
       const hidden = G.stealthRange(e, { team: me }) < 1e9; // stealth units and submerged submarines only show up close
       for (const s of src) {
-        const r = (hidden ? e.def.stealth * TILE : s.def.sight * TILE) + pad, dx = e.x - s.x, dy = e.y - s.y;
+        const r = (hidden ? e.def.stealth * TILE : G.sightOf(s) * TILE) + pad, dx = e.x - s.x, dy = e.y - s.y;
         if (dx > r || dx < -r || dy > r || dy < -r || dx * dx + dy * dy > r * r) continue;
         this.intel.set(e.id, { e, x: e.x, y: e.y, t: G.time });
         break;
@@ -549,6 +549,7 @@ class AI {
       else if (u.def.dig && !u.dug && !u.digging) G.digIn(u); // riflemen waiting at the rally point dig in
     }
     for (const u of support) if (!u.order && Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, false, true);
+    this.mendBridges(support.filter(u => u.def.engineer));
     this.manageMines(home.filter(u => u.def.mines));
     this.manageBombers(home.filter(u => u.def.prefer === 'structures'));
 
@@ -691,6 +692,18 @@ class AI {
   }
 
   // Engineers pick a structure worth stealing near the wave and walk in once it is unguarded.
+  // a spare engineer at home goes to rebuild a broken bridge on our half of the map
+  mendBridges(engs) {
+    const [hx, hy] = this.home();
+    for (const b of G.entities) {
+      if (!b.def.bridge || G.bridgeUp(b) || engs.some(u => u.order && u.order.target === b)) continue;
+      if (Math.hypot(b.x - hx, b.y - hy) / TILE > G.map.w * 0.6 || this.threatNear(b.x, b.y, 8) > 400) continue;
+      const u = engs.find(u => !u.order || u.order.type === 'move');
+      if (!u) return;
+      G.commandCapture(u, b);
+    }
+  }
+
   useEngineers(engineers, cx, cy) {
     for (const eng of engineers) {
       if (eng.order && eng.order.type === 'capture') continue;

@@ -571,6 +571,12 @@ const BUILDINGS = {
     name: 'Office Building', cat: 'civilian', w: 3, h: 2, hp: 1800, cost: 0, time: 0, power: 0, sight: 7, height: 54, buildable: false, garrison: 8,
     desc: 'Civilian building. Infantry can garrison it.',
   },
+  // Bridges span narrow water on the map from the start. Nobody owns them: force-fire one
+  // (Ctrl + right-click) to bring it down, and an Engineer can put it back up.
+  bridge: {
+    name: 'Bridge', cat: 'bridge', w: 2, h: 2, hp: 2000, cost: 0, time: 0, power: 0, sight: 0, height: 8, buildable: false, bridge: true,
+    desc: 'Carries ground units over the water. Ctrl + right-click it to destroy it; an Engineer repairs it.',
+  },
   shipyard: {
     name: 'Naval Shipyard', cat: 'building', w: 3, h: 3, hp: 1500, cost: 1500, time: 12, power: -40, sight: 8, height: 30, req: ['factory'], key: 'G', produces: 'naval', water: true,
     heal: { rate: 24, radius: 4, naval: true },
@@ -688,6 +694,9 @@ function upgradeTimeOf(key) { return BUILDINGS[key].time * 1.5; }
 // Infantry inside a structure fire out of it with extra reach and punch, and take no damage
 // until the structure falls. Flame and thermobaric weapons burn them out: each hit has this
 // chance to kill one occupant.
+// Holding a hill: a tile more reach and two more of sight, and fire from the plain below hits
+// it for less.
+const HIGH_GROUND = { range: 1, sight: 2, uphill: 0.75 };
 const GARRISON = { range: 1, dmg: 1.25, clear: { fire: 0.2, thermo: 0.7, blast: 0.5 }, civilian: ['civ_house', 'civ_flats', 'civ_office'] };
 const NEUTRAL = -1;
 

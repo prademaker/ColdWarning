@@ -97,7 +97,12 @@ const UI = {
       if (!b || b.dead || !G.isVisibleTo(b, G.player) || z > b.def.height + 22) continue;
       if (b.x + b.y > hd) { hd = b.x + b.y; hit = b; }
     }
-    return hit;
+    if (hit) return hit;
+    // a bridge (standing or in ruins) under the cursor
+    const w = this.toWorld(mx, my), tx = Math.floor(w.x / TILE), ty = Math.floor(w.y / TILE);
+    if (!G.map.inside(tx, ty) || !G.explored[G.map.idx(tx, ty)]) return null;
+    const k = G.map.bridgeAt[G.map.idx(tx, ty)];
+    return k < 0 ? null : G.entities.find(e => e.def.bridge && e.span === k) || null;
   },
 
   ownSelected() { return this.selection.filter(e => !e.dead && e.team === G.player); },
@@ -334,6 +339,22 @@ const UI = {
       if (rest.length) G.commandMove(rest, tx, ty, false, true);
       this.mark(ent.x, ent.y, '#7f7');
       return;
+    }
+    // bridges: Ctrl brings one down, an Engineer repairs one; otherwise just drive over it
+    if (ent && ent.def.bridge) {
+      const eng = units.filter(u => u.def.engineer);
+      if (e.ctrlKey && G.bridgeUp(ent)) {
+        G.commandAttack(units.filter(u => !u.def.engineer), ent);
+        this.mark(ent.x, ent.y, '#f44');
+        return;
+      }
+      if (eng.length && (!G.bridgeUp(ent) || ent.hp < ent.maxHp)) {
+        for (const u of eng) G.commandCapture(u, ent);
+        const rest = units.filter(u => !u.def.engineer);
+        if (rest.length) G.commandMove(rest, tx, ty, false, true);
+        this.mark(ent.x, ent.y, '#7f7'); Sfx.play('ack');
+        return;
+      }
     }
     if (ent && G.hostile(ent.team, G.player)) {
       G.commandAttack(units, ent);
@@ -611,6 +632,7 @@ const UI = {
     for (const e of G.entities) {
       if (e.dead || e.aboard || !G.isVisibleTo(e, G.player)) continue;
       if (e.kind !== 'building') { units.push(e); continue; }
+      if (e.def.bridge && !G.bridgeUp(e)) continue;
       ctx.fillStyle = e.team === NEUTRAL ? '#8a8f96' : G.teamOf(e.team).color;
       ctx.fillRect(e.tx, e.ty, e.w, e.h);
     }
@@ -921,9 +943,10 @@ const UI = {
         }
         const research = Object.keys(tm.upgrades || {}).filter(k => UPGRADES[k] && UPGRADES[k].cat === e.def.cat && !UPGRADES[k].ult).map(k => UPGRADES[k].name);
         if (research.length) extra += `<span class="uptag">${research.join(' · ')}</span><br>`;
+        if (G.elevated(e) && !e.def.naval) extra += `<span class="uptag">High ground: +${HIGH_GROUND.range} range, +${HIGH_GROUND.sight} sight</span><br>`;
         if (e.def.harvester) extra += `Cargo: ${Math.round(e.cargo)}/${e.def.capacity}`;
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';
-        else if (e.def.engineer) extra += 'Right-click enemy structure to capture';
+        else if (e.def.engineer) extra += 'Right-click enemy structure to capture, or a broken bridge to repair';
         else if (e.def.demo) extra += `${G.stealthRange(e) < 1e9 ? 'Hidden' : 'Spotted'} · Kills: ${e.kills} · Right-click a structure for C4`;
         else if (e.def.mines) extra += `Mines ${e.minesLeft ?? e.def.mines.carry}/${e.def.mines.carry}` + (e.team === G.player ? ' · D to lay a mine' : '');
         else if (e.def.mend) extra += e.def.cat === 'infantry' ? 'Treats wounded infantry nearby' : 'Repairs damaged vehicles nearby';
@@ -932,6 +955,9 @@ const UI = {
         else if (e.def.submarine) extra += `${G.submerged(e) ? 'Submerged' : 'Surfaced'} · Kills: ${e.kills}`;
         else extra += `Kills: ${e.kills}`;
         if (e.def.dig && e.team === G.player) extra += e.dug ? ' · Dug in, D to get up' : ' · D to dig in';
+      } else if (e.def.bridge) {
+        extra = G.bridgeUp(e) ? 'Ctrl + right-click to destroy' + (e.hp < e.maxHp ? ' · Right-click with an Engineer to repair' : '')
+          : 'Destroyed · Right-click with an Engineer to rebuild';
       } else if (e.def.garrison) {
         const n = e.garrison ? e.garrison.length : 0;
         extra = `Garrison ${n}/${e.def.garrison}`;

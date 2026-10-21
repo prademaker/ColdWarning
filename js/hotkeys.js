@@ -30,6 +30,7 @@ const HOTKEY_HELP = [
     ['Left-click / drag', 'Select units'],
     ['Right-click', 'Move, attack, board, garrison, harvest'],
     ['A then click · Ctrl+right-click', 'Attack-move'],
+    ['Ctrl+right-click a bridge', 'Destroy the bridge (right-click it with an Engineer to repair)'],
     ['S', 'Stop'],
     ['D', 'Deploy MCV · dig in / get up · lay mine · unload transport · empty garrison'],
     ['Double-click', 'Select all of that type on screen'],

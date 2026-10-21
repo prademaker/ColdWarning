@@ -114,7 +114,8 @@ const Render = {
     this.drawOreDeposits(ctx, tx0, ty0, tx1, ty1, t);
 
     // ---- upright pass, sorted by depth ----
-    const list = [], air = [];
+    // (ships passing under a bridge go before the deck, everything else after it)
+    const list = [], air = [], under = [];
     for (const p of m.props) {
       const ti = Math.floor(p.y / TILE) * m.w + Math.floor(p.x / TILE);
       if (!G.explored[ti]) continue;
@@ -130,14 +131,18 @@ const Render = {
       } else {
         const [sx, sy] = this.P(e.x, e.y);
         if (!onScreen(sx, sy)) continue;
-        if (e.air) air.push(e); else list.push({ d: e.x + e.y, e, sx, sy });
+        if (e.air) air.push(e);
+        else if (e.mode !== MOVE_LAND && m.inside(e.tx, e.ty) && m.bridgeAt[m.idx(e.tx, e.ty)] >= 0 && m.bridges[m.bridgeAt[m.idx(e.tx, e.ty)]].up) under.push({ e, sx, sy });
+        else list.push({ d: e.x + e.y, e, sx, sy });
       }
     }
     list.sort((a, b) => a.d - b.d);
+    for (const it of under) this.drawUnit(ctx, it.e, it.sx, it.sy);
+    this.drawBridges(ctx);
     const theme = m.theme;
     for (const it of list) {
       if (it.p) Art.blit(ctx, it.p.kind === 'rock' ? rockSprite(theme, it.p.v) : treeSprite(theme, it.p.v), it.sx, it.sy);
-      else if (it.e.kind === 'building') this.drawBuilding(ctx, it.e, G.teamOf(it.e.team), t);
+      else if (it.e.kind === 'building') { if (!it.e.def.bridge) this.drawBuilding(ctx, it.e, G.teamOf(it.e.team), t); }
       else this.drawUnit(ctx, it.e, it.sx, it.sy);
     }
     for (const p of G.projectiles) this.drawProjectile(ctx, p);
@@ -216,6 +221,75 @@ const Render = {
   },
 
   // ---------- structures ----------
+  drawBridges(ctx) {
+    const m = G.map;
+    for (const b of G.entities) {
+      if (!b.def.bridge || b.dead) continue;
+      const br = m.bridges[b.span], [a, c] = br.ends;
+      if (G.explored[m.idx(a[0], a[1])] || G.explored[m.idx(c[0], c[1])]) this.drawBridge(ctx, b, br);
+    }
+  },
+
+  // A two-lane concrete bridge level with the banks, on piers standing in the water. Brought
+  // down, only a stub at each bank and some wreckage in the water are left.
+  drawBridge(ctx, b, br) {
+    const T = TILE, ax = br.axis === 'x';
+    // u runs along the span, v across it (v1 is the side facing the viewer)
+    const u0 = (ax ? br.x : br.y) * T - 6, u1 = (ax ? br.x + br.w : br.y + br.h) * T + 6;
+    const v0 = (ax ? br.y : br.x) * T + 2, v1 = (ax ? br.y + br.h : br.x + br.w) * T - 2;
+    const W = (u, v, z = 0) => ax ? this.P(u, v, z) : this.P(v, u, z);
+    const poly = (pts, fill) => { ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fillStyle = fill; ctx.fill(); };
+    const seg = (p, q, style, w = 1) => { ctx.strokeStyle = style; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); };
+    const up = br.up, D = 6, WL = -22, vm = (v0 + v1) / 2;
+    const pieces = up ? [[u0, u1]] : [[u0, u0 + T * 0.85], [u1 - T * 0.85, u1]];
+    const rnd = k => { let x = Math.imul((b.span + 1) * 7919 + k, 0x9e3779b1); x ^= x >>> 15; return ((x >>> 0) % 1000) / 1000; };
+    // shadow on the water and the piers
+    for (const [a, c] of pieces) poly([W(a, v0, WL), W(c, v0, WL), W(c, v1, WL), W(a, v1, WL)], 'rgba(0,10,20,0.28)');
+    for (let u = u0 + 6 + T * 1.5, k = 0; u < u1 - T; u += T * 2, k++) {
+      const stands = up || pieces.some(([a, c]) => u > a && u < c);
+      for (const v of [v0 + 6, v1 - 6]) {
+        const [px, ty] = W(u, v, stands ? -D : WL + 4 + rnd(k) * 6), [, by] = W(u, v, WL);
+        ctx.fillStyle = v > vm ? '#77736a' : '#5a574f'; ctx.fillRect(px - 5, ty, 10, by - ty);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(px + 1, ty, 3, by - ty);
+        ctx.fillStyle = 'rgba(220,235,240,0.35)'; ctx.fillRect(px - 5, by - 1, 10, 2); // foam round the foot
+      }
+    }
+    if (!up) {
+      // wreckage of the span sticking out of the water
+      for (let k = 0; k < 7; k++) {
+        const u = u0 + T + rnd(k + 20) * (u1 - u0 - 2 * T), v = v0 + rnd(k + 40) * (v1 - v0), r = 8 + rnd(k + 60) * 9;
+        const [x, y] = W(u, v, WL + 2);
+        poly([[x - r, y], [x - r * 0.3, y - r * 0.8], [x + r * 0.6, y - r * 0.5], [x + r, y + 1]], k % 2 ? '#5e5b55' : '#4a4843');
+        ctx.fillStyle = 'rgba(220,235,240,0.3)'; ctx.fillRect(x - r - 1, y, r * 2 + 2, 1.5);
+      }
+    }
+    for (const [a, c] of pieces) {
+      // side face toward the viewer, the deck, then its kerbs, lane marks and rails
+      poly([W(a, v1, 0), W(c, v1, 0), W(c, v1, -D), W(a, v1, -D)], '#5d5a54');
+      seg(W(a, v1, -D), W(c, v1, -D), 'rgba(0,0,0,0.35)');
+      if (!up && a === u0) poly([W(c, v0, 0), W(c, v1, 0), W(c, v1, -D), W(c - 4, (v0 + v1) / 2, -D - 3), W(c, v0, -D)], '#4d4b46');
+      poly([W(a, v0), W(c, v0), W(c, v1), W(a, v1)], '#5f5d58');
+      poly([W(a, v0 + 3), W(c, v0 + 3), W(c, v1 - 3), W(a, v1 - 3)], '#52514d');
+      ctx.setLineDash([7, 7]);
+      seg(W(a + 8, vm), W(c - 8, vm), 'rgba(226,206,120,0.55)', 1.2);
+      ctx.setLineDash([]);
+      for (const v of [v0 + 1, v1 - 1]) {
+        seg(W(a, v, 5), W(c, v, 5), v > vm ? 'rgba(190,186,176,0.9)' : 'rgba(150,146,138,0.8)', 1.5);
+        for (let u = a + 4; u < c; u += 10) seg(W(u, v, 0), W(u, v, 5), 'rgba(120,116,108,0.9)', 1);
+      }
+    }
+    // battle damage: scorching, then cracks
+    const dmg = up ? 1 - b.hp / b.maxHp : 0;
+    for (let k = 0; k < 6; k++) {
+      if (dmg < 0.2 + k * 0.12) break;
+      const u = u0 + 10 + rnd(k + 80) * (u1 - u0 - 20), v = v0 + 4 + rnd(k + 90) * (v1 - v0 - 8);
+      const [x, y] = W(u, v);
+      ctx.fillStyle = 'rgba(15,12,10,0.5)';
+      ctx.beginPath(); ctx.ellipse(x, y, 7 + rnd(k) * 5, 3.5 + rnd(k) * 2, 0, 0, Math.PI * 2); ctx.fill();
+      if (dmg > 0.55) seg([x - 6, y - 1], [x + 7, y + 2], 'rgba(0,0,0,0.6)', 1);
+    }
+  },
+
   drawBuilding(ctx, b, team, t) {
     const s = buildingSprite(b, team);
     const [sx, sy] = this.P(b.tx * TILE, b.ty * TILE);
