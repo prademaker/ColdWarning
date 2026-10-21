@@ -4,8 +4,9 @@
 // one letter per build tab, shown on the tab
 const TAB_KEYS = { structure: 'B', defense: 'G', infantry: 'C', vehicle: 'V', air: 'J', naval: 'K' };
 
-// letters a build button can get, in order. Everything else on the keyboard is a command.
-const BUILD_KEYS = 'QWERTYUIOL';
+// keys a build button can get, in order. Every other letter is a command, so a crowded tab
+// spills onto the punctuation keys next to L and P.
+const BUILD_KEYS = 'QWERTYUIOL;[]';
 
 // Letters for the items on one build tab. An item keeps the key it has in config when that key is
 // a build letter and still free on this tab; the rest take the next free letter in order.
