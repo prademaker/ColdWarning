@@ -92,6 +92,16 @@ for (const key of ['power', 'refinery', 'barracks', 'factory', 'airfield', 'ship
   if (MODELS[`b_${key}_gun`]) MODELS[`b_${key}_up_gun`] = Object.assign({}, MODELS[`b_${key}_gun`], { vox: { hull: `b_${key}_up_gun.vox` } });
 }
 
+// ultimate units (voxel_ultimates.js): one sheet per refit tier, _t2 to _t4 after the Mk I look;
+// every tier shares the pivots so the model only grows outward
+for (const t of [1, 2, 3, 4]) {
+  const s = t > 1 ? '_t' + t : '';
+  for (const f of [0, 1, 2]) MODELS[`goliath_vox${s}_${f}`] = { vox: { hull: `goliath${s}_${f}.vox` }, pivot: [6, 8], k: 1.5, cell: 80, anchor: 0.75 };
+  MODELS[`behemoth_vox${s}`] = { vox: { hull: `behemoth${s}_hull.vox`, turret: `behemoth${s}_turret.vox` }, pivot: [25, 18], turretPivot: [16.5, 16.5], mount: [22, 18, 11], turret: 'turret', k: 1.35, cell: 168 };
+  MODELS[`valkyrie_vox${s}`] = { vox: { hull: `valkyrie${s}.vox` }, pivot: [20.5, 16.5], k: 1.45, cell: 160 };
+  MODELS[`leviathan_vox${s}`] = { vox: { hull: `leviathan${s}_hull.vox`, turret: `leviathan${s}_turret.vox` }, pivot: [42, 11.5], turretPivot: [6.5, 6.5], mount: [66.5, 11.5, 7], turret: 'turret', k: 1.3, cell: 192, anchor: 0.7 };
+}
+
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'assets', 'sprites');
 

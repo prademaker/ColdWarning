@@ -254,6 +254,30 @@ class AI {
     if (pick && t.credits >= upgradeCostOf(pick.key) + (tight ? 0 : spare)) G.upgradeStructure(pick);
   }
 
+  // An ultimate unit for each production line once the Tech Lab is up and there is an army to
+  // escort it (a dreadnought only with a sea to sail), then its refits while it is in the field.
+  // Production pays as it goes, so one ultimate purchase at a time keeps the rest of the army
+  // coming. Easy opponents leave them be.
+  produceUltimates(units, reserve) {
+    const t = this.team, d = this.d;
+    if (!d.counter || !t.countOf('tech') || t.credits < 1000 + reserve) return;
+    const army = units.filter(u => u.def.weapon && !u.def.ultimate).length;
+    if (army < (d === DIFFICULTY.hard ? 8 : 12)) return;
+    const buys = ULTIMATES.flatMap(k => [k, UNITS[k].refit]);
+    if (Object.values(t.queues).some(q => q.items.some(k => buys.includes(k)))) return;
+    // spread the money round: the lowest Mk on offer first, the infantry and armor lines a little
+    // ahead of the air and navy ones (refits only for one that is in the field)
+    const order = ULTIMATES.map((k, i) => t.countOf(k) ? [UNITS[k].refit, t.ultTier(k) + 1 + i * 0.5] : [k, 1 + i * 0.5])
+      .sort((a, b) => a[1] - b[1]).map(([k]) => k);
+    for (const k of order) {
+      if ((UNITS[k] && UNITS[k].naval || UPGRADES[k] && UNITS[UPGRADES[k].ult].naval) && !this.sea) continue;
+      const q = t.queues[queueTypeOf(k)];
+      if (!t.canBuild(k) || q.items.length >= 2) continue;
+      q.add(k);
+      return;
+    }
+  }
+
   // A few wall sections in front of the forward guns once the base has some money to spare.
   wallPlan() {
     const t = this.team;
@@ -425,6 +449,7 @@ class AI {
       units.filter(u => u.key === sig).length < 2 + Math.floor(this.waves / 2)) sq.add(sig);
 
     this.produceSupport(units, reserve);
+    this.produceUltimates(units, reserve);
 
     const army = units.filter(u => u.def.weapon && !u.def.naval).length;
     // the land army comes first; warships only once it has some weight behind it

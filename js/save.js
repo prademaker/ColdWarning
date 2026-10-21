@@ -34,7 +34,7 @@ const SaveCodec = {
   roots() {
     const missions = {};
     for (const m of CAMPAIGN.missions) missions[m.id] = m;
-    return { FACTIONS, THEATERS, WARHEADS, UNITS, BUILDINGS, UPGRADES, STRUCTURE_UPGRADES, GARRISON, TABS, SIDES, DIFFICULTY, LINEUPS, MAP_SIZES, MAP_WATER, EXTRA_COLORS, DEFENSE, CAST, THEMES, MISSIONS: missions };
+    return { FACTIONS, THEATERS, WARHEADS, UNITS, ULTIMATE_TIERS, BUILDINGS, UPGRADES, STRUCTURE_UPGRADES, GARRISON, TABS, SIDES, DIFFICULTY, LINEUPS, MAP_SIZES, MAP_WATER, EXTRA_COLORS, DEFENSE, CAST, THEMES, MISSIONS: missions };
   },
 
   statics() {
@@ -150,6 +150,7 @@ const Save = {
     let what = M ? 'Campaign · ' + M.def.title : G.mode === 'defense' ? 'Defense · wave ' + G.waves.wave + ' of ' + G.waves.total :
       'Skirmish · ' + G.teams.length + ' players';
     if (G.superweapons === false) what += ' · no superweapons';
+    if (G.ultimates === false && G.mode !== 'campaign') what += ' · no ultimates';
     return { what, faction: pt.faction, theater: G.map.theater, time: Math.round(G.time), at: Date.now() };
   },
 

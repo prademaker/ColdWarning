@@ -362,6 +362,75 @@ const UNITS = {
   },
 };
 
+// ---- ultimate units: one per production tab ----
+// A player can field one of each at a time (and train another once it is gone). Each comes with
+// a refit researched on its own tab, three times over (Mk II, III, IV): every refit applies at
+// once to the one in the field and to every later one, changes its look and adds weapons.
+// tiers lists what changes at each Mk after the first (weapons replace whole). salvo: every
+// weapon fires on its own, the ones that can't reach the main target at whatever they can.
+const ULTIMATE_BASE = { ultimate: true, salvo: true, tier: 1 };
+Object.assign(UNITS, {
+  goliath: Object.assign({
+    name: 'Goliath Exosuit', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks', 'tech'], refit: 'goliath_refit',
+    cost: 2500, time: 25, hp: 1200, speed: 1.35, sight: 8, radius: 7,
+    weapon: { warhead: 'bullet', damage: 22, range: 5.5, cooldown: 0.2, proj: 'tracer', ground: true, air: true },
+    desc: 'Ultimate infantry: a pilot in a walking suit of armour with a rotary cannon. Only one at a time. Can\'t be crushed, hacked or carried. Refit it at the barracks to make it a monster.',
+    tiers: [
+      { hp: 1600, weapon2: { warhead: 'rocket', damage: 60, range: 6.5, cooldown: 1.8, proj: 'rocket', speed: 11, ground: true, air: true } },
+      { hp: 2100, speed: 1.6, selfHeal: 12, aura: { radius: 5, ally: { rof: 1.25 } },
+        weapon: { warhead: 'bullet', damage: 30, range: 6, cooldown: 0.2, proj: 'tracer', ground: true, air: true } },
+      { hp: 2600, weapon: { warhead: 'bullet', damage: 36, range: 6, cooldown: 0.2, proj: 'tracer', ground: true, air: true },
+        weapon3: { warhead: 'rail', damage: 220, range: 8, cooldown: 3, proj: 'rail', pierce: true, ground: true, air: false } },
+    ],
+  }, ULTIMATE_BASE),
+  behemoth: Object.assign({
+    name: 'Behemoth Siege Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], refit: 'behemoth_refit',
+    cost: 4000, time: 35, hp: 2600, speed: 1.1, sight: 8, radius: 20, turn: 2.5,
+    weapon: { warhead: 'cannon', damage: 120, range: 6.5, cooldown: 2.0, proj: 'shell', speed: 16, burst: 2, ground: true, air: false },
+    desc: 'Ultimate armor: a four-track land fortress with twin 155 mm guns. Only one at a time, and no hacker can take it. Refit it at the war factory.',
+    tiers: [
+      { hp: 3500, weapon2: { warhead: 'rocket', damage: 45, range: 7.5, cooldown: 1.0, proj: 'rocket', speed: 12, ground: true, air: true } },
+      { hp: 4300, speed: 1.25, selfHeal: 18,
+        weapon: { warhead: 'cannon', damage: 150, range: 7, cooldown: 2.0, proj: 'shell', speed: 16, burst: 2, ground: true, air: false },
+        weapon3: { warhead: 'bullet', damage: 22, range: 5.5, cooldown: 0.22, proj: 'tracer', ground: true, air: false } },
+      { hp: 5400, weapon: { warhead: 'rail', damage: 300, range: 8.5, cooldown: 2.6, proj: 'rail', pierce: true, burst: 2, ground: true, air: false } },
+    ],
+  }, ULTIMATE_BASE),
+  valkyrie: Object.assign({
+    name: 'Valkyrie Gunship', cat: 'air', armor: 'air', from: 'airfield', req: ['airfield', 'tech'], refit: 'valkyrie_refit', air: true, alt: 34,
+    cost: 3500, time: 30, hp: 1400, speed: 2.8, sight: 10, radius: 18,
+    weapon: { warhead: 'cannon', damage: 40, range: 6, cooldown: 0.6, proj: 'tracer', ground: true, air: false },
+    desc: 'Ultimate aircraft: a heavy gunship on four ducted fans that hovers over the fight. Only one at a time. Refit it at the airfield.',
+    tiers: [
+      { hp: 1900, weapon2: { warhead: 'rocket', damage: 75, range: 7, cooldown: 1.6, proj: 'rocket', speed: 13, ground: true, air: false } },
+      { hp: 2500, selfHeal: 10, evade: { rocket: 0.5, flak: 0.5 }, weapon3: { warhead: 'flak', damage: 70, range: 7.5, cooldown: 1.1, proj: 'rocket', speed: 16, ground: false, air: true } },
+      { hp: 3600, weapon: { warhead: 'artillery', damage: 170, range: 8, cooldown: 2.0, proj: 'shell', speed: 13, splash: 1.4, ground: true, air: false } },
+    ],
+  }, ULTIMATE_BASE),
+  leviathan: Object.assign({
+    name: 'Leviathan Dreadnought', cat: 'naval', armor: 'ship', from: 'shipyard', req: ['shipyard', 'tech'], refit: 'leviathan_refit', naval: true, turrets: 3,
+    cost: 5000, time: 40, hp: 3200, speed: 1.4, sight: 11, radius: 24, turn: 1.8,
+    weapon: { warhead: 'artillery', damage: 150, range: 13, minRange: 3, cooldown: 4.5, proj: 'arty', speed: 10, splash: 1.8, burst: 3, ground: true, air: false },
+    weapon2: { warhead: 'flak', damage: 45, range: 8, cooldown: 0.8, proj: 'tracer', ground: false, air: true },
+    desc: 'Ultimate warship: three triple turrets that shell the coast from 13 tiles out. Only one at a time. Refit it at the shipyard.',
+    tiers: [
+      { hp: 4200, detect: 7, weapon3: { warhead: 'torpedo', damage: 160, range: 7, cooldown: 1.6, proj: 'torpedo', speed: 8, only: ['naval'], asw: true, ground: true, air: false } },
+      { hp: 5400, selfHeal: 20, intercept: { range: 8, cooldown: 0.7 } },
+      { hp: 8500, weapon: { warhead: 'rail', damage: 260, range: 15, minRange: 3, cooldown: 4, proj: 'rail', burst: 3, ground: true, air: false } },
+    ],
+  }, ULTIMATE_BASE),
+});
+// the unit as each Mk: ULTIMATE_TIERS.goliath[0] is the Mk I (the UNITS entry itself)
+const ULTIMATE_TIERS = {};
+for (const [key, def] of Object.entries(UNITS)) {
+  if (!def.ultimate) continue;
+  const list = [def];
+  def.tiers.forEach((ch, i) => list.push(Object.assign({}, list[i], ch, { tier: i + 2 })));
+  ULTIMATE_TIERS[key] = list;
+}
+const ULTIMATES = Object.keys(ULTIMATE_TIERS);
+const MK = ['I', 'II', 'III', 'IV'];
+
 const BUILDINGS = {
   cc: {
     name: 'Command Center', cat: 'building', w: 3, h: 3, hp: 2500, cost: 3000, time: 30, power: 20, sight: 8, height: 90,
@@ -552,6 +621,44 @@ const UPGRADES = {
     cost: 1200, time: 25, show: 'destroyer', hp: { naval: 1.15 }, regen: 0.01,
     desc: 'Damage-control parties on every warship: 15% more armor, and ships patch themselves up when out of the fight. Watch for the welding sparks.',
   },
+  // Ultimate refits: researched three times over, each level its own price, time and kit. ult is
+  // the unit it refits; levels[i] takes it from Mk i+1 to Mk i+2.
+  goliath_refit: {
+    name: 'Goliath Refit', research: true, cat: 'infantry', from: 'barracks', req: ['barracks', 'tech'], ult: 'goliath', show: 'goliath', cost: 1500, time: 25,
+    levels: [
+      { cost: 1500, time: 25, text: 'Mk II: armour plates (+33% HP) and a shoulder rocket pod that hits vehicles and aircraft' },
+      { cost: 2000, time: 30, text: 'Mk III: jump-jet servos (faster), self-repair, a heavier cannon and a command uplink: infantry nearby fire 25% faster' },
+      { cost: 3000, time: 35, text: 'Mk IV: a shoulder railgun that punches through every target in a line, and the heaviest plating' },
+    ],
+    desc: 'Refits your Goliath Exosuit, in the field and every one after it.',
+  },
+  behemoth_refit: {
+    name: 'Behemoth Refit', research: true, cat: 'vehicle', from: 'factory', req: ['factory', 'tech'], ult: 'behemoth', show: 'behemoth', cost: 2000, time: 30,
+    levels: [
+      { cost: 2000, time: 30, text: 'Mk II: reactive armour skirts (+35% HP) and turret rocket pods that also shoot down aircraft' },
+      { cost: 2500, time: 35, text: 'Mk III: nanite self-repair, heavier guns with more reach, hull gatlings against infantry and a dozer wedge' },
+      { cost: 3500, time: 40, text: 'Mk IV: the twin guns give way to a spinal railgun that pierces whole columns' },
+    ],
+    desc: 'Refits your Behemoth Siege Tank, in the field and every one after it.',
+  },
+  valkyrie_refit: {
+    name: 'Valkyrie Refit', research: true, cat: 'air', from: 'airfield', req: ['airfield', 'tech'], ult: 'valkyrie', show: 'valkyrie', cost: 1800, time: 25,
+    levels: [
+      { cost: 1800, time: 25, text: 'Mk II: stub wings with Hellfire racks for tank hunting (+35% HP)' },
+      { cost: 2200, time: 30, text: 'Mk III: armour panels, self-repair, air-to-air missiles and flares: half damage from missiles and flak' },
+      { cost: 3000, time: 35, text: 'Mk IV: a belly-mounted 105 mm gun that blasts everything around its target' },
+    ],
+    desc: 'Refits your Valkyrie Gunship, in the field and every one after it.',
+  },
+  leviathan_refit: {
+    name: 'Leviathan Refit', research: true, cat: 'naval', from: 'shipyard', req: ['shipyard', 'tech'], ult: 'leviathan', show: 'leviathan', cost: 2500, time: 30,
+    levels: [
+      { cost: 2500, time: 30, text: 'Mk II: sonar that finds submarines and stealth units within 7 tiles, anti-submarine torpedoes and missile cells (+30% HP)' },
+      { cost: 3000, time: 35, text: 'Mk III: Aegis radar and CIWS that shoot down incoming missiles and shells, an armour belt and self-repair' },
+      { cost: 4000, time: 40, text: 'Mk IV: the main battery becomes nine railguns reaching 15 tiles inland' },
+    ],
+    desc: 'Refits your Leviathan Dreadnought, in the field and every one after it.',
+  },
 };
 
 // ---- Mk II structures ----
@@ -589,10 +696,10 @@ const PRODUCER_OF = { structure: 'cc', infantry: 'barracks', vehicle: 'factory',
 const TABS = [
   { id: 'structure', label: 'Base', list: ['power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'hub', 'gchq', 'robotics', 'krasukha', 'propaganda', 'drill', 'shipyard', 'super_lance', 'super_silo'] },
   { id: 'defense', label: 'Defense', list: ['turret', 'railturret', 'sam', 'laser', 'thaad', 'koksan', 'bunker', 'wall', 'mortar', 'missilenest', 'flametower', 'sensor'] },
-  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'sas', 'hacker', 'medic', 'engineer', 'up_armor', 'up_training'] },
-  { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'aegis', 'raijin', 'demotruck', 'phantom', 'minelayer', 'recovery', 'harvester', 'mcv', 'up_era', 'up_du'] },
-  { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet', 'bomber', 'up_flares'] },
-  { id: 'naval', label: 'Navy', list: ['patrol', 'destroyer', 'sub', 'cruiser', 'battleship', 'carrier', 'maya', 'hover', 'up_damage'] },
+  { id: 'infantry', label: 'Infantry', list: ['rifle', 'rocket', 'sniper', 'shock', 'sas', 'hacker', 'medic', 'engineer', 'up_armor', 'up_training', 'goliath', 'goliath_refit'] },
+  { id: 'vehicle', label: 'Armor', list: ['ifv', 'flak', 'tank', 'mlrs', 'tos', 'railtank', 'titan', 'iskander', 'aegis', 'raijin', 'demotruck', 'phantom', 'minelayer', 'recovery', 'harvester', 'mcv', 'up_era', 'up_du', 'behemoth', 'behemoth_refit'] },
+  { id: 'air', label: 'Air', list: ['heli', 'drone', 'kirov', 'jet', 'bomber', 'up_flares', 'valkyrie', 'valkyrie_refit'] },
+  { id: 'naval', label: 'Navy', list: ['patrol', 'destroyer', 'sub', 'cruiser', 'battleship', 'carrier', 'maya', 'hover', 'up_damage', 'leviathan', 'leviathan_refit'] },
 ];
 
 // The two factions. Each fields its own scout vehicle, artillery and special infantry; SIDE_SWAP

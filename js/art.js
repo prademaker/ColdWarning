@@ -177,8 +177,9 @@ function loadSheet(key) {
     SHEETS[key + '_' + part] = { base, mask, camo };
   }
 }
-// the upgraded looks (keys with _up) only load once something needs them
-const LAZY_SHEET = /_up(_|$)/;
+// the upgraded looks (keys with _up, and the refit tiers _t2 to _t4 of the ultimate units)
+// only load once something needs them
+const LAZY_SHEET = /_(up|t\d)(_|$)/;
 if (typeof SPRITE_META !== 'undefined') for (const key of Object.keys(SPRITE_META)) if (!LAZY_SHEET.test(key)) loadSheet(key);
 
 // whether every sheet of a sprite has loaded, starting the download the first time it's asked
@@ -443,10 +444,12 @@ const SPRITE_FOR = {
   medic: 'medic_vox', recovery: 'recovery_vox', phantom: 'phantom_vox', minelayer: 'minelayer_vox', bomber: 'bomber_vox',
   patrol: 'patrol_vox', destroyer: 'destroyer_vox', sub: 'sub_vox', hover: 'hover_vox', cruiser: 'cruiser_vox',
   battleship: 'battleship_vox', carrier: 'carrier_vox', maya: 'maya_vox',
+  goliath: 'goliath_vox', behemoth: 'behemoth_vox', valkyrie: 'valkyrie_vox', leviathan: 'leviathan_vox',
 };
 // extra copies of the turret sprite along the hull (forward offsets in game px), for ships
 // with more than one gun turret; they all train on the same bearing
 const EXTRA_TURRETS = { battleship_vox: [-20.6] };
+for (const s of ['', '_t2', '_t3', '_t4']) EXTRA_TURRETS['leviathan_vox' + s] = [14.95, -31.85];
 if (typeof location !== 'undefined') {
   const q = new URLSearchParams(location.search);
   if (q.get('style') === 'model' || q.get('tank') === 'model') for (const k of ['tank', 'ifv', 'heli']) delete SPRITE_FOR[k];
@@ -458,10 +461,30 @@ function spriteKeyFor(u, team) {
   if (!k) return u.key;
   if (u.def.harvester && u.cargo > u.def.capacity * 0.4) k += '_full';
   const frame = u.def.cat === 'infantry' ? '_' + (u.moving ? [1, 0, 2, 0][Math.floor(u.anim * 8) % 4] : 0) : '';
+  // an ultimate wears its refit tier (the Mk before stands in while the sheets load)
+  if (u.def.ultimate) return ultSprite(u.key, u.def.tier, frame);
   // the upgraded look once its sheets are in (the plain one stands in until then)
   if (wearsUpgrade(team, u.def.cat) && sheetReady(k + '_up' + frame)) return k + '_up' + frame;
   return k + frame;
 }
+
+// sheet of an ultimate unit at a refit tier, falling back a tier at a time until one has loaded
+function ultSprite(key, tier, frame = '') {
+  for (let t = tier; t > 1; t--) if (sheetReady(SPRITE_FOR[key] + '_t' + t + frame)) return SPRITE_FOR[key] + '_t' + t + frame;
+  return SPRITE_FOR[key] + frame;
+}
+// how high over its ground point an ultimate's badge floats, clear of the model
+const ULT_BADGE = { goliath: 50, behemoth: 58, valkyrie: 34, leviathan: 62 };
+// an ultimate's rank badge: a gold star with one pip per Mk under it, centred on (x, y)
+function ultMark(ctx, x, y, tier) {
+  ctx.fillStyle = '#ffd24a'; ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 2.4 : 5.5; ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  for (let i = 0; i < tier; i++) { const px = x - (tier - 1) * 2.5 + i * 5; ctx.fillRect(px - 1.5, y + 7, 3, 3); ctx.strokeRect(px - 1.5, y + 7, 3, 3); }
+}
+// refits researched toward an ultimate (0 to 3); team can be a plain copy without Team's methods
+function ultLevel(team, key) { return Math.min(3, (team && team.upgrades && team.upgrades[UNITS[key].refit]) || 0); }
 
 function drawUnitArt(ctx, u, team, sx, sy) {
   const m = UNIT_MODELS[u.key];
@@ -1080,6 +1103,13 @@ function drawIcon(key, team, w, h) {
       bc.drawImage(t.c, (s.ox - t.ox) * 2, (s.oy - t.oy) * 2);
       s = { c: both, ox: s.ox, oy: s.oy, w: s.w, h: s.h };
     }
+  } else if (UPGRADES[key] && UPGRADES[key].ult) {
+    // an ultimate refit: the unit as the Mk it refits it to
+    const show = UPGRADES[key].ult, inf = UNITS[show].cat === 'infantry';
+    s = voxCameo(show, fakeTeam, ultSprite(show, Math.min(4, ultLevel(team, show) + 2), inf ? '_0' : ''));
+  } else if (UNITS[key] && UNITS[key].ultimate) {
+    const inf = UNITS[key].cat === 'infantry';
+    s = voxCameo(key, fakeTeam, ultSprite(key, ultLevel(team, key) + 1, inf ? '_0' : ''));
   } else if (UPGRADES[key]) {
     // research: the unit it improves, wearing the upgrade where it shows
     const show = UPGRADES[key].show, inf = UNITS[show].cat === 'infantry', base = SPRITE_FOR[show] + (inf ? '_0' : '');
@@ -1103,8 +1133,11 @@ function drawIcon(key, team, w, h) {
       s = { c: both, ox: -x0, oy: -y0, w: x1 - x0, h: y1 - y0 };
     }
   }
-  const k = Math.min((w - 8) / s.w, (h - 8) / s.h, 2.2);
-  ctx.drawImage(s.c, (w - s.w * k) / 2, (h - s.h * k) / 2 + 2, s.w * k, s.h * k);
+  if (s) { // (an ultimate's sheets may still be loading: the cameo is redrawn once they are in)
+    const k = Math.min((w - 8) / s.w, (h - 8) / s.h, 2.2);
+    ctx.drawImage(s.c, (w - s.w * k) / 2, (h - s.h * k) / 2 + 2, s.w * k, s.h * k);
+  }
+  if (UNITS[key] && UNITS[key].ultimate) ultMark(ctx, w - 14, h - 26, ultLevel(team, key) + 1);
   if (UPGRADES[key]) {
     // research cameos carry two gold chevrons
     ctx.fillStyle = '#ffd24a'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1;

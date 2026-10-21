@@ -25,7 +25,7 @@ class ProdQueue {
   isStructure() { return this.type === 'structure' || this.type === 'defense'; }
 
   add(key) {
-    if (UPGRADES[key] && this.items.includes(key)) return false;
+    if ((UPGRADES[key] || UNITS[key] && UNITS[key].ultimate) && this.items.includes(key)) return false;
     if (this.isStructure()) {
       if (this.items.length) return false;
     } else if (this.items.length >= 15) return false;
@@ -59,7 +59,7 @@ class ProdQueue {
     const key = this.items[0], def = defOf(key);
     if (!t.canBuild(key)) { this.cancel(key); return; }
     const speed = (t.lowPower ? 0.5 : 1) * Math.min(2.5, 1 + 0.5 * (producers - 1)) * t.buildMult * t.bonus('speed', this.type) * t.boost(this.type);
-    const rate = speed / def.time;
+    const rate = speed / t.timeOf(key);
     const step = t.costOf(key) * rate * dt;
     if (t.credits < step) {
       if (!this.broke) { this.broke = true; G.eva('Insufficient funds', t.id); }
@@ -112,7 +112,21 @@ class Team {
     const b = FACTIONS[this.faction].bonus[kind];
     return (b && b[cat]) || 1;
   }
-  costOf(key) { return Math.round(defOf(key).cost * this.bonus('cost', categoryOf(key))); }
+  costOf(key) { return Math.round(this.levelOf(key).cost * this.bonus('cost', categoryOf(key))); }
+  timeOf(key) { return this.levelOf(key).time; }
+  // what the next purchase of a key is: an ultimate refit's next level, otherwise the def itself
+  levelOf(key) {
+    const def = defOf(key);
+    return def.levels ? def.levels[Math.min(this.upgrades[key] || 0, def.levels.length - 1)] : def;
+  }
+  // research finished for good (a refit once all its levels are in)
+  researched(key) {
+    const def = UPGRADES[key], v = this.upgrades[key];
+    return !!v && (!def || !def.levels || v >= def.levels.length);
+  }
+  // the Mk an ultimate unit of this team rolls out as (1 to 4)
+  ultTier(key) { const r = UNITS[key].refit; return Math.min(ULTIMATE_TIERS[key].length, 1 + (this.upgrades[r] || 0)); }
+  ultDef(key) { return ULTIMATE_TIERS[key][this.ultTier(key) - 1]; }
   // faction bonus and research together: max HP and firepower multipliers for a unit category
   hpMult(cat) { return this.bonus('hp', cat) * this.upgradeMult('hp', cat); }
   dmgMult(cat) { return this.bonus('dmg', cat) * this.upgradeMult('dmg', cat); }
@@ -141,9 +155,11 @@ class Team {
   // Research done: units already in the field get the new armor straight away (keeping their
   // share of health), as do soldiers in garrisons and passengers in transports.
   research(key) {
-    if (this.upgrades[key]) return;
-    this.upgrades[key] = true;
+    if (this.researched(key)) return;
+    const ref = UPGRADES[key];
+    this.upgrades[key] = ref && ref.levels ? (this.upgrades[key] || 0) + 1 : true;
     const each = u => {
+      if (ref && ref.ult === u.key) u.def = this.ultDef(u.key); // an ultimate refit lands on the one in the field
       const max = Math.round(u.def.hp * this.hpMult(u.def.cat));
       if (max !== u.maxHp) { u.hp = u.hp * max / u.maxHp; u.maxHp = max; }
     };
@@ -153,7 +169,7 @@ class Team {
       for (const u of e.garrison || []) each(u);
       for (const u of e.passengers || []) each(u);
     }
-    G.eva('Upgrade complete', this.id);
+    G.eva(ref && ref.ult ? `${UNITS[ref.ult].name} Mk ${MK[this.ultTier(ref.ult) - 1]} ready` : 'Upgrade complete', this.id);
     G.sound('ready');
   }
   // production speed-up from structures such as the Robotics Plant (whoever holds one gets it)
@@ -169,8 +185,9 @@ class Team {
     if (!inRoster(key, this.faction)) return false;
     for (const r of def.req || []) if (!this.countOf(r)) return false;
     if ((UNITS[key] || UPGRADES[key]) && !this.countOf(def.from)) return false;
-    if (UPGRADES[key] && (this.upgrades[key] || Object.values(this.queues).some(q => q.items.includes(key)) && !this.queues[queueTypeOf(key)].items.includes(key))) return false;
+    if (UPGRADES[key] && (this.researched(key) || Object.values(this.queues).some(q => q.items.includes(key)) && !this.queues[queueTypeOf(key)].items.includes(key))) return false;
     if (BUILDINGS[key] && !this.countOf('cc')) return false;
+    if (def.ultimate && this.countOf(key)) return false; // one in the field at a time
     if (!G.allows(key)) return false;
     return true;
   }
@@ -374,6 +391,8 @@ class Game {
     const md = opts.mission ? missionDef(opts.mission) : null;
     // skirmish and defense can switch superweapons off; missions script their own
     this.superweapons = !!md || opts.superweapons !== false;
+    // ultimate units likewise; missions leave them out unless they ask for them
+    this.ultimates = md ? !!md.ultimates : opts.ultimates !== false;
     this.mode = md ? 'campaign' : opts.mode === 'defense' ? 'defense' : 'skirmish';
     // alliance number per team, the human first; defense is the player against the waves
     const lineup = md ? md.teams.map(t => t.ally) : this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
@@ -512,6 +531,7 @@ class Game {
   // ---------- entity management ----------
   spawnUnit(key, team, x, y) {
     const u = new Unit(key, team, x, y);
+    if (u.def.ultimate) u.def = this.teamOf(team).ultDef(key);
     u.hp = u.maxHp = Math.round(u.def.hp * this.teamOf(team).hpMult(u.def.cat));
     this.entities.push(u); this.byId.set(u.id, u);
     this.fogDirty = true;
@@ -698,7 +718,7 @@ class Game {
   // Infantry that can hold a structure: armed foot soldiers, entering one that is free or their own.
   canGarrison(u, b) {
     if (!b || b.dead || !b.def.garrison || b.built < 1 || !u || u.dead) return false;
-    if (u.def.cat !== 'infantry' || !u.def.weapon || u.def.hero) return false;
+    if (u.def.cat !== 'infantry' || !u.def.weapon || u.def.hero || u.def.ultimate) return false;
     if (b.team !== NEUTRAL && b.team !== u.team) return false;
     return (b.garrison ? b.garrison.length : 0) < b.def.garrison;
   }
@@ -814,7 +834,7 @@ class Game {
   // ---------- transports ----------
   // Ground units (not aircraft or ships) can ride a transport of their own side while it has room.
   canBoard(u, tr) {
-    if (!tr || tr.dead || !tr.def.transport || !u || u.dead || u === tr || u.air || u.def.naval || u.inside || u.aboard) return false;
+    if (!tr || tr.dead || !tr.def.transport || !u || u.dead || u === tr || u.air || u.def.naval || u.def.ultimate || u.inside || u.aboard) return false;
     if (tr.team !== u.team) return false;
     return cargoUsed(tr) + cargoSize(u) <= tr.def.transport;
   }
@@ -892,7 +912,8 @@ class Game {
     if (target.armorMul) dmg *= target.armorMul;
     if (target.markT > this.time) dmg *= MARK_DAMAGE;
     if (target.air) {
-      const ev = this.teamOf(target.team).evade(warhead);
+      // countermeasures research, or the aircraft's own (whichever is better, they don't stack)
+      const ev = Math.min(this.teamOf(target.team).evade(warhead), (target.def.evade && target.def.evade[warhead]) || 1);
       if (ev < 1) {
         dmg *= ev;
         // flares: a burst of them now and then as the missiles come in
@@ -1052,6 +1073,7 @@ class Game {
   fits(w, t) {
     if (!(t.air ? w.air : w.ground)) return false;
     if (w.only && !(t.kind === 'unit' && w.only.includes(t.def.cat) && !t.def.hero)) return false;
+    if (w.warhead === 'hack' && t.def.ultimate) return false;
     if (t.def.submarine && !w.asw && this.submerged(t)) return false;
     if (w.warhead === 'torpedo' && !this.map.isWater(t.tx, t.ty)) return false;
     return true;
@@ -1106,6 +1128,7 @@ class Game {
       if (d > R || d > this.stealthRange(o, e)) continue;
       let s = d;
       if (o.def.weapon) s -= 64;
+      if (e.def.ultimate && this.canHit(o, e)) s -= 128; // an ultimate takes out what can hurt it first
       if (s < bs) { bs = s; best = o; }
     }
     return best;
@@ -1345,10 +1368,12 @@ class Game {
     this.updateSensors();
   }
 
-  // Sensor Towers (on power) mark stealth units and mines in range as spotted for their side.
+  // Sensor Towers (on power) and units with sensors of their own (the Leviathan's sonar) mark
+  // stealth units and mines in range as spotted for their side.
   updateSensors() {
     for (const s of this.entities) {
-      if (s.kind !== 'building' || !s.def.detect || s.dead || s.built < 1 || s.team === NEUTRAL || this.teams[s.team].lowPower) continue;
+      if (!s.def.detect || s.dead || s.team === NEUTRAL || s.inside || s.aboard) continue;
+      if (s.kind === 'building' && (s.built < 1 || this.teams[s.team].lowPower)) continue;
       const R = s.def.detect * mk2(s, 'detect') * TILE, until = this.time + 0.5;
       for (const u of this.unitsNear(s.x, s.y, R)) {
         if (u.def.stealth && this.hostile(u.team, s.team) && Math.hypot(u.x - s.x, u.y - s.y) <= R) { u.spotT = until; u.spotTeam = s.team; }
@@ -1381,7 +1406,11 @@ class Game {
     u.cool -= dt; u.cool2 -= dt; u.cool3 -= dt; u.anim += dt;
     if (u.def.naval && u.moving && this.map.isWater(u.tx, u.ty)) this.wake(u, dt);
     u.moving = false;
-    if (u.def.selfHeal && u.hp < u.maxHp && !(u.def.hero && this.time - (u.hitT || -99) < 4)) u.hp = Math.min(u.maxHp, u.hp + u.def.selfHeal * dt);
+    if (u.def.selfHeal && u.hp < u.maxHp && !(u.def.hero && this.time - (u.hitT || -99) < 4)) {
+      // an ultimate's repair systems run at half speed under fire
+      const k = u.def.ultimate && this.time - (u.hitT || -99) < 4 ? 0.5 : 1;
+      u.hp = Math.min(u.maxHp, u.hp + u.def.selfHeal * k * dt);
+    }
     if (u.rank === 2 && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.01 * dt);
     // Damage Control: warships patch themselves up once out of the fight for a few seconds
     if (u.def.naval && u.hp < u.maxHp && this.time - (u.hitT || -99) > 5) {
@@ -1401,6 +1430,7 @@ class Game {
     // knocked out by an EMP: nothing moves or fires until it wears off
     if (u.stunT > this.time) return;
     if (u.def.intercept) this.intercept(u, dt);
+    if (u.def.salvo) this.salvo(u);
     if (u.def.mines) this.reloadMines(u, dt);
     if (u.def.mend) this.mend(u, dt);
     if (u.def.harvester) { this.updateHarvester(u, dt); return; }
@@ -1567,6 +1597,39 @@ class Game {
     if (u.air) this.hover(u, dt);
   }
 
+  // Ultimates fire every weapon at once. The one aimed at the unit's target fires as usual; each
+  // of the others shoots at that target too when it can, otherwise at the nearest enemy unit it
+  // can reach (rocket pods at helicopters while the main guns duel tanks, say).
+  salvo(u) {
+    const main = u.target && !u.target.dead ? this.weaponFor(u, u.target) : null;
+    for (const w of this.weaponsOf(u)) {
+      if (w === main) continue;
+      const slot = w === u.def.weapon2 ? 'cool2' : w === u.def.weapon3 ? 'cool3' : 'cool';
+      if (u[slot] > 0) continue;
+      if (!u.subT) { u.subT = {}; u.subScan = {}; }
+      let t = this.inReach(u, w, u.target) ? u.target : this.inReach(u, w, u.subT[slot]) ? u.subT[slot] : null;
+      if (!t && (u.subScan[slot] || 0) <= this.time) { u.subScan[slot] = this.time + 0.4; t = u.subT[slot] = this.subTarget(u, w); }
+      if (!t) continue;
+      this.fire(u, w, t);
+      u[slot] = w.cooldown * (u.rank === 2 ? 0.8 : 1) / rofOf(u);
+    }
+  }
+  // whether a weapon of a unit can fire at a target right now (in reach, and not hidden from it)
+  inReach(u, w, t) {
+    if (!t || t.dead || !this.hostile(t.team, u.team) || !this.fits(w, t)) return false;
+    const d = distTo(u.x, u.y, t);
+    return d <= w.range * TILE + (t.kind === 'unit' ? 4 : 8) && d >= (w.minRange || 0) * TILE && (t.kind !== 'unit' || d <= this.stealthRange(t, u));
+  }
+  subTarget(u, w) {
+    let best = null, bs = 1e9;
+    for (const o of this.unitsNear(u.x, u.y, w.range * TILE + 32)) {
+      if (!this.inReach(u, w, o)) continue;
+      const d = Math.hypot(o.x - u.x, o.y - u.y);
+      if (d < bs) { bs = d; best = o; }
+    }
+    return best;
+  }
+
   // Jets never hover: they fly at speed, make attack runs and orbit when idle.
   updateJet(u, dt) {
     const o = u.order;
@@ -1677,7 +1740,7 @@ class Game {
         if (!u.air && this.hostile(u.team, o.team)) {
           const crusher = u.def.armor === 'heavy' && u.moving ? u : o.def.armor === 'heavy' && o.moving ? o : null;
           const victim = crusher === u ? o : u;
-          if (crusher && victim.def.cat === 'infantry' && !victim.def.hero) { this.kill(victim, crusher); this.sound('crush', victim.x, victim.y); continue; }
+          if (crusher && victim.def.cat === 'infantry' && !victim.def.hero && !victim.def.ultimate) { this.kill(victim, crusher); this.sound('crush', victim.x, victim.y); continue; }
         }
         const d = Math.sqrt(d2) || 0.01;
         const push = (min - d) * 0.5 * Math.min(1, dt * 12);
@@ -2025,7 +2088,7 @@ class Game {
   // Cyber Warfare Unit: each uplink pulse brings a vehicle closer to switching sides;
   // bigger machines take more pulses, and progress fades if the uplink breaks off.
   hack(t, s) {
-    if (t.kind !== 'unit' || t.dead || t.def.hero || !this.hostile(t.team, s.team)) return;
+    if (t.kind !== 'unit' || t.dead || t.def.hero || t.def.ultimate || !this.hostile(t.team, s.team)) return;
     if (t.hackTeam !== s.team || this.time - (t.hackT || -99) > 6) { t.hackTeam = s.team; t.hackP = 0; }
     t.hackP++; t.hackT = this.time;
     if (t.hackP < hackPulses(t)) return;
@@ -2268,9 +2331,11 @@ class Game {
   }
 
   // ---------- superweapons ----------
-  // whether this match's rules allow building something at all (saves from before the
-  // superweapon switch have no flag, so undefined counts as on)
+  // whether this match's rules allow building something at all: superweapons and ultimate
+  // units can each be switched off (saves from before the switches have no flag: on)
   allows(key) {
+    const ult = this.ultimates !== undefined ? this.ultimates : this.mode !== 'campaign';
+    if (!ult && (UNITS[key] && UNITS[key].ultimate || UPGRADES[key] && UPGRADES[key].ult)) return false;
     return this.superweapons !== false || !(BUILDINGS[key] && BUILDINGS[key].superweapon);
   }
 
