@@ -441,7 +441,8 @@ const UI = {
     const tab = Object.keys(TAB_KEYS).find(id => TAB_KEYS[id].toLowerCase() === lower);
     if (tab) { this.setTab(tab); Sfx.play('click'); return; }
     // build hotkeys within the current tab
-    const item = Object.keys(this.hotkeys || {}).find(key => this.hotkeys[key].toLowerCase() === lower);
+    const ch = { ':': ';', '{': '[', '}': ']' }[k] || lower; // Shift+; still means ;
+    const item = Object.keys(this.hotkeys || {}).find(key => this.hotkeys[key].toLowerCase() === ch);
     if (item) this.clickBuild(item, false, e.shiftKey);
   },
 
