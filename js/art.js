@@ -166,18 +166,33 @@ const Art = {
 // Sheets hold 32 facings; a mask sheet marks the paintable hull, which gets the faction's
 // camouflage tint and the team colour. Units without sheets fall back to the prism models.
 const SHEETS = {};
-if (typeof SPRITE_META !== 'undefined') {
-  for (const [key, m] of Object.entries(SPRITE_META)) {
-    for (const part of Object.keys(m.parts)) {
-      const base = new Image(), mask = new Image();
-      base.src = `assets/sprites/${key}_${part}.png`; mask.src = `assets/sprites/${key}_${part}_mask.png`;
-      let camo = null;
-      if (m.camo) { camo = new Image(); camo.src = `assets/sprites/${key}_${part}_camo.png`; }
-      for (const img of [base, mask, camo]) if (img) img.onload = () => { Art.version++; };
-      SHEETS[key + '_' + part] = { base, mask, camo };
-    }
+function loadSheet(key) {
+  const m = SPRITE_META[key];
+  for (const part of Object.keys(m.parts)) {
+    const base = new Image(), mask = new Image();
+    base.src = `assets/sprites/${key}_${part}.png`; mask.src = `assets/sprites/${key}_${part}_mask.png`;
+    let camo = null;
+    if (m.camo) { camo = new Image(); camo.src = `assets/sprites/${key}_${part}_camo.png`; }
+    for (const img of [base, mask, camo]) if (img) img.onload = () => { Art.version++; };
+    SHEETS[key + '_' + part] = { base, mask, camo };
   }
 }
+// the upgraded looks (keys with _up) only load once something needs them
+const LAZY_SHEET = /_up(_|$)/;
+if (typeof SPRITE_META !== 'undefined') for (const key of Object.keys(SPRITE_META)) if (!LAZY_SHEET.test(key)) loadSheet(key);
+
+// whether every sheet of a sprite has loaded, starting the download the first time it's asked
+function sheetReady(key) {
+  const m = typeof SPRITE_META !== 'undefined' && SPRITE_META[key];
+  if (!m) return false;
+  const parts = Object.keys(m.parts);
+  if (!SHEETS[key + '_' + parts[0]]) loadSheet(key);
+  return parts.every(p => { const sh = SHEETS[key + '_' + p]; return loaded(sh.base) && loaded(sh.mask) && (!sh.camo || loaded(sh.camo)); });
+}
+
+// research that changes how units look: soldiers in body armor, vehicles with reactive armor bricks
+const UP_LOOKS = { infantry: 'up_armor', vehicle: 'up_era' };
+function wearsUpgrade(team, cat) { const k = UP_LOOKS[cat]; return !!(k && team && team.upgrades && team.upgrades[k]); }
 const CAMO_TINT = { usa: '#e6dcc4', russia: '#a9b480', china: '#98b78b', eu: '#a4ad98', soviet: '#b3ae7c', uk: '#d9d2b8', japan: '#a6b394', northkorea: '#a6aa80' };
 // voxel camouflage is stored as greys and painted in these faction colours
 const VOX_CAMO = { usa: '#d8c39a', russia: '#97a06a', china: '#86a273', eu: '#9aa390', soviet: '#aaa26c', uk: '#c8b98e', japan: '#94a37f', northkorea: '#9ca06c' };
@@ -437,18 +452,20 @@ if (typeof location !== 'undefined') {
   if (q.get('style') === 'model' || q.get('tank') === 'model') for (const k of ['tank', 'ifv', 'heli']) delete SPRITE_FOR[k];
 }
 
-function spriteKeyFor(u) {
+function spriteKeyFor(u, team) {
   if (u.spriteKey) return u.spriteKey;
   let k = SPRITE_FOR[u.key];
   if (!k) return u.key;
   if (u.def.harvester && u.cargo > u.def.capacity * 0.4) k += '_full';
-  if (u.def.cat === 'infantry') k += '_' + (u.moving ? [1, 0, 2, 0][Math.floor(u.anim * 8) % 4] : 0);
-  return k;
+  const frame = u.def.cat === 'infantry' ? '_' + (u.moving ? [1, 0, 2, 0][Math.floor(u.anim * 8) % 4] : 0) : '';
+  // the upgraded look once its sheets are in (the plain one stands in until then)
+  if (wearsUpgrade(team, u.def.cat) && sheetReady(k + '_up' + frame)) return k + '_up' + frame;
+  return k + frame;
 }
 
 function drawUnitArt(ctx, u, team, sx, sy) {
   const m = UNIT_MODELS[u.key];
-  const sk = spriteKeyFor(u);
+  const sk = spriteKeyFor(u, team);
   const meta = typeof SPRITE_META !== 'undefined' ? SPRITE_META[sk] : null;
   const lift = u.alt || 0;
   const rec = (u.recoil || 0) * 2.5;
@@ -715,9 +732,12 @@ function voxBuilding(key, team, ang, b) {
   return Object.assign({}, s, { ox: s.ox - (W - H) / 2, oy: s.oy - (W + H) / 4 });
 }
 
+// Mk II structures show their upgraded model once its sheet has loaded
+function mk2Look(b) { return b.level > 1 && sheetReady('b_' + b.key + '_up') ? '_up' : ''; }
+
 function buildingSprite(b, team) {
   const st = buildingState(b, team);
-  const v = voxBuilding('b_' + b.key + (b.key === 'super_silo' && st ? '_open' : ''), team, 0, b);
+  const v = voxBuilding('b_' + b.key + (b.key === 'super_silo' && st ? '_open' : '') + mk2Look(b), team, 0, b);
   if (v) return v;
   return Art.get(`B|${b.key}|${team.faction}|${team.color}|${st}`, () => {
     // structures wear a slightly muted team colour so roofs don't overpower the scene
@@ -731,7 +751,7 @@ function buildingSprite(b, team) {
 }
 
 function buildingTurretSprite(b, team) {
-  const v = voxBuilding('b_' + b.key + '_gun', team, b.turret, b);
+  const v = voxBuilding('b_' + b.key + mk2Look(b) + '_gun', team, b.turret, b);
   if (v) return v;
   const spec = BLD_TURRETS[b.key];
   const f = facingIndex(b.turret);
@@ -1014,8 +1034,8 @@ function spriteCanvas(s) {
 
 // cameo of a unit that only exists as a voxel sheet (ships and the country specials): hull and
 // turrets at a three-quarter angle, or null while the sheets are still loading
-function voxCameo(key, team) {
-  const sk = SPRITE_FOR[key], meta = typeof SPRITE_META !== 'undefined' && SPRITE_META[sk];
+function voxCameo(key, team, sk = SPRITE_FOR[key]) {
+  const meta = typeof SPRITE_META !== 'undefined' && SPRITE_META[sk];
   const f = UNITS[key].cat === 'naval' ? -0.45 : 0.6, hull = meta && modelSprite(sk, 'hull', team, f); // ships show their broadside
   if (!hull) return null;
   const parts = [[spriteCanvas(hull), 0, 0]];
@@ -1060,6 +1080,12 @@ function drawIcon(key, team, w, h) {
       bc.drawImage(t.c, (s.ox - t.ox) * 2, (s.oy - t.oy) * 2);
       s = { c: both, ox: s.ox, oy: s.oy, w: s.w, h: s.h };
     }
+  } else if (UPGRADES[key]) {
+    // research: the unit it improves, wearing the upgrade where it shows
+    const show = UPGRADES[key].show, inf = UNITS[show].cat === 'infantry', base = SPRITE_FOR[show] + (inf ? '_0' : '');
+    fakeTeam.upgrades = { [key]: true };
+    const up = UP_LOOKS[UNITS[show].cat] === key ? SPRITE_FOR[show] + (inf ? '_up_0' : '_up') : base;
+    s = voxCameo(show, fakeTeam, sheetReady(up) ? up : base) || unitSprite({ key: show, def: UNITS[show], facing: 0.6, turret: 0.4, anim: 0, moving: false, cargo: 0 }, fakeTeam, 'hull');
   } else if (!UNIT_MODELS[key] && UNITS[key].cat !== 'infantry' && voxCameo(key, fakeTeam)) {
     s = voxCameo(key, fakeTeam);
   } else {
@@ -1079,5 +1105,14 @@ function drawIcon(key, team, w, h) {
   }
   const k = Math.min((w - 8) / s.w, (h - 8) / s.h, 2.2);
   ctx.drawImage(s.c, (w - s.w * k) / 2, (h - s.h * k) / 2 + 2, s.w * k, s.h * k);
+  if (UPGRADES[key]) {
+    // research cameos carry two gold chevrons
+    ctx.fillStyle = '#ffd24a'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 1;
+    for (const y of [h - 24, h - 18]) { // bottom right, clear of the price and the hotkey
+      const x = w - 19;
+      ctx.beginPath(); ctx.moveTo(x, y + 4); ctx.lineTo(x + 6, y); ctx.lineTo(x + 12, y + 4); ctx.lineTo(x + 12, y + 7); ctx.lineTo(x + 6, y + 3); ctx.lineTo(x, y + 7); ctx.closePath();
+      ctx.stroke(); ctx.fill();
+    }
+  }
   return c;
 }

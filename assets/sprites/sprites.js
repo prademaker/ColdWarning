@@ -1290,5 +1290,861 @@ const SPRITE_META = {
     },
     "style": "voxel",
     "camo": true
+  },
+  "tank_vox_up": {
+    "cell": 104,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 52,
+    "ay": 68.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1.5,
+    "camo": true
+  },
+  "ifv_vox_up": {
+    "cell": 60,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 30,
+    "ay": 39.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 0,
+    "camo": true
+  },
+  "mlrs_vox_up": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -4,
+    "camo": true
+  },
+  "railtank_vox_up": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1.5,
+    "camo": true
+  },
+  "titan_vox_up": {
+    "cell": 96,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 48,
+    "ay": 63.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -2,
+    "camo": true
+  },
+  "flak_vox_up": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1.5,
+    "camo": true
+  },
+  "tos_vox_up": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -3,
+    "camo": true
+  },
+  "iskander_vox_up": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 58,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -4,
+    "camo": true
+  },
+  "aegis_vox_up": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1.5,
+    "camo": true
+  },
+  "raijin_vox_up": {
+    "cell": 72,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 0,
+    "camo": true
+  },
+  "recovery_vox_up": {
+    "cell": 72,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -6,
+    "camo": true
+  },
+  "phantom_vox_up": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -1,
+    "camo": true
+  },
+  "demotruck_vox_up": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "minelayer_vox_up": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sniper_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sniper_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sniper_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "shock_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "shock_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "shock_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sas_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sas_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "sas_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hacker_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hacker_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hacker_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_power_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_refinery_up": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_barracks_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_factory_up": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_airfield_up": {
+    "cell": 184,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 92,
+    "ay": 132,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_shipyard_up": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_drill_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_turret_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_turret_up_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_railturret_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_railturret_up_gun": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 49.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sam_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sam_up_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_laser_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_laser_up_gun": {
+    "cell": 72,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 36,
+    "ay": 44.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_mortar_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_mortar_up_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_missilenest_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_missilenest_up_gun": {
+    "cell": 72,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 36,
+    "ay": 44.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_flametower_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_flametower_up_gun": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 49.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_thaad_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_thaad_up_gun": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 49.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_koksan_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_koksan_up_gun": {
+    "cell": 112,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 56,
+    "ay": 67,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sensor_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
   }
 };

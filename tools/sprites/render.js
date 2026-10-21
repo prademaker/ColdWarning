@@ -75,6 +75,23 @@ const MODELS = {
   heli: { file: 'Helicopter_001.glb', k: 2.8, cell: 120, anchor: 0.7, hide: ['Blade_001'], rotor: 'Blade_001', mask: { Color: 'dark' } },
 };
 
+// upgraded looks (voxel_upgrades.js): the same models with an upgrade kit. Reactive armour grows
+// the vehicles by a voxel on every side, so their models moved one voxel along x and y.
+for (const k of ['tank', 'ifv', 'mlrs', 'railtank', 'titan', 'flak', 'tos', 'iskander', 'aegis', 'raijin', 'recovery', 'phantom', 'demotruck', 'minelayer']) {
+  const m = MODELS[k + '_vox'], up = ([x, y, ...z]) => [x + 1, y + 1, ...z];
+  MODELS[k + '_vox_up'] = Object.assign({}, m, {
+    vox: Object.fromEntries(Object.entries(m.vox).map(([p, f]) => [p, f.replace('.vox', '_up.vox')])),
+    pivot: up(m.pivot), mount: m.mount && up(m.mount), turretPivot: m.turretPivot && up(m.turretPivot),
+  });
+}
+for (const kind of ['rifle', 'rocket', 'engineer', 'sniper', 'shock', 'sas', 'hacker', 'medic']) for (const f of [0, 1, 2]) {
+  MODELS[`${kind}_vox_up_${f}`] = Object.assign({}, MODELS[`${kind}_vox_${f}`], { vox: { hull: `${kind}_${f}_up.vox` } });
+}
+for (const key of ['power', 'refinery', 'barracks', 'factory', 'airfield', 'shipyard', 'drill', 'turret', 'railturret', 'sam', 'laser', 'mortar', 'missilenest', 'flametower', 'thaad', 'koksan', 'sensor']) {
+  MODELS[`b_${key}_up`] = Object.assign({}, MODELS[`b_${key}`], { vox: { hull: `b_${key}_up.vox` } });
+  if (MODELS[`b_${key}_gun`]) MODELS[`b_${key}_up_gun`] = Object.assign({}, MODELS[`b_${key}_gun`], { vox: { hull: `b_${key}_up_gun.vox` } });
+}
+
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'assets', 'sprites');
 

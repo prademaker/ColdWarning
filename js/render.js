@@ -392,7 +392,10 @@ const Render = {
     ctx.translate(x, y); ctx.rotate(a);
     if (p.type === 'rocket') {
       ctx.fillStyle = '#ddd'; ctx.fillRect(-5, -1.5, 8, 3);
-      ctx.fillStyle = '#ffb347'; ctx.fillRect(-8, -1, 3, 2);
+      ctx.fillStyle = p.hot ? '#8dff6a' : '#ffb347'; ctx.fillRect(-8, -1, 3, 2);
+    } else if (p.hot) { // depleted uranium: a green-hot slug with a short glowing trail
+      ctx.fillStyle = 'rgba(120,255,90,0.35)'; ctx.fillRect(-10, -1, 8, 2);
+      ctx.fillStyle = '#b8ff8a'; ctx.fillRect(-4, -1.5, 7, 3);
     } else {
       ctx.fillStyle = '#ffe9a0'; ctx.fillRect(-4, -1.5, 7, 3);
     }
@@ -431,6 +434,18 @@ const Render = {
         }
         break;
       }
+      case 'flare': {
+        // a decoy flare arcing out behind an aircraft and dropping, trailing smoke
+        const d = 26 * p, [fx, fy] = this.P(f.x + Math.cos(f.a) * d, f.y + Math.sin(f.a) * d, f.z - 30 * p * p);
+        ctx.fillStyle = `rgba(220,220,220,${0.35 * (1 - p)})`;
+        ctx.beginPath(); ctx.arc((x + fx) / 2, (y + fy) / 2 - 2, 2 + 3 * p, 0, Math.PI * 2); ctx.fill();
+        ctx.save(); ctx.globalCompositeOperation = 'lighter';
+        const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, 6);
+        g.addColorStop(0, `rgba(255,255,230,${1 - p})`); g.addColorStop(0.4, `rgba(255,190,90,${0.8 * (1 - p)})`); g.addColorStop(1, 'rgba(255,120,40,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(fx, fy, 6, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        break;
+      }
       case 'debris':
         ctx.fillStyle = `rgba(40,30,20,${1 - p})`;
         ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
@@ -448,7 +463,7 @@ const Render = {
       }
       case 'tracer': {
         const [x2, y2] = this.P(f.x2, f.y2, f.z2 || 0);
-        ctx.strokeStyle = `rgba(255,230,140,${1 - p})`; ctx.lineWidth = 1.2;
+        ctx.strokeStyle = f.hot ? `rgba(150,255,110,${1 - p})` : `rgba(255,230,140,${1 - p})`; ctx.lineWidth = f.hot ? 1.6 : 1.2;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
         break;
       }
@@ -668,7 +683,8 @@ const Render = {
         ctx.strokeStyle = G.hostile(e.team, G.player) ? '#f66' : '#fff'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.ellipse(x, y, 18, 9, 0, 0, Math.PI * 2); ctx.stroke();
       }
-      if (isSel || hover || recent || ui.showBars) this.drawHealth(ctx, e, isSel, isSel ? groups.get(e) : undefined);
+      const refit = e.refit !== null && e.refit !== undefined && e.team === G.player;
+      if (isSel || hover || recent || refit || ui.showBars) this.drawHealth(ctx, e, isSel, isSel ? groups.get(e) : undefined);
     }
     if (G.mission) {
       ctx.font = '600 12px Oswald, sans-serif'; ctx.textAlign = 'center';
@@ -728,6 +744,19 @@ const Render = {
       ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'right';
       ctx.fillStyle = '#000'; ctx.fillText(group, x - 2, y + 5);
       ctx.fillStyle = '#fff'; ctx.fillText(group, x - 3, y + 4);
+    }
+    if (e.kind === 'building' && e.refit !== null && e.refit !== undefined) {
+      // refit to Mk II under way: a gold progress bar under the health bar
+      ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - 1, y + 4, w + 2, 4);
+      ctx.fillStyle = '#ffd24a'; ctx.fillRect(x, y + 5, w * e.refit, 2);
+    }
+    if (e.kind === 'building' && e.level > 1 && (sel || e.team === G.player)) {
+      // Mk II mark: two gold chevrons at the end of the bar
+      ctx.fillStyle = '#ffd24a';
+      for (let i = 0; i < 2; i++) {
+        const cx = x + w + 5, cy = y - 2 + i * 4;
+        ctx.beginPath(); ctx.moveTo(cx - 3, cy + 2.5); ctx.lineTo(cx, cy); ctx.lineTo(cx + 3, cy + 2.5); ctx.lineTo(cx + 3, cy + 4); ctx.lineTo(cx, cy + 1.5); ctx.lineTo(cx - 3, cy + 4); ctx.fill();
+      }
     }
     if (e.kind === 'building' && e.repairing) {
       ctx.fillStyle = '#7f7'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';

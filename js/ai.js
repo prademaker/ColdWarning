@@ -137,6 +137,7 @@ class AI {
     }
 
     this.buildStructures();
+    this.manageUpgrades(units, blds);
     this.produceUnits(units);
     this.manageArmy(units);
 
@@ -218,6 +219,39 @@ class AI {
       const next = this.reactiveDefense() || this.nextFromPlan('defense') || this.wallPlan();
       if (next) dq.add(next);
     }
+  }
+
+  // ---------- upgrades ----------
+  // Research once there is an army to benefit and money to spare, and Mk II refits one at a
+  // time: a power plant when the grid runs tight, otherwise producers, refineries and the
+  // defenses nearest the enemy. Easy opponents don't bother.
+  manageUpgrades(units, blds) {
+    const t = this.team, d = this.d;
+    if (!d.counter) return;
+    const spare = d === DIFFICULTY.hard ? 1200 : 1800;
+    if (t.credits > spare) {
+      const n = cat => units.filter(u => u.def.cat === cat && u.def.weapon).length;
+      const want = [['up_era', n('vehicle') >= 4], ['up_armor', n('infantry') >= 6], ['up_du', n('vehicle') >= 6], ['up_flares', n('air') >= 2],
+        ['up_training', n('infantry') >= 8], ['up_damage', n('naval') >= 2]];
+      for (const [k, ok] of want) {
+        const q = t.queues[queueTypeOf(k)];
+        if (ok && t.canBuild(k) && !q.items.includes(k) && q.items.length < 2) { q.add(k); break; }
+      }
+    }
+    if (blds.some(b => b.refit !== null && b.refit !== undefined)) return;
+    const tight = t.powerOut - t.powerIn < 60;
+    let pick = tight ? blds.find(b => b.key === 'power' && G.canUpgrade(b)) : null;
+    if (!pick && t.credits > spare + 1000) {
+      const foe = this.nearestFoe(), [ex, ey] = foe ? this.startPx(foe.id) : this.home();
+      const order = ['factory', 'refinery', 'barracks', 'airfield', 'power', 'drill', 'shipyard'];
+      const rank = b => {
+        const i = order.indexOf(b.key);
+        if (i >= 0) return i * 1000;
+        return 500 + Math.hypot(b.x - ex, b.y - ey) / TILE; // defenses: the front line first
+      };
+      pick = blds.filter(b => G.canUpgrade(b)).sort((a, b) => rank(a) - rank(b))[0];
+    }
+    if (pick && t.credits >= upgradeCostOf(pick.key) + (tight ? 0 : spare)) G.upgradeStructure(pick);
   }
 
   // A few wall sections in front of the forward guns once the base has some money to spare.
