@@ -1,6 +1,9 @@
 // ColdWarning — input handling, camera, sidebar, minimap.
 'use strict';
 
+const PING_LIFE = 6;
+const PING_COLORS = { base: '#f33', unit: '#ff9a3c', info: '#ffd27a' };
+
 const UI = {
   cam: { x: 0, y: 0 },
   selection: [], hover: null, placing: null, drag: null, mode: null, superTargeting: false,
@@ -13,7 +16,7 @@ const UI = {
     this.ctx = canvas.getContext('2d');
     this.minimap = document.getElementById('minimap');
     this.mctx = this.minimap.getContext('2d');
-    this.selection = []; this.placing = null; this.mode = null; this.superTargeting = false; this.groups = {};
+    this.selection = []; this.placing = null; this.mode = null; this.superTargeting = false; this.groups = {}; this.groupsHtml = null;
     this.iconCache = {};
     this.displayCredits = G.playerTeam.credits;
     this.tab = 'structure';
@@ -27,6 +30,7 @@ const UI = {
     document.getElementById('sb-flag').src = FLAGS[pt.faction];
     document.getElementById('sb-fname').textContent = pt.name;
     document.getElementById('sidebar').style.setProperty('--team', pt.color);
+    document.getElementById('groups').style.setProperty('--team', pt.color);
     G.on('eva', msg => { Sfx.say(msg); this.flashMessages(); });
     document.getElementById('wave-call').onclick = () => { if (G.waves) { G.waves.callEarly(); Sfx.play('click'); } };
     G.on('sound', (name, x, y) => {
@@ -121,9 +125,16 @@ const UI = {
     c.addEventListener('dblclick', e => this.onDbl(e));
     window.addEventListener('keydown', e => this.onKey(e, true));
     window.addEventListener('keyup', e => this.onKey(e, false));
-    this.minimap.addEventListener('mousedown', e => this.onMinimap(e, true));
-    this.minimap.addEventListener('mousemove', e => { if (e.buttons & 1) this.onMinimap(e, false); });
+    this.minimap.addEventListener('mousedown', e => { e.preventDefault(); Sfx.resume(); this.onMinimap(e, true); });
+    window.addEventListener('mousemove', e => { if (this.miniDrag) this.onMinimap(e, false); });
+    window.addEventListener('mouseup', () => { this.miniDrag = false; });
     this.minimap.addEventListener('contextmenu', e => e.preventDefault());
+    document.getElementById('groups').addEventListener('mousedown', e => {
+      const b = e.target.closest('[data-g]');
+      if (!b || !G || G.over || Main.paused) return;
+      e.preventDefault(); Sfx.resume();
+      this.recallGroup(b.dataset.g, e.shiftKey);
+    });
     for (const [id, fn] of [['btn-repair', () => this.toggleMode('repair')], ['btn-sell', () => this.toggleMode('sell')],
       ['btn-super', () => this.startSuper()], ['btn-pause', () => Main.togglePause()], ['btn-sound', () => this.toggleSound()], ['btn-music', () => this.toggleMusic()]]) {
       document.getElementById(id).addEventListener('click', () => { Sfx.resume(); fn(); });
@@ -267,9 +278,11 @@ const UI = {
       }
       return;
     }
+    // all of that type on screen, or on the whole map with Ctrl
     const W = this.canvas.width, H = this.canvas.height;
     const list = G.entities.filter(o => {
-      if (o.kind !== 'unit' || o.dead || o.team !== G.player || o.key !== ent.key) return false;
+      if (o.kind !== 'unit' || o.dead || o.team !== G.player || o.key !== ent.key || o.inside || o.aboard) return false;
+      if (e.ctrlKey || e.metaKey) return true;
       const [sx, sy] = this.toScreen(o.x, o.y);
       return sx >= 0 && sx <= W && sy >= 0 && sy <= H;
     });
@@ -333,16 +346,41 @@ const UI = {
 
   mark(x, y, color) { this.clickMarks.push({ x, y, t: 0, color }); },
 
+  // The minimap shows the map as a diamond, turned the same way as the main view.
+  miniXY(x, y) {
+    const m = G.map, S = m.w + m.h, c = this.minimap;
+    return [((x - y) / TILE + m.h) / S * c.width, (x + y) / TILE / S * c.height];
+  },
+  miniWorld(px, py) {
+    const m = G.map, S = m.w + m.h, c = this.minimap;
+    const a = px / c.width * S - m.h, b = py / c.height * S;
+    const x = Math.max(0, Math.min(m.w - 0.01, (a + b) / 2)), y = Math.max(0, Math.min(m.h - 0.01, (b - a) / 2));
+    return { x: x * TILE, y: y * TILE };
+  },
+
   onMinimap(e, down) {
-    if (!G || !this.radarOn()) return;
+    if (!G || G.over || !this.radarOn()) { this.miniDrag = false; return; }
     const r = this.minimap.getBoundingClientRect();
-    const mx = (e.clientX - r.left) / r.width * G.map.w * TILE, my = (e.clientY - r.top) / r.height * G.map.h * TILE;
-    if (e.button === 2 && down) {
+    const w = this.miniWorld((e.clientX - r.left) / r.width * this.minimap.width, (e.clientY - r.top) / r.height * this.minimap.height);
+    const tx = Math.floor(w.x / TILE), ty = Math.floor(w.y / TILE);
+    if (down && e.button === 2) {
+      if (this.cancelModes()) return;
       const units = this.ownUnits();
-      if (units.length) { G.commandMove(units, Math.floor(mx / TILE), Math.floor(my / TILE), false); this.mark(mx, my, '#7f7'); }
+      if (units.length) { G.commandMove(units, tx, ty, e.ctrlKey); this.mark(w.x, w.y, e.ctrlKey ? '#f84' : '#7f7'); return; }
+      // nothing to move: set the rally point of selected production structures
+      const prods = this.ownSelected().filter(b => b.kind === 'building' && b.def.produces && b.def.produces !== 'structure');
+      if (prods.length) { for (const b of prods) b.rally = [tx, ty]; this.mark(w.x, w.y, '#7f7'); Sfx.play('ack'); }
       return;
     }
-    if (e.buttons & 1) this.centerOn(mx, my);
+    if (down && e.button === 0 && this.mode === 'amove') {
+      G.commandMove(this.ownUnits(), tx, ty, true);
+      this.mark(w.x, w.y, '#f84');
+      this.mode = null; this.updateCursor();
+      return;
+    }
+    if (down && e.button !== 0) return;
+    if (down) this.miniDrag = true;
+    this.centerOn(w.x, w.y);
   },
 
   onKey(e, down) {
@@ -353,30 +391,31 @@ const UI = {
     if (e.target && e.target.tagName === 'INPUT') return;
     if (k === 'F5') { e.preventDefault(); Main.quickSave(); return; }
     if (k === 'F9') { e.preventDefault(); Main.quickLoad(); return; }
+    if (k === 'F1' || k === '?') { e.preventDefault(); Main.openKeys(); return; }
     if (!document.getElementById('saves').hidden) { if (k === 'Escape') Main.closeDialog(); return; }
     if (k === 'Escape') { if (!this.cancelModes()) this.selection = []; return; }
     if (k === 'p' || k === 'P') { Main.togglePause(); return; }
     if (k === 'm' || k === 'M') { this.toggleSound(); return; }
     if (k === 'n' || k === 'N') { Music.next(); return; }
     if (G.over || Main.paused) return;
-    if (/^[0-9]$/.test(k)) {
-      if (e.ctrlKey || e.metaKey) { e.preventDefault(); this.groups[k] = this.ownSelected().filter(x => x.kind === 'unit'); G.eva('Team ' + k + ' assigned', G.player); }
-      else {
-        const g = (this.groups[k] || []).filter(x => !x.dead && x.team === G.player);
-        this.groups[k] = g;
-        if (!g.length) return;
-        if (this.lastGroupKey === k && performance.now() - this.lastGroupT < 400) {
-          const cx = g.reduce((s, u) => s + u.x, 0) / g.length, cy = g.reduce((s, u) => s + u.y, 0) / g.length;
-          this.centerOn(cx, cy);
-        }
-        this.lastGroupKey = k; this.lastGroupT = performance.now();
-        this.select(g, e.shiftKey);
-      }
+    // digits by key position, so Shift+1 still reads as 1 and not !
+    const digit = /^(Digit|Numpad)[0-9]$/.test(e.code) ? e.code.slice(-1) : /^[0-9]$/.test(k) ? k : null;
+    if (digit) {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) this.setGroup(digit, e.shiftKey);
+      else this.recallGroup(digit, e.shiftKey);
       return;
     }
     const lower = k.toLowerCase();
+    if (lower === 'a' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      this.select(G.entities.filter(u => u.kind === 'unit' && !u.dead && u.team === G.player && this.isCombat(u)), false);
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.code === 'Period') { this.nextIdle(e.shiftKey); return; }
     if (lower === 'a' && this.ownUnits().length) { this.mode = 'amove'; this.placing = null; this.updateCursor(); return; }
-    if (lower === 's' && !e.ctrlKey) { G.commandStop(this.ownUnits()); return; }
+    if (lower === 's') { G.commandStop(this.ownUnits()); return; }
     if (lower === 'd') {
       // deploy MCVs, dig riflemen in (or get them all up if they already are), empty garrisons
       const units = this.ownUnits(), diggers = units.filter(u => u.def.dig);
@@ -388,8 +427,8 @@ const UI = {
       for (const u of units) if (u.passengers && u.passengers.length) { if (G.unload(u)) Sfx.play('ack'); else Sfx.play('error'); }
       return;
     }
-    if (lower === 'h') { const cc = G.entities.find(b => b.key === 'cc' && b.team === G.player); if (cc) this.centerOn(cc.x, cc.y); return; }
-    if (k === ' ') { e.preventDefault(); if (G.alertPos) this.centerOn(G.alertPos.x, G.alertPos.y); return; }
+    if (lower === 'h') { this.jumpHome(); return; }
+    if (k === ' ') { e.preventDefault(); this.jumpAlert(); return; }
     if (k === 'Tab') {
       e.preventDefault();
       const i = TABS.findIndex(t => t.id === this.tab);
@@ -399,12 +438,77 @@ const UI = {
     if (lower === 'z') { this.toggleMode('sell'); return; }
     if (lower === 'x') { this.toggleMode('repair'); return; }
     if (lower === 'f') { this.startSuper(); return; }
-    // build hotkeys within current tab
-    const tab = TABS.find(t => t.id === this.tab);
-    for (const key of tab.list) {
-      const def = defOf(key);
-      if (def.key && def.key.toLowerCase() === lower && inRoster(key, G.playerTeam.faction) && G.allows(key)) { this.clickBuild(key, false, e.shiftKey); return; }
+    const tab = Object.keys(TAB_KEYS).find(id => TAB_KEYS[id].toLowerCase() === lower);
+    if (tab) { this.setTab(tab); Sfx.play('click'); return; }
+    // build hotkeys within the current tab
+    const item = Object.keys(this.hotkeys || {}).find(key => this.hotkeys[key].toLowerCase() === lower);
+    if (item) this.clickBuild(item, false, e.shiftKey);
+  },
+
+  isCombat(u) { return !u.def.harvester && !u.def.mcv && !u.def.engineer && !u.inside && !u.aboard; },
+
+  // control groups: Ctrl+# makes one, Ctrl+Shift+# adds to it
+  setGroup(n, add) {
+    const units = this.ownUnits();
+    if (!units.length && !add) return;
+    const g = add ? (this.groups[n] || []).filter(u => !u.dead && u.team === G.player) : [];
+    for (const u of units) if (!g.includes(u)) g.push(u);
+    this.groups[n] = g;
+    G.eva('Team ' + n + (add ? ' reinforced' : ' assigned'), G.player);
+  },
+
+  // # selects a group, Shift+# adds it to the selection, pressing it twice jumps to it
+  recallGroup(n, add) {
+    const g = (this.groups[n] || []).filter(u => !u.dead && u.team === G.player);
+    this.groups[n] = g;
+    if (!g.length) return;
+    if (this.lastGroupKey === n && performance.now() - this.lastGroupT < 400) {
+      const cx = g.reduce((s, u) => s + u.x, 0) / g.length, cy = g.reduce((s, u) => s + u.y, 0) / g.length;
+      this.centerOn(cx, cy);
     }
+    this.lastGroupKey = n; this.lastGroupT = performance.now();
+    this.select(g, add);
+  },
+
+  // the group number each unit belongs to (the lowest one if several), for the badges
+  groupOf() {
+    const out = new Map();
+    for (let n = 9; n >= 0; n--) for (const u of this.groups[n] || []) out.set(u, n);
+    return out;
+  },
+
+  // . steps through idle combat units, Shift+. selects all of them
+  nextIdle(all) {
+    const idle = G.entities.filter(u => u.kind === 'unit' && !u.dead && u.team === G.player && this.isCombat(u) &&
+      !u.order && !u.target && !u.dug && !u.def.transport);
+    if (!idle.length) { G.eva('No idle units', G.player); return; }
+    if (all) { this.select(idle, false); return; }
+    this.idleI = ((this.idleI || 0) + 1) % idle.length;
+    const u = idle[this.idleI];
+    this.select([u], false);
+    this.centerOn(u.x, u.y);
+  },
+
+  // H: the Command Center, pressed again the next one
+  jumpHome() {
+    const ccs = G.entities.filter(b => b.kind === 'building' && !b.dead && b.team === G.player && b.def.produces === 'structure');
+    const list = ccs.length ? ccs : G.entities.filter(b => b.kind === 'building' && !b.dead && b.team === G.player);
+    if (!list.length) return;
+    const again = performance.now() - (this.homeT || 0) < 2000;
+    this.homeI = again ? ((this.homeI || 0) + 1) % list.length : 0;
+    this.homeT = performance.now();
+    const b = list[this.homeI];
+    this.centerOn(b.x, b.y);
+  },
+
+  // Space: the latest radar alert, pressed again within a couple of seconds the one before it
+  jumpAlert() {
+    const pings = (G.pings || []).filter(p => G.time - p.t < 30).sort((a, b) => b.t - a.t);
+    if (!pings.length) { if (G.alertPos) this.centerOn(G.alertPos.x, G.alertPos.y); return; }
+    const again = performance.now() - (this.alertT || 0) < 2500;
+    this.alertI = again ? ((this.alertI || 0) + 1) % pings.length : 0;
+    this.alertT = performance.now();
+    this.centerOn(pings[this.alertI].x, pings[this.alertI].y);
   },
 
   // ---------- per-frame ----------
@@ -460,41 +564,64 @@ const UI = {
       ctx.fillText(G.playerTeam.countOf('radar') ? 'Build more Power Plants' : 'Build a Radar Station', W / 2, H / 2 + 12);
       return;
     }
+    // ground, ore, structures and fog go through the diamond transform, one canvas pixel per tile
+    const S = m.w + m.h;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#03070c'; ctx.fillRect(0, 0, W, H);
+    ctx.setTransform(W / S, H / S, -W / S, H / S, m.h * W / S, 0);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(m.miniCanvas, 0, 0, W, H);
-    const sx = W / m.w, sy = H / m.h;
-    ctx.fillStyle = '#d9a830';
+    ctx.drawImage(m.miniCanvas, 0, 0, m.w, m.h);
     for (let i = 0; i < m.ore.length; i++) {
       if (m.ore[i] > 30 && G.explored[i]) {
         ctx.fillStyle = m.oreType[i] === GEM ? '#5ee' : '#d9a830';
-        ctx.fillRect((i % m.w) * sx, Math.floor(i / m.w) * sy, sx + 0.5, sy + 0.5);
+        ctx.fillRect(i % m.w, Math.floor(i / m.w), 1, 1);
       }
     }
+    const units = [];
     for (const e of G.entities) {
-      if (e.dead || !G.isVisibleTo(e, G.player)) continue;
-      ctx.fillStyle = G.teamOf(e.team).color;
-      if (e.kind === 'building') ctx.fillRect(e.tx * sx, e.ty * sy, e.w * sx, e.h * sy);
-      else ctx.fillRect(e.x / TILE * sx - 1, e.y / TILE * sy - 1, 2.5, 2.5);
+      if (e.dead || e.aboard || !G.isVisibleTo(e, G.player)) continue;
+      if (e.kind !== 'building') { units.push(e); continue; }
+      ctx.fillStyle = e.team === NEUTRAL ? '#8a8f96' : G.teamOf(e.team).color;
+      ctx.fillRect(e.tx, e.ty, e.w, e.h);
     }
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(Render.fogCanvas, 0, 0, W, H);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-    // the view is a rotated rectangle on the square map
-    ctx.beginPath();
-    for (const [px, py] of [[0, 0], [this.canvas.width, 0], [this.canvas.width, this.canvas.height], [0, this.canvas.height]]) {
-      const w = this.toWorld(px, py);
-      ctx.lineTo(w.x / TILE * sx, w.y / TILE * sy);
+    ctx.drawImage(Render.fogHi || Render.fogCanvas, 0, 0, m.w, m.h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // units on top of the fog as dots with a dark rim: ships bigger, aircraft as crosses
+    for (const e of units) {
+      const [x, y] = this.miniXY(e.x, e.y), col = G.teamOf(e.team).color;
+      if (e.air) {
+        ctx.fillStyle = '#000'; ctx.fillRect(x - 2.5, y - 1, 5, 2); ctx.fillRect(x - 1, y - 2.5, 2, 5);
+        ctx.fillStyle = col; ctx.fillRect(x - 2, y - 0.5, 4, 1); ctx.fillRect(x - 0.5, y - 2, 1, 4);
+      } else {
+        const r = e.def.naval ? 2.5 : e.def.cat === 'infantry' ? 1.2 : 1.6;
+        ctx.fillStyle = '#000'; ctx.fillRect(x - r - 0.7, y - r - 0.7, r * 2 + 1.4, r * 2 + 1.4);
+        ctx.fillStyle = col; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
     }
-    ctx.closePath(); ctx.stroke();
+    // what the main view shows: a plain rectangle, since the minimap is turned like the view
+    const [vx0, vy0] = this.miniXY(this.toWorld(0, 0).x, this.toWorld(0, 0).y);
+    const br = this.toWorld(this.canvas.width, this.canvas.height), [vx1, vy1] = this.miniXY(br.x, br.y);
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3; ctx.strokeRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
     if (G.mission) {
       ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2;
-      for (const mk of G.mission.markers) { ctx.beginPath(); ctx.arc(mk.x / TILE * sx, mk.y / TILE * sy, 5, 0, Math.PI * 2); ctx.stroke(); }
-      ctx.lineWidth = 1;
+      for (const mk of G.mission.markers) { const [x, y] = this.miniXY(mk.x, mk.y); ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke(); }
     }
-    if (G.alertPos && G.time - G.alertPos.t < 4) {
-      const r = 6 + ((G.time - G.alertPos.t) * 10) % 10;
-      ctx.strokeStyle = '#f33'; ctx.beginPath(); ctx.arc(G.alertPos.x / TILE * sx, G.alertPos.y / TILE * sy, r, 0, Math.PI * 2); ctx.stroke();
+    // alerts: a ring closes in on the spot, then it keeps pulsing for a few seconds
+    for (const p of G.pings || []) {
+      const age = G.time - p.t;
+      if (age > PING_LIFE) continue;
+      const [x, y] = this.miniXY(p.x, p.y);
+      ctx.strokeStyle = PING_COLORS[p.kind] || '#f33';
+      ctx.lineWidth = 2;
+      if (age < 0.8) { ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(x, y, 4 + 40 * (1 - age / 0.8), 0, Math.PI * 2); ctx.stroke(); }
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 1 - age / PING_LIFE;
+      ctx.beginPath(); ctx.arc(x, y, 3 + (age * 12) % 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
     }
+    ctx.lineWidth = 1;
   },
 
   // ---------- sidebar ----------
@@ -504,6 +631,8 @@ const UI = {
     for (const t of TABS) {
       const b = document.createElement('button');
       b.className = 'tab'; b.dataset.tab = t.id; b.textContent = t.label;
+      b.title = t.label + ' (' + TAB_KEYS[t.id] + ')';
+      const hk = document.createElement('span'); hk.className = 'tkey'; hk.textContent = TAB_KEYS[t.id]; b.appendChild(hk);
       b.addEventListener('click', () => { Sfx.resume(); this.setTab(t.id); Sfx.play('click'); });
       el.appendChild(b);
     }
@@ -543,6 +672,7 @@ const UI = {
     const grid = document.getElementById('build-grid');
     grid.innerHTML = '';
     this.buttons = {};
+    this.hotkeys = buildHotkeys(list);
     for (const key of list) {
       const def = defOf(key);
       const b = document.createElement('div');
@@ -550,7 +680,7 @@ const UI = {
       b.appendChild(this.cameo(key));
       const name = document.createElement('div'); name.className = 'bname'; name.textContent = nameOf(key, t.faction); b.appendChild(name);
       const cost = document.createElement('div'); cost.className = 'bcost'; cost.textContent = '$' + t.costOf(key); b.appendChild(cost);
-      if (def.key) { const hk = document.createElement('div'); hk.className = 'bkey'; hk.textContent = def.key; b.appendChild(hk); }
+      if (this.hotkeys[key]) { const hk = document.createElement('div'); hk.className = 'bkey'; hk.textContent = this.hotkeys[key]; b.appendChild(hk); }
       const prog = document.createElement('div'); prog.className = 'bprog'; b.appendChild(prog);
       const status = document.createElement('div'); status.className = 'bstatus'; b.appendChild(status);
       const count = document.createElement('div'); count.className = 'bcount'; b.appendChild(count);
@@ -607,7 +737,7 @@ const UI = {
     const role = nameOf(key, t.faction) !== def.name ? `<div class="trole">${def.name}</div>` : '';
     tip.innerHTML = `<b>${nameOf(key, t.faction)}</b> <span class="tcost">$${t.costOf(key)}</span>${role}<div>${def.desc}</div><div class="tstat">${stats}</div>` +
       (reqs.length ? `<div class="treq">Requires: ${[...new Set(reqs)].join(', ')}</div>` : '') +
-      `<div class="thelp">Left: build${BUILDINGS[key] ? ' / place' : ' (Shift ×5)'} · Right: hold / cancel</div>`;
+      `<div class="thelp">${this.hotkeys && this.hotkeys[key] ? `<kbd>${this.hotkeys[key]}</kbd> · ` : ''}Left: build${BUILDINGS[key] ? ' / place' : ' (Shift ×5)'} · Right: hold / cancel</div>`;
     tip.hidden = false;
     const r = el.getBoundingClientRect();
     tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - 8, r.top) + 'px';
@@ -688,6 +818,19 @@ const UI = {
     document.getElementById('btn-sell').classList.toggle('on', this.mode === 'sell');
     document.getElementById('btn-repair').classList.toggle('on', this.mode === 'repair');
     this.updateSelInfo();
+    this.updateGroups();
+  },
+
+  // the control group strip along the bottom of the view
+  updateGroups() {
+    let html = '';
+    for (let n = 1; n <= 10; n++) {
+      const d = String(n % 10), g = (this.groups[d] || []).filter(u => !u.dead && u.team === G.player);
+      if (!g.length) continue;
+      const on = g.every(u => this.selection.includes(u));
+      html += `<button data-g="${d}" class="${on ? 'on' : ''}" title="Group ${d}: click to select, twice to jump"><b>${d}</b>${g.length}</button>`;
+    }
+    if (html !== this.groupsHtml) { const el = document.getElementById('groups'); el.innerHTML = html; this.groupsHtml = html; }
   },
 
   // campaign: objectives (and the mission clock) top-left, radio transmissions bottom-left
@@ -719,7 +862,7 @@ const UI = {
   updateSelInfo() {
     const el = document.getElementById('sel-info');
     const sel = this.selection.filter(e => !e.dead);
-    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy / dig in · Ctrl+# group</div>'; return; }
+    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy / dig in · Ctrl+# group · F1 all keys</div>'; return; }
     if (sel.length === 1) {
       const e = sel[0];
       const tm = G.teamOf(e.team);

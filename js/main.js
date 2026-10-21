@@ -26,6 +26,8 @@ const Main = {
     document.getElementById('p-resume').onclick = () => this.togglePause();
     document.getElementById('p-save').onclick = () => this.openSaves('save');
     document.getElementById('p-load').onclick = () => this.openSaves('load');
+    document.getElementById('show-keys').onclick = () => this.openKeys();
+    document.getElementById('p-keys').onclick = () => this.openKeys();
     document.getElementById('p-quit').onclick = () => { this.paused = false; this.toMenu(); };
     if (params.has('mission') && missionDef(params.get('mission'))) {
       // straight into a campaign mission (handy for testing)
@@ -267,6 +269,18 @@ const Main = {
         else await this.loadSlot(slot);
       } catch (err) { this.openSaves(mode, { text: err.message, err: true }); }
     });
+  },
+
+  // the hotkey reference; in a match it pauses the game while it is open
+  openKeys() {
+    if (G && !document.getElementById('game').hidden && !this.paused && !G.over) this.togglePause();
+    const box = document.getElementById('saves');
+    box.innerHTML = `<div class="svbox keysbox"><h2>CONTROLS</h2>
+      ${HOTKEY_HELP.map(sec => `<h4>${sec.title}</h4><table>${sec.rows.map(([k, what]) =>
+        `<tr><td>${k.split(' · ').map(x => `<kbd>${x}</kbd>`).join(' ')}</td><td>${what}</td></tr>`).join('')}</table>`).join('')}
+      <div class="sv-actions"><button id="sv-close">Back</button></div></div>`;
+    box.hidden = false;
+    box.querySelector('#sv-close').onclick = () => this.closeDialog();
   },
 
   closeDialog() { document.getElementById('saves').hidden = true; },

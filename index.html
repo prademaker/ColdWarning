@@ -50,7 +50,7 @@
       <section class="m-box" id="super-box" title="Orbital Lance and Hypersonic Silo"><h3>Superweapons</h3><div id="superweapons" class="opts"></div></section>
       <section class="m-box" id="seed-box"><h3>Map seed</h3><div class="opts"><input id="seed" type="number"><button id="reroll" class="opt" title="Random seed">⟳</button></div></section>
       <section class="m-box"><h3>Audio</h3><div id="audio" class="sliders"></div></section>
-      <div class="start-col"><button id="start">DEPLOY</button><button id="load-game" class="opt">Load game</button></div>
+      <div class="start-col"><button id="start">DEPLOY</button><button id="load-game" class="opt">Load game</button><button id="show-keys" class="opt">Controls</button></div>
     </div>
     <details class="help">
       <summary>How to play</summary>
@@ -60,9 +60,9 @@
         <li><b>Economy:</b> Ore Refineries come with a Harvester. Gold ore and cyan lithium crystals are credits.</li>
         <li><b>Power:</b> keep the power bar green. Low power slows production, kills your minimap and shuts down defenses.</li>
         <li><b>Units:</b> left-click/drag to select, right-click to move/attack. <kbd>Ctrl</kbd>+right-click or <kbd>A</kbd> = attack-move.</li>
-        <li><kbd>S</kbd> stop · <kbd>Ctrl</kbd>+<kbd>1-9</kbd> make group · <kbd>1-9</kbd> recall (twice to jump) · double-click selects all of a type.</li>
-        <li><kbd>Tab</kbd> cycles build tabs · <kbd>Q</kbd>…<kbd>I</kbd> build hotkeys · <kbd>Z</kbd> sell · <kbd>X</kbd> repair · <kbd>F</kbd> superweapon.</li>
-        <li><kbd>H</kbd> jump to base · <kbd>Space</kbd> jump to last alert · <kbd>P</kbd> pause (and save or load) · <kbd>F5</kbd> quicksave · <kbd>F9</kbd> quickload · <kbd>M</kbd> mute · <kbd>N</kbd> next track · arrows / screen edges / middle-drag scroll.</li>
+        <li><kbd>S</kbd> stop · <kbd>Ctrl</kbd>+<kbd>1-9</kbd> make group · <kbd>1-9</kbd> recall (twice to jump) · double-click selects all of a type (<kbd>Ctrl</kbd> for the whole map) · <kbd>.</kbd> next idle unit.</li>
+        <li><kbd>B</kbd> <kbd>G</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>J</kbd> <kbd>K</kbd> pick a build tab · the letter on each build button builds it · <kbd>Z</kbd> sell · <kbd>X</kbd> repair · <kbd>F</kbd> superweapon.</li>
+        <li><kbd>H</kbd> jump to base · <kbd>Space</kbd> jump to the latest alert · click or drag the minimap to look around, right-click it to send units · <kbd>P</kbd> pause · <kbd>F1</kbd> every key (or the Controls button).</li>
         <li>Engineers capture enemy buildings. Heavy tanks crush infantry. Units promote to Veteran and Elite with kills.</li>
         <li><b>Navy:</b> build a Naval Shipyard out on the water near your base to launch patrol boats, destroyers, submarines and hovercraft (the Allies add a Missile Cruiser, the Axis a Battlecruiser, the UK an aircraft carrier and Japan an Aegis destroyer). Submarines are hidden while submerged and only destroyers and other submarines can hit them. Right-click a hovercraft with troops to board, drive it onto a beach and press <kbd>D</kbd> to unload. Pick <i>Inland sea</i> or <i>Islands</i> under Water for a naval map.</li>
         <li><b>Garrisons:</b> right-click a civilian building or your own Battle Bunker with infantry to move in; they fire out of it. Select the building and press <kbd>D</kbd> to empty it. Flame weapons burn occupants out.</li>
@@ -84,6 +84,7 @@
   <div id="enemy-super" hidden></div>
   <div id="objectives" hidden></div>
   <div id="radio" hidden></div>
+  <div id="groups"></div>
   <div id="wave-info" hidden><span id="wave-text"></span><button id="wave-call" title="Call the next wave now for bonus credits">Send now</button></div>
   <div id="sidebar">
     <div id="sb-head">
@@ -114,12 +115,13 @@
   </div>
   <div id="tooltip" hidden></div>
   <div id="pause-overlay" hidden><div class="pausebox">PAUSED<small>Press P to resume</small>
-    <div class="pausebtns"><button id="p-resume">Resume</button><button id="p-save">Save game</button><button id="p-load">Load game</button><button id="p-quit">Quit to menu</button></div>
-    <small class="pkeys">F5 quicksave · F9 quickload</small></div></div>
+    <div class="pausebtns"><button id="p-resume">Resume</button><button id="p-save">Save game</button><button id="p-load">Load game</button><button id="p-keys">Controls</button><button id="p-quit">Quit to menu</button></div>
+    <small class="pkeys">F5 quicksave · F9 quickload · F1 controls</small></div></div>
   <div id="end" hidden></div>
 </div>
 
 <script src="js/config.js"></script>
+<script src="js/hotkeys.js"></script>
 <script src="js/flags.js"></script>
 <script src="assets/sprites/sprites.js"></script>
 <script src="js/map.js"></script>

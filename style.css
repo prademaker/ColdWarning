@@ -281,3 +281,19 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 .end-goals li.failed { color: #f66; } .end-goals li.failed::before { content: '✗ '; }
 .end-goals li.bonus.active { color: var(--dim); }
 .end-goals i { color: var(--dim); font-size: 13px; }
+
+/* hotkeys: tab letters, control group strip, controls card */
+.tab .tkey { display: block; font-size: 9px; line-height: 9px; margin-top: 2px; color: #7d8fa3; letter-spacing: 0; }
+.tab.active .tkey { color: #c9d6e3; }
+#groups { position: absolute; bottom: 12px; right: calc(var(--sb-w) + 12px); display: flex; gap: 4px; z-index: 2; }
+#groups button { display: flex; align-items: baseline; gap: 5px; padding: 3px 8px; background: rgba(8,18,30,.85); border: 1px solid var(--edge2); border-radius: 2px;
+  color: var(--dim); font-family: var(--head); font-size: 13px; cursor: pointer; }
+#groups button b { color: #fff; font-size: 15px; }
+#groups button.on { border-color: var(--team); color: #fff; box-shadow: 0 0 6px color-mix(in srgb, var(--team) 60%, transparent) inset; }
+#groups button:hover { border-color: var(--gold); }
+.keysbox { width: min(680px, calc(100% - 32px)); }
+.keysbox h4 { font-family: var(--head); letter-spacing: 3px; color: var(--gold); margin: 14px 0 6px; font-size: 14px; font-weight: 600; text-transform: uppercase; }
+.keysbox table { width: 100%; border-collapse: collapse; }
+.keysbox td { padding: 3px 6px; font-size: 14px; vertical-align: top; border-bottom: 1px solid var(--edge); }
+.keysbox td:first-child { width: 42%; white-space: nowrap; }
+.keysbox kbd { font-size: 12px; }
