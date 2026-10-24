@@ -3,9 +3,10 @@
 
 const PING_LIFE = 6;
 const PING_COLORS = { base: '#f33', unit: '#ff9a3c', info: '#ffd27a' };
+const ZOOM_MAX = 2;
 
 const UI = {
-  cam: { x: 0, y: 0 },
+  cam: { x: 0, y: 0 }, zoom: 1,
   selection: [], hover: null, placing: null, drag: null, mode: null, superTargeting: false,
   mouse: { x: 0, y: 0, inside: false }, mouseWorld: { x: 0, y: 0 },
   clickMarks: [], groups: {}, tab: 'structure', showBars: false, keys: {},
@@ -45,11 +46,41 @@ const UI = {
     G.on('voice', (u, kind) => Sfx.unitVoice(u, kind));
   },
 
-  resize() {
-    const sb = document.getElementById('sidebar');
-    this.canvas.width = window.innerWidth - sb.offsetWidth;
-    this.canvas.height = window.innerHeight;
+  // The canvas is drawn at 1/zoom of its size on the page and scaled up (or down) by CSS, so
+  // everything in screen space (camera, picking, the drag box) works in canvas pixels.
+  // (anchor keeps the middle of the view on the same spot, as when the window or phone turns)
+  resize(anchor = true) {
+    const sb = document.getElementById('sidebar'), w0 = this.canvas.width, h0 = this.canvas.height;
+    this.viewW = Math.max(1, window.innerWidth - sb.offsetWidth);
+    this.viewH = window.innerHeight;
+    this.zoom = Math.max(this.minZoom(), Math.min(ZOOM_MAX, this.zoom));
+    this.canvas.style.width = this.viewW + 'px';
+    this.canvas.style.height = this.viewH + 'px';
+    this.canvas.width = Math.round(this.viewW / this.zoom);
+    this.canvas.height = Math.round(this.viewH / this.zoom);
+    if (anchor) { this.cam.x += (w0 - this.canvas.width) / 2; this.cam.y += (h0 - this.canvas.height) / 2; }
     this.clampCam();
+    // a phone turned upright pauses the match behind the rotate prompt
+    if (Touch.portrait() && G && !G.over && !Main.paused && !document.getElementById('game').hidden) Main.togglePause();
+  },
+
+  // zooming out is capped so the canvas never gets much bigger than a large monitor
+  minZoom() { return Math.max(0.5, this.viewW / 2400, this.viewH / 1500); },
+
+  // zoom around a point on the view (page pixels from its top-left), keeping that spot still
+  setZoom(z, px = this.viewW / 2, py = this.viewH / 2) {
+    z = Math.max(this.minZoom(), Math.min(ZOOM_MAX, z));
+    if (Math.abs(z - this.zoom) < 1e-4) return;
+    this.cam.x += px / this.zoom - px / z;
+    this.cam.y += py / this.zoom - py / z;
+    this.zoom = z;
+    this.resize(false);
+  },
+
+  // a pointer event's position in canvas pixels
+  canvasXY(e) {
+    const r = this.canvas.getBoundingClientRect();
+    return [(e.clientX - r.left) / this.zoom, (e.clientY - r.top) / this.zoom];
   },
 
   // The camera lives in isometric screen space: world (x, y) shows at (x - y, (x + y) / 2).
@@ -128,17 +159,30 @@ const UI = {
     c.addEventListener('mousedown', e => { Sfx.resume(); this.onDown(e); });
     window.addEventListener('mouseup', e => this.onUp(e));
     c.addEventListener('dblclick', e => this.onDbl(e));
+    c.addEventListener('wheel', e => {
+      e.preventDefault();
+      const r = c.getBoundingClientRect();
+      this.setZoom(this.zoom * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0015)), e.clientX - r.left, e.clientY - r.top);
+    }, { passive: false });
+    this.bindTouch();
     window.addEventListener('keydown', e => this.onKey(e, true));
     window.addEventListener('keyup', e => this.onKey(e, false));
-    this.minimap.addEventListener('mousedown', e => { e.preventDefault(); Sfx.resume(); this.onMinimap(e, true); });
-    window.addEventListener('mousemove', e => { if (this.miniDrag) this.onMinimap(e, false); });
-    window.addEventListener('mouseup', () => { this.miniDrag = false; });
+    // pointer events so a finger can drag the camera around the minimap too
+    this.minimap.addEventListener('pointerdown', e => {
+      e.preventDefault(); Sfx.resume();
+      this.minimap.setPointerCapture(e.pointerId);
+      this.onMinimap(e, true);
+    });
+    this.minimap.addEventListener('pointermove', e => { if (this.miniDrag) this.onMinimap(e, false); });
+    window.addEventListener('pointerup', () => { this.miniDrag = false; });
+    window.addEventListener('pointercancel', () => { this.miniDrag = false; });
     this.minimap.addEventListener('contextmenu', e => e.preventDefault());
-    document.getElementById('groups').addEventListener('mousedown', e => {
+    document.getElementById('groups').addEventListener('pointerdown', e => {
       const b = e.target.closest('[data-g]');
       if (!b || !G || G.over || Main.paused) return;
       e.preventDefault(); Sfx.resume();
-      this.recallGroup(b.dataset.g, e.shiftKey);
+      if (e.pointerType === 'touch') this.touchGroupDown(e, b.dataset.g);
+      else this.recallGroup(b.dataset.g, e.shiftKey);
     });
     // the Upgrade button on a selected structure's panel (the panel is redrawn every frame, so
     // listen on the box and act on the press)
@@ -197,12 +241,11 @@ const UI = {
   },
 
   onMove(e) {
-    const r = this.canvas.getBoundingClientRect();
-    this.mouse.x = e.clientX - r.left; this.mouse.y = e.clientY - r.top;
+    [this.mouse.x, this.mouse.y] = this.canvasXY(e);
     this.mouse.inside = true;
     if (this.pan) {
-      this.cam.x = this.pan.cx - (e.clientX - this.pan.x);
-      this.cam.y = this.pan.cy - (e.clientY - this.pan.y);
+      this.cam.x = this.pan.cx - (e.clientX - this.pan.x) / this.zoom;
+      this.cam.y = this.pan.cy - (e.clientY - this.pan.y) / this.zoom;
       this.clampCam();
     }
     if (this.drag) { this.drag.x1 = this.mouse.x; this.drag.y1 = this.mouse.y; }
@@ -448,25 +491,14 @@ const UI = {
     const lower = k.toLowerCase();
     if (lower === 'a' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      this.select(G.entities.filter(u => u.kind === 'unit' && !u.dead && u.team === G.player && this.isCombat(u)), false);
+      this.selectArmy();
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === 'Period') { this.nextIdle(e.shiftKey); return; }
     if (lower === 'a' && this.ownUnits().length) { this.mode = 'amove'; this.placing = null; this.updateCursor(); return; }
     if (lower === 's') { G.commandStop(this.ownUnits()); return; }
-    if (lower === 'd') {
-      // deploy MCVs, dig riflemen in (or get them all up if they already are), empty garrisons
-      const units = this.ownUnits(), diggers = units.filter(u => u.def.dig);
-      for (const u of units) if (u.def.mcv) G.deploy(u);
-      const dig = diggers.some(u => !u.dug && u.digging <= 0);
-      for (const u of diggers) if (dig) G.digIn(u); else G.digOut(u);
-      if (diggers.length) Sfx.play('ack');
-      for (const b of this.ownSelected()) if (b.kind === 'building' && b.garrison && b.garrison.length) { G.evacuate(b); Sfx.play('ack'); }
-      for (const u of units) if (u.passengers && u.passengers.length) { if (G.unload(u)) Sfx.play('ack'); else Sfx.play('error'); }
-      for (const u of units) if (u.def.mines) { if (G.layMine(u)) Sfx.play('ack'); else Sfx.play('error'); }
-      return;
-    }
+    if (lower === 'd') { this.deployAction(); return; }
     if (lower === 'h') { this.jumpHome(); return; }
     if (k === ' ') { e.preventDefault(); this.jumpAlert(); return; }
     if (k === 'Tab') {
@@ -487,6 +519,18 @@ const UI = {
     if (item) this.clickBuild(item, false, e.shiftKey);
   },
 
+  // D: deploy MCVs, dig riflemen in (or get them all up if they already are), empty garrisons
+  deployAction() {
+    const units = this.ownUnits(), diggers = units.filter(u => u.def.dig);
+    for (const u of units) if (u.def.mcv) G.deploy(u);
+    const dig = diggers.some(u => !u.dug && u.digging <= 0);
+    for (const u of diggers) if (dig) G.digIn(u); else G.digOut(u);
+    if (diggers.length) Sfx.play('ack');
+    for (const b of this.ownSelected()) if (b.kind === 'building' && b.garrison && b.garrison.length) { G.evacuate(b); Sfx.play('ack'); }
+    for (const u of units) if (u.passengers && u.passengers.length) { if (G.unload(u)) Sfx.play('ack'); else Sfx.play('error'); }
+    for (const u of units) if (u.def.mines) { if (G.layMine(u)) Sfx.play('ack'); else Sfx.play('error'); }
+  },
+
   // refit one of our structures to Mk II, explaining why not when it can't be
   upgrade(b) {
     if (!b || b.team !== G.player || !STRUCTURE_UPGRADES[b.key]) { Sfx.play('error'); return; }
@@ -495,6 +539,8 @@ const UI = {
     if (!G.playerTeam.countOf(STRUCTURE_UPGRADE_REQ)) { G.eva('Upgrades require a ' + BUILDINGS[STRUCTURE_UPGRADE_REQ].name, G.player); Sfx.play('error'); return; }
     if (G.upgradeStructure(b)) Sfx.play('click'); else Sfx.play('error');
   },
+
+  selectArmy() { this.select(G.entities.filter(u => u.kind === 'unit' && !u.dead && u.team === G.player && this.isCombat(u)), false); },
 
   isCombat(u) { return !u.def.harvester && !u.def.mcv && !u.def.engineer && !u.inside && !u.aboard; },
 
@@ -570,7 +616,7 @@ const UI = {
     let dx = 0, dy = 0;
     if (this.keys.ArrowLeft) dx -= sp; if (this.keys.ArrowRight) dx += sp;
     if (this.keys.ArrowUp) dy -= sp; if (this.keys.ArrowDown) dy += sp;
-    if (this.mouse.inside && !this.drag && !this.pan && document.hasFocus()) {
+    if (this.mouse.inside && !this.drag && !this.pan && !Touch.only && document.hasFocus()) {
       const m = 14;
       if (this.mouse.x < m) dx -= sp; if (this.mouse.x > this.canvas.width - m) dx += sp;
       if (this.mouse.y < m) dy -= sp; if (this.mouse.y > this.canvas.height - m) dy += sp;
@@ -736,13 +782,14 @@ const UI = {
       const prog = document.createElement('div'); prog.className = 'bprog'; b.appendChild(prog);
       const status = document.createElement('div'); status.className = 'bstatus'; b.appendChild(status);
       const count = document.createElement('div'); count.className = 'bcount'; b.appendChild(count);
-      b.addEventListener('mousedown', e => {
+      b.addEventListener('pointerdown', e => {
         Sfx.resume();
+        if (e.pointerType === 'touch') { this.touchBuildDown(e, key, b); return; }
         if (e.button === 0) this.clickBuild(key, false, e.shiftKey);
         else if (e.button === 2) this.clickBuild(key, true, e.shiftKey);
       });
-      b.addEventListener('mouseenter', () => this.showTip(key, b));
-      b.addEventListener('mouseleave', () => this.hideTip());
+      b.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') this.showTip(key, b); });
+      b.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') this.hideTip(); });
       grid.appendChild(b);
       this.buttons[key] = { el: b, prog, status, count };
     }
@@ -761,7 +808,12 @@ const UI = {
     if (!t.canBuild(key)) { Sfx.play('error'); return; }
     if (q.isStructure()) {
       if (q.head === key) {
-        if (q.ready) { this.placing = { key, qtype: qt, tx: 0, ty: 0 }; this.mode = null; this.superTargeting = false; Sfx.play('click'); return; }
+        if (q.ready) {
+          this.placing = { key, qtype: qt, tx: 0, ty: 0 }; this.mode = null; this.superTargeting = false; Sfx.play('click');
+          // no cursor on a touchscreen: the outline starts in the middle of the view
+          if (Touch.on) { this.mouse.x = this.canvas.width / 2; this.mouse.y = this.canvas.height / 2; }
+          return;
+        }
         if (q.paused) { q.paused = false; G.eva('Building', G.player); return; }
         return;
       }
@@ -796,7 +848,7 @@ const UI = {
     const role = nameOf(key, t.faction) !== def.name ? `<div class="trole">${def.name}</div>` : '';
     tip.innerHTML = `<b>${this.itemName(key)}</b> <span class="tcost">$${t.costOf(key)}</span>${role}<div>${def.desc}</div><div class="tstat">${stats}</div>` +
       (reqs.length ? `<div class="treq">Requires: ${[...new Set(reqs)].join(', ')}</div>` : '') +
-      `<div class="thelp">${this.hotkeys && this.hotkeys[key] ? `<kbd>${this.hotkeys[key]}</kbd> · ` : ''}Left: ${UPGRADES[key] ? 'research' : 'build'}${BUILDINGS[key] ? ' / place' : UPGRADES[key] ? '' : ' (Shift ×5)'} · Right: hold / cancel</div>`;
+      (Touch.on ? `<div class="thelp">Tap: ${UPGRADES[key] ? 'research' : 'build'}${BUILDINGS[key] ? ' / place' : ''} · Hold while queued: hold / cancel</div>` : `<div class="thelp">${this.hotkeys && this.hotkeys[key] ? `<kbd>${this.hotkeys[key]}</kbd> · ` : ''}Left: ${UPGRADES[key] ? 'research' : 'build'}${BUILDINGS[key] ? ' / place' : UPGRADES[key] ? '' : ' (Shift ×5)'} · Right: hold / cancel</div>`);
     tip.hidden = false;
     const r = el.getBoundingClientRect();
     tip.style.top = Math.min(window.innerHeight - tip.offsetHeight - 8, r.top) + 'px';
@@ -887,6 +939,7 @@ const UI = {
     document.getElementById('btn-upgrade').classList.toggle('on', this.mode === 'upgrade');
     this.updateSelInfo();
     this.updateGroups();
+    this.updateTouchBar();
   },
 
   // the control group strip along the bottom of the view
@@ -930,7 +983,12 @@ const UI = {
   updateSelInfo() {
     const el = document.getElementById('sel-info');
     const sel = this.selection.filter(e => !e.dead);
-    if (!sel.length) { this.selKey = null; el.innerHTML = '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy / dig in / lay mine · Ctrl+# group · F1 all keys</div>'; return; }
+    if (!sel.length) {
+      this.selKey = null;
+      el.innerHTML = Touch.on ? '<div class="hint">Tap to select · tap the map to command<br>Drag to scroll · pinch to zoom · hold and drag to box-select</div>'
+        : '<div class="hint">Drag to select units · Right-click to command<br>A attack-move · S stop · D deploy / dig in / lay mine · Ctrl+# group · F1 all keys</div>';
+      return;
+    }
     if (sel.length === 1) {
       const e = sel[0];
       const tm = G.teamOf(e.team);

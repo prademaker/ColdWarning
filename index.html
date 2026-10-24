@@ -2,7 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#050b14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cold War 2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/ui/icon-192.png">
+<link rel="apple-touch-icon" href="assets/ui/icon-180.png">
 <title>Cold War 2: 2030</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500;600&display=swap">
@@ -60,6 +68,7 @@
         <li><b>Build:</b> pick a structure from the sidebar. When it says READY, click it again and place it near your base.</li>
         <li><b>Economy:</b> Ore Refineries come with a Harvester. Gold ore and cyan lithium crystals are credits.</li>
         <li><b>Power:</b> keep the power bar green. Low power slows production, kills your minimap and shuts down defenses.</li>
+        <li class="touch-only"><b>Touch:</b> tap a unit to select it and tap the map to send it (tap an enemy to attack). Drag to scroll, pinch to zoom, hold a finger still and then drag to box-select, double-tap a unit for all of its type. In the build bar tap to build, tap READY then tap the map and tap the outline again to place, hold a queued item to put it on hold or cancel. The buttons bottom-left stand in for the keyboard: clear, attack-move, stop, deploy, whole army, make a group (hold a group button to reassign it), jump to base and to the latest alert. Install it from your browser's menu (Add to Home Screen) for full screen.</li>
         <li><b>Units:</b> left-click/drag to select, right-click to move/attack. <kbd>Ctrl</kbd>+right-click or <kbd>A</kbd> = attack-move.</li>
         <li><kbd>S</kbd> stop · <kbd>Ctrl</kbd>+<kbd>1-9</kbd> make group · <kbd>1-9</kbd> recall (twice to jump) · double-click selects all of a type (<kbd>Ctrl</kbd> for the whole map) · <kbd>.</kbd> next idle unit.</li>
         <li><kbd>B</kbd> <kbd>G</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>J</kbd> <kbd>K</kbd> pick a build tab · the letter on each build button builds it · <kbd>Z</kbd> sell · <kbd>X</kbd> repair · <kbd>F</kbd> superweapon.</li>
@@ -87,6 +96,7 @@
   <div id="objectives" hidden></div>
   <div id="radio" hidden></div>
   <div id="groups"></div>
+  <div id="touchbar"></div>
   <div id="wave-info" hidden><span id="wave-text"></span><button id="wave-call" title="Call the next wave now for bonus credits">Send now</button></div>
   <div id="sidebar">
     <div id="sb-head">
@@ -121,6 +131,7 @@
     <div class="pausebtns"><button id="p-resume">Resume</button><button id="p-save">Save game</button><button id="p-load">Load game</button><button id="p-keys">Controls</button><button id="p-quit">Quit to menu</button></div>
     <small class="pkeys">F5 quicksave · F9 quickload · F1 controls</small></div></div>
   <div id="end" hidden></div>
+  <div id="rotate"><div class="rot-icon">⟳</div>Turn your device sideways to play</div>
 </div>
 
 <script src="js/config.js"></script>
@@ -138,6 +149,7 @@
 <script src="js/audio.js"></script>
 <script src="js/music.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/touch.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>
