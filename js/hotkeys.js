@@ -68,3 +68,14 @@ const HOTKEY_HELP = [
     ['F1 or ?', 'This list'],
   ] },
 ];
+
+// the touch gestures, shown at the top of the Controls card on phones and tablets
+const TOUCH_HELP = { title: 'Touch', rows: [
+  ['Tap', 'Select a unit or structure; with units selected, tap the map to move or an enemy to attack'],
+  ['Double-tap', 'Select every unit of that type on screen'],
+  ['Hold · drag', 'Draw a selection box'],
+  ['Drag · pinch', 'Scroll · zoom'],
+  ['Tap · tap', 'Place a structure: tap to put the outline down, tap the outline to build'],
+  ['Hold a build item', 'Put it on hold or cancel it (or read about it when it is not queued)'],
+  ['Hold a group', 'Put the selection in that group'],
+] };

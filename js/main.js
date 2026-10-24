@@ -209,6 +209,7 @@ const Main = {
   enter(cam) {
     const opts = G.opts;
     if (cam) this.opts = opts;
+    Touch.fullscreen();
     document.getElementById('menu').hidden = true;
     document.getElementById('game').hidden = false;
     document.getElementById('end').hidden = true;
@@ -278,7 +279,7 @@ const Main = {
     if (G && !document.getElementById('game').hidden && !this.paused && !G.over) this.togglePause();
     const box = document.getElementById('saves');
     box.innerHTML = `<div class="svbox keysbox"><h2>CONTROLS</h2>
-      ${HOTKEY_HELP.map(sec => `<h4>${sec.title}</h4><table>${sec.rows.map(([k, what]) =>
+      ${(Touch.on ? [TOUCH_HELP, ...HOTKEY_HELP] : HOTKEY_HELP).map(sec => `<h4>${sec.title}</h4><table>${sec.rows.map(([k, what]) =>
         `<tr><td>${k.split(' · ').map(x => `<kbd>${x}</kbd>`).join(' ')}</td><td>${what}</td></tr>`).join('')}</table>`).join('')}
       <div class="sv-actions"><button id="sv-close">Back</button></div></div>`;
     box.hidden = false;
