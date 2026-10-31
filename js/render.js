@@ -76,8 +76,8 @@ const Render = {
     this.cx = cx; this.cy = cy;
     const m = G.map, pid = G.player, t = G.time;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, vw, vh);
+    FX.drawBackdrop(ctx, vw, vh);
+    FX.drawSlab(ctx, this);
 
     // visible tile range: inverse-project the screen corners
     let wx0 = 1e9, wy0 = 1e9, wx1 = -1e9, wy1 = -1e9;
@@ -99,18 +99,15 @@ const Render = {
     ctx.save();
     this.ground(ctx);
     this.drawOre(ctx, tx0, ty0, tx1, ty1);
-    for (const d of G.decals) {
-      const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
-      g.addColorStop(0, 'rgba(15,10,5,0.55)'); g.addColorStop(1, 'rgba(15,10,5,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r, d.r * 0.8, d.a, 0, Math.PI * 2); ctx.fill();
-    }
+    FX.drawWater(ctx, tx0, ty0, tx1, ty1);
+    for (const d of G.decals) FX.drawDecal(ctx, d);
     for (const f of G.effects) {
       if (f.type === 'corpse') this.drawCorpse(ctx, f);
       else if (WATER_FX[f.type]) this.drawWaterFx(ctx, f);
     }
     this.drawGroundOverlays(ctx, ui);
     ctx.restore();
+    FX.drawBuildingShadows(ctx, this);
     this.drawOreDeposits(ctx, tx0, ty0, tx1, ty1, t);
 
     // ---- upright pass, sorted by depth ----
@@ -125,6 +122,7 @@ const Render = {
     for (const e of G.entities) {
       if (e.dead) continue;
       if (e.team !== pid && !G.isVisibleTo(e, pid)) continue;
+      if (e.kind === 'unit' && !e.def.naval) FX.damageSmoke(e);
       if (e.kind === 'building') {
         const [sx, sy] = this.P(e.x, e.y);
         if (onScreen(sx, sy, 200)) list.push({ d: e.x + e.y, e });
@@ -136,17 +134,30 @@ const Render = {
         else list.push({ d: e.x + e.y, e, sx, sy });
       }
     }
+    // burnt-out wrecks sort in with everything else on the ground
+    for (const f of G.effects) {
+      if (f.type !== 'wreck' || f.t < 0) continue;
+      const ti = Math.floor(f.y / TILE) * m.w + Math.floor(f.x / TILE);
+      if (!G.explored[ti]) continue;
+      const [sx, sy] = this.P(f.x, f.y);
+      if (onScreen(sx, sy)) list.push({ d: f.x + f.y, w: f, sx, sy });
+    }
     list.sort((a, b) => a.d - b.d);
     for (const it of under) this.drawUnit(ctx, it.e, it.sx, it.sy);
     this.drawBridges(ctx);
     const theme = m.theme;
     for (const it of list) {
-      if (it.p) Art.blit(ctx, it.p.kind === 'rock' ? rockSprite(theme, it.p.v) : treeSprite(theme, it.p.v), it.sx, it.sy);
+      if (it.w) FX.wreck(ctx, it.w, it.sx, it.sy);
+      else if (it.p) {
+        if (it.p.kind === 'rock') FX.drawRockShadow(ctx, it.sx, it.sy);
+        Art.blit(ctx, it.p.kind === 'rock' ? rockSprite(theme, it.p.v) : treeSprite(theme, it.p.v), it.sx, it.sy);
+      }
       else if (it.e.kind === 'building') { if (!it.e.def.bridge) this.drawBuilding(ctx, it.e, G.teamOf(it.e.team), t); }
       else this.drawUnit(ctx, it.e, it.sx, it.sy);
     }
+    for (const f of G.effects) if (f.type === 'shock') this.drawEffect(ctx, f);
     for (const p of G.projectiles) this.drawProjectile(ctx, p);
-    for (const f of G.effects) if (f.type !== 'corpse' && !WATER_FX[f.type]) this.drawEffect(ctx, f);
+    for (const f of G.effects) if (f.type !== 'corpse' && f.type !== 'wreck' && f.type !== 'shock' && !WATER_FX[f.type]) this.drawEffect(ctx, f);
     air.sort((a, b) => (a.x + a.y) - (b.x + b.y));
     for (const e of air) {
       const [sx, sy] = this.P(e.x, e.y);
@@ -162,21 +173,8 @@ const Render = {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.fogIso, -m.w * TILE - cx, -cy, m.w * TILE * 2, m.w * TILE);
 
+    FX.drawAtmosphere(ctx, this);
     this.drawScreenOverlays(ctx, ui, list, air);
-    this.drawGrade(ctx, vw, vh);
-  },
-
-  // cinematic colour grade and vignette, matching the moody look of the style guide
-  drawGrade(ctx, vw, vh) {
-    if (!this.grade || this.grade.w !== vw || this.grade.h !== vh) {
-      const c = document.createElement('canvas'); c.width = vw; c.height = vh;
-      const g = c.getContext('2d');
-      const r = g.createRadialGradient(vw / 2, vh / 2, Math.min(vw, vh) * 0.35, vw / 2, vh / 2, Math.hypot(vw, vh) * 0.62);
-      r.addColorStop(0, 'rgba(10,25,45,0.06)'); r.addColorStop(1, 'rgba(4,10,20,0.42)');
-      g.fillStyle = r; g.fillRect(0, 0, vw, vh);
-      this.grade = { w: vw, h: vh, c };
-    }
-    ctx.drawImage(this.grade.c, 0, 0);
   },
 
   // soil stains under ore fields (ground pass, world coordinates)
@@ -441,8 +439,11 @@ const Render = {
       const [gx, gy] = this.P(p.x, p.y, 0);
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.beginPath(); ctx.ellipse(gx, gy, 3, 1.5, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#ffdc8a';
-      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      FX.dab(ctx, 'glow', x, y, 9, 0.8);
+      ctx.restore(); ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff1c4';
+      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
       return;
     }
     const dx = Math.cos(p.ang), dy = Math.sin(p.ang);
@@ -468,13 +469,21 @@ const Render = {
     ctx.save();
     ctx.translate(x, y); ctx.rotate(a);
     if (p.type === 'rocket') {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      FX.dab(ctx, 'glow', -8, 0, 6, 0.9);
+      ctx.restore(); ctx.globalAlpha = 1;
       ctx.fillStyle = '#ddd'; ctx.fillRect(-5, -1.5, 8, 3);
       ctx.fillStyle = p.hot ? '#8dff6a' : '#ffb347'; ctx.fillRect(-8, -1, 3, 2);
     } else if (p.hot) { // depleted uranium: a green-hot slug with a short glowing trail
       ctx.fillStyle = 'rgba(120,255,90,0.35)'; ctx.fillRect(-10, -1, 8, 2);
       ctx.fillStyle = '#b8ff8a'; ctx.fillRect(-4, -1.5, 7, 3);
     } else {
-      ctx.fillStyle = '#ffe9a0'; ctx.fillRect(-4, -1.5, 7, 3);
+      // a glowing shell with a short hot streak behind it
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = 'rgba(255,190,90,0.35)'; ctx.fillRect(-14, -1.2, 12, 2.4);
+      FX.dab(ctx, 'glow', 0, 0, 6, 0.7);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff2c0'; ctx.fillRect(-4, -1.5, 7, 3);
     }
     ctx.restore();
   },
@@ -494,23 +503,9 @@ const Render = {
     const [x, y] = this.P(f.x, f.y, f.type === 'falling' ? f.alt : (f.z || 0));
     if (x < -150 || y < -150 || x > ctx.canvas.width + 150 || y > ctx.canvas.height + 150) return;
     switch (f.type) {
-      case 'explosion': {
-        const r = f.size * (0.35 + 0.75 * p);
-        ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        const g = ctx.createRadialGradient(x, y - r * 0.3, 0, x, y - r * 0.3, r);
-        g.addColorStop(0, `rgba(255,240,200,${1 - p})`);
-        g.addColorStop(0.35, `rgba(255,150,40,${0.9 * (1 - p)})`);
-        g.addColorStop(1, 'rgba(120,30,0,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(x, y - r * 0.3, r, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-        if (p > 0.3) {
-          ctx.fillStyle = `rgba(40,35,30,${0.5 * (1 - p)})`;
-          ctx.beginPath(); ctx.arc(x, y - r * 0.4 - p * 18, r * 0.8, 0, Math.PI * 2); ctx.fill();
-        }
-        break;
-      }
+      case 'explosion': FX.explosion(ctx, this, f, x, y, p); break;
+      case 'shock': FX.shock(ctx, x, y, f, p); break;
+      case 'ember': FX.ember(ctx, this, f, x, y, p); break;
       case 'flare': {
         // a decoy flare arcing out behind an aircraft and dropping, trailing smoke
         const d = 26 * p, [fx, fy] = this.P(f.x + Math.cos(f.a) * d, f.y + Math.sin(f.a) * d, f.z - 30 * p * p);
@@ -527,31 +522,14 @@ const Render = {
         ctx.fillStyle = `rgba(40,30,20,${1 - p})`;
         ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
         break;
-      case 'smoke':
-        ctx.fillStyle = `rgba(110,110,110,${0.45 * (1 - p)})`;
-        ctx.beginPath(); ctx.arc(x, y, f.size * (1 + p * 1.5), 0, Math.PI * 2); ctx.fill();
-        break;
-      case 'fire': {
-        ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = `rgba(255,${120 + 80 * (1 - p)},30,${0.8 * (1 - p)})`;
-        ctx.beginPath(); ctx.arc(x, y - p * 10, 4 * (1 - p) + 1, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-        break;
-      }
+      case 'smoke': FX.smoke(ctx, f, x, y, p); break;
+      case 'fire': FX.fire(ctx, x, y, p); break;
       case 'tracer': {
         const [x2, y2] = this.P(f.x2, f.y2, f.z2 || 0);
-        ctx.strokeStyle = f.hot ? `rgba(150,255,110,${1 - p})` : `rgba(255,230,140,${1 - p})`; ctx.lineWidth = f.hot ? 1.6 : 1.2;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+        FX.tracer(ctx, f, x, y, x2, y2, p);
         break;
       }
-      case 'flash': {
-        ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        ctx.fillStyle = f.color ? f.color : 'rgb(255,220,120)';
-        ctx.globalAlpha = 1 - p;
-        ctx.beginPath(); ctx.arc(x, y, f.size, 0, Math.PI * 2); ctx.fill();
-        ctx.restore();
-        break;
-      }
+      case 'flash': FX.flash(ctx, f, x, y, p); break;
       case 'rail': {
         const [x2, y2] = this.P(f.x2, f.y2, f.z2 || 0);
         ctx.save(); ctx.globalCompositeOperation = 'lighter';
