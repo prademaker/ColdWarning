@@ -301,7 +301,7 @@ const Render = {
     }
     Art.blit(ctx, s, sx, sy);
     if (BLD_TURRETS[b.key]) Art.blit(ctx, buildingTurretSprite(b, team), sx, sy);
-    const live = BLD_LIVE[b.key];
+    const live = (factionSprite('b_' + b.key, team) !== 'b_' + b.key && BLD_LIVE_AX[b.key]) || BLD_LIVE[b.key];
     if (live) live(ctx, (lx, ly, lz) => this.P(b.tx * TILE + lx, b.ty * TILE + ly, lz), b, team, t, team.lowPower);
     if (b.garrison && b.garrison.length) this.drawGarrison(ctx, b, team);
     if (b.hp < b.maxHp * 0.5 && Math.random() < 0.15) {

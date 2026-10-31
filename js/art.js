@@ -177,9 +177,9 @@ function loadSheet(key) {
     SHEETS[key + '_' + part] = { base, mask, camo };
   }
 }
-// the upgraded looks (keys with _up, and the refit tiers _t2 to _t4 of the ultimate units)
-// only load once something needs them
-const LAZY_SHEET = /_(up|t\d)(_|$)/;
+// the upgraded looks (keys with _up, the refit tiers _t2 to _t4 of the ultimate units) and the
+// Axis models (_ax) only load once something needs them
+const LAZY_SHEET = /_(up|t\d|ax)(_|$)/;
 if (typeof SPRITE_META !== 'undefined') for (const key of Object.keys(SPRITE_META)) if (!LAZY_SHEET.test(key)) loadSheet(key);
 
 // whether every sheet of a sprite has loaded, starting the download the first time it's asked
@@ -189,6 +189,22 @@ function sheetReady(key) {
   const parts = Object.keys(m.parts);
   if (!SHEETS[key + '_' + parts[0]]) loadSheet(key);
   return parts.every(p => { const sh = SHEETS[key + '_' + p]; return loaded(sh.base) && loaded(sh.mask) && (!sh.camo || loaded(sh.camo)); });
+}
+
+// ---------- the two factions' looks ----------
+// The Axis field their own model of every unit and structure the factions share (built by
+// tools/sprites/voxel_east.js), keyed with _ax after the Allied sprite key. Until an Axis sheet has
+// loaded the shared model stands in, so nothing ever goes missing.
+function axisLook(team) { const f = team && FACTIONS[team.faction]; return !!(f && f.side === 'axis'); }
+// the sprite key a team's faction draws for a model: probe is the suffix of a sheet that must be in
+// (a walk frame, _full...), ax the Axis key's position before it
+function factionSprite(base, team, probe = '') {
+  return axisLook(team) && typeof SPRITE_META !== 'undefined' && SPRITE_META[base + '_ax' + probe] && sheetReady(base + '_ax' + probe) ? base + '_ax' : base;
+}
+// start loading the Axis sheets as soon as a match has an Axis team in it
+function preloadLooks(teams) {
+  if (typeof SPRITE_META === 'undefined' || !teams.some(axisLook)) return;
+  for (const key of Object.keys(SPRITE_META)) if (/_ax(_|$)/.test(key) && !/_(up|t\d)(_|$)/.test(key)) sheetReady(key);
 }
 
 // research that changes how units look: soldiers in body armor, vehicles with reactive armor bricks
@@ -448,8 +464,8 @@ const SPRITE_FOR = {
 };
 // extra copies of the turret sprite along the hull (forward offsets in game px), for ships
 // with more than one gun turret; they all train on the same bearing
-const EXTRA_TURRETS = { battleship_vox: [-20.6] };
-for (const s of ['', '_t2', '_t3', '_t4']) EXTRA_TURRETS['leviathan_vox' + s] = [14.95, -31.85];
+const EXTRA_TURRETS = { battleship_vox: [-20.6], destroyer_vox_ax: [-17.4] };
+for (const s of ['', '_t2', '_t3', '_t4']) EXTRA_TURRETS['leviathan_vox' + s] = EXTRA_TURRETS['leviathan_vox_ax' + s] = [14.95, -31.85];
 if (typeof location !== 'undefined') {
   const q = new URLSearchParams(location.search);
   if (q.get('style') === 'model' || q.get('tank') === 'model') for (const k of ['tank', 'ifv', 'heli']) delete SPRITE_FOR[k];
@@ -459,19 +475,21 @@ function spriteKeyFor(u, team) {
   if (u.spriteKey) return u.spriteKey;
   let k = SPRITE_FOR[u.key];
   if (!k) return u.key;
-  if (u.def.harvester && u.cargo > u.def.capacity * 0.4) k += '_full';
+  const full = u.def.harvester && u.cargo > u.def.capacity * 0.4 ? '_full' : '';
   const frame = u.def.cat === 'infantry' ? '_' + (u.moving ? [1, 0, 2, 0][Math.floor(u.anim * 8) % 4] : 0) : '';
   // an ultimate wears its refit tier (the Mk before stands in while the sheets load)
-  if (u.def.ultimate) return ultSprite(u.key, u.def.tier, frame);
+  if (u.def.ultimate) return ultSprite(u.key, u.def.tier, frame, team);
+  k = factionSprite(k, team, full + frame) + full;
   // the upgraded look once its sheets are in (the plain one stands in until then)
   if (wearsUpgrade(team, u.def.cat) && sheetReady(k + '_up' + frame)) return k + '_up' + frame;
   return k + frame;
 }
 
 // sheet of an ultimate unit at a refit tier, falling back a tier at a time until one has loaded
-function ultSprite(key, tier, frame = '') {
-  for (let t = tier; t > 1; t--) if (sheetReady(SPRITE_FOR[key] + '_t' + t + frame)) return SPRITE_FOR[key] + '_t' + t + frame;
-  return SPRITE_FOR[key] + frame;
+function ultSprite(key, tier, frame = '', team = null) {
+  const base = factionSprite(SPRITE_FOR[key], team, frame);
+  for (let t = tier; t > 1; t--) if (sheetReady(base + '_t' + t + frame)) return base + '_t' + t + frame;
+  return base + frame;
 }
 // how high over its ground point an ultimate's badge floats, clear of the model
 const ULT_BADGE = { goliath: 50, behemoth: 58, valkyrie: 34, leviathan: 62 };
@@ -756,11 +774,11 @@ function voxBuilding(key, team, ang, b) {
 }
 
 // Mk II structures show their upgraded model once its sheet has loaded
-function mk2Look(b) { return b.level > 1 && sheetReady('b_' + b.key + '_up') ? '_up' : ''; }
+function mk2Look(b, base) { return b.level > 1 && sheetReady(base + '_up') ? '_up' : ''; }
 
 function buildingSprite(b, team) {
-  const st = buildingState(b, team);
-  const v = voxBuilding('b_' + b.key + (b.key === 'super_silo' && st ? '_open' : '') + mk2Look(b), team, 0, b);
+  const st = buildingState(b, team), base = factionSprite('b_' + b.key, team);
+  const v = voxBuilding(base + (b.key === 'super_silo' && st ? '_open' : '') + mk2Look(b, base), team, 0, b);
   if (v) return v;
   return Art.get(`B|${b.key}|${team.faction}|${team.color}|${st}`, () => {
     // structures wear a slightly muted team colour so roofs don't overpower the scene
@@ -774,7 +792,8 @@ function buildingSprite(b, team) {
 }
 
 function buildingTurretSprite(b, team) {
-  const v = voxBuilding('b_' + b.key + mk2Look(b) + '_gun', team, b.turret, b);
+  const base = factionSprite('b_' + b.key, team);
+  const v = voxBuilding(base + mk2Look(b, base) + '_gun', team, b.turret, b);
   if (v) return v;
   const spec = BLD_TURRETS[b.key];
   const f = facingIndex(b.turret);
@@ -891,6 +910,28 @@ const BLD_LIVE = {
     ctx.strokeStyle = '#111'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
     ctx.strokeStyle = team.color; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + (x1 - x0) * charge, y0 + (y1 - y0) * charge); ctx.stroke();
     if (team.superReady) { const [x, y] = P(48, 48, 40); blink(ctx, x, y, Math.sin(t * 8) > 0, '#ff3020'); }
+  },
+};
+// the Axis structures put their lights, flags and smoke in other places (voxel_east_buildings.js)
+const BLD_LIVE_AX = {
+  cc(ctx, P, b, team, t) {
+    let [x, y] = P(57, 49, 77); blink(ctx, x, y, Math.sin(t * 4) > 0, '#ff4040');
+    [x, y] = P(17, 71, 20.2);
+    ctx.strokeStyle = 'rgba(230,230,230,0.85)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(x, y, 8.5, 4.3, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,230,230,0.9)'; ctx.font = 'bold 7px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('H', x, y);
+    [x, y] = P(84, 84, 20); flagpole(ctx, x, y, team.faction, t);
+  },
+  power(ctx, P, b, team, t, low) {
+    const [x, y] = P(53, 13, 55); blink(ctx, x, y, Math.sin(t * 3) > 0, '#ff4040');
+    if (low) return;
+    if (Math.random() < 0.06) G.effects.push({ type: 'smoke', x: b.tx * TILE + 53, y: b.ty * TILE + 13, z: 54, t: 0, life: 1.6, size: 3 });
+    if (Math.random() < 0.08) G.effects.push({ type: 'smoke', x: b.tx * TILE + 23 + Math.random() * 6 - 3, y: b.ty * TILE + 25 + Math.random() * 6 - 3, z: 40, t: 0, life: 2.2, size: 6 }); // steam off the cooling tower
+  },
+  barracks(ctx, P, b, team, t) { const [x, y] = P(12, 16, 18); flagpole(ctx, x, y, team.faction, t); },
+  tech(ctx, P, b, team, t, low) {
+    for (let i = 0; i < 3; i++) { const [x, y] = P(12 + i * 6, 58.5, 15); blink(ctx, x, y, !low && Math.floor(t * 3 + i) % 3 === 0, '#60e0ff'); }
+    const [x, y] = P(13, 19, 46); blink(ctx, x, y, Math.sin(t * 4) > 0, '#ff4040');
   },
 };
 
@@ -1044,7 +1085,8 @@ const CAMEO_ART = { tank: 1, ifv: 1, heli: 1, jet: 1, rifle: 1, sam: 1, cc: 1, b
 // countries without their own artwork borrow a close ally's
 const CAMEO_FROM = { uk: 'eu', japan: 'usa', northkorea: 'russia' };
 function cameoFaction(faction) { return CAMEO_FROM[faction] || faction; }
-function cameoUrl(key, faction) { return CAMEO_ART[key] ? `assets/cameos/${cameoFaction(faction)}/${key}.webp` : null; }
+// (the painted artwork shows the Allied models, so the Axis sidebar renders its own models instead)
+function cameoUrl(key, faction) { return CAMEO_ART[key] && !axisLook({ faction }) ? `assets/cameos/${cameoFaction(faction)}/${key}.webp` : null; }
 
 // a sprite as a standalone canvas (sheet sprites reference a cell of a larger image)
 function spriteCanvas(s) {
@@ -1057,7 +1099,7 @@ function spriteCanvas(s) {
 
 // cameo of a unit that only exists as a voxel sheet (ships and the country specials): hull and
 // turrets at a three-quarter angle, or null while the sheets are still loading
-function voxCameo(key, team, sk = SPRITE_FOR[key]) {
+function voxCameo(key, team, sk = factionSprite(SPRITE_FOR[key], team)) {
   const meta = typeof SPRITE_META !== 'undefined' && SPRITE_META[sk];
   const f = UNITS[key].cat === 'naval' ? -0.45 : 0.6, hull = meta && modelSprite(sk, 'hull', team, f); // ships show their broadside
   if (!hull) return null;
@@ -1106,18 +1148,22 @@ function drawIcon(key, team, w, h) {
   } else if (UPGRADES[key] && UPGRADES[key].ult) {
     // an ultimate refit: the unit as the Mk it refits it to
     const show = UPGRADES[key].ult, inf = UNITS[show].cat === 'infantry';
-    s = voxCameo(show, fakeTeam, ultSprite(show, Math.min(4, ultLevel(team, show) + 2), inf ? '_0' : ''));
+    s = voxCameo(show, fakeTeam, ultSprite(show, Math.min(4, ultLevel(team, show) + 2), inf ? '_0' : '', team));
   } else if (UNITS[key] && UNITS[key].ultimate) {
     const inf = UNITS[key].cat === 'infantry';
-    s = voxCameo(key, fakeTeam, ultSprite(key, ultLevel(team, key) + 1, inf ? '_0' : ''));
+    s = voxCameo(key, fakeTeam, ultSprite(key, ultLevel(team, key) + 1, inf ? '_0' : '', team));
   } else if (UPGRADES[key]) {
     // research: the unit it improves, wearing the upgrade where it shows
-    const show = UPGRADES[key].show, inf = UNITS[show].cat === 'infantry', base = SPRITE_FOR[show] + (inf ? '_0' : '');
+    const show = UPGRADES[key].show, inf = UNITS[show].cat === 'infantry', sk = factionSprite(SPRITE_FOR[show], team, inf ? '_0' : ''), base = sk + (inf ? '_0' : '');
     fakeTeam.upgrades = { [key]: true };
-    const up = UP_LOOKS[UNITS[show].cat] === key ? SPRITE_FOR[show] + (inf ? '_up_0' : '_up') : base;
+    const up = UP_LOOKS[UNITS[show].cat] === key ? sk + (inf ? '_up_0' : '_up') : base;
     s = voxCameo(show, fakeTeam, sheetReady(up) ? up : base) || unitSprite({ key: show, def: UNITS[show], facing: 0.6, turret: 0.4, anim: 0, moving: false, cargo: 0 }, fakeTeam, 'hull');
   } else if (!UNIT_MODELS[key] && UNITS[key].cat !== 'infantry' && voxCameo(key, fakeTeam)) {
     s = voxCameo(key, fakeTeam);
+  } else if (axisLook(team) && SPRITE_FOR[key] && factionSprite(SPRITE_FOR[key], team, UNITS[key].cat === 'infantry' ? '_0' : '') !== SPRITE_FOR[key]) {
+    // the Axis models only exist as voxel sheets: show those rather than the shared prism model
+    const inf = UNITS[key].cat === 'infantry';
+    s = voxCameo(key, fakeTeam, SPRITE_FOR[key] + '_ax' + (inf ? '_0' : ''));
   } else {
     const fake = { key, def: UNITS[key], facing: 0.6, turret: 0.4, anim: 0, moving: false, cargo: UNITS[key].capacity ? UNITS[key].capacity * 0.7 : 0 };
     s = unitSprite(fake, fakeTeam, 'hull');
