@@ -174,6 +174,9 @@ const BUILDING_KITS = {
 // defences with a turning weapon (their bases get the skirt, their guns the plating)
 const DEFENSES = { turret: 1, railturret: 1, sam: 1, laser: 1, mortar: 1, missilenest: 1, flametower: 1, thaad: 2, koksan: 2, sensor: 1 };
 
+module.exports = { readVox, shifted, era, vest, defenseKit, gunKit, chevrons };
+if (require.main !== module) return;
+
 // ---------- write everything ----------
 const VEHICLES = {
   tank: ['tank_hull', 'tank_turret'], ifv: ['ifv_hull', 'ifv_turret'], mlrs: ['mlrs_hull', 'mlrs_turret'],

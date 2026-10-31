@@ -102,6 +102,51 @@ for (const t of [1, 2, 3, 4]) {
   MODELS[`leviathan_vox${s}`] = { vox: { hull: `leviathan${s}_hull.vox`, turret: `leviathan${s}_turret.vox` }, pivot: [42, 11.5], turretPivot: [6.5, 6.5], mount: [66.5, 11.5, 7], turret: 'turret', k: 1.3, cell: 192, anchor: 0.7 };
 }
 
+// the Axis look (voxel_east.js): its own model of every shared unit and structure, keyed with _ax
+// after the Allied key (the game picks it for Axis teams). Refit tiers and upgraded looks follow
+// the same pattern as the Allied ones.
+const AX = {
+  tank_vox_ax: { vox: { hull: 'tank_ax_hull.vox', turret: 'tank_ax_turret.vox' }, pivot: [16, 10], turretPivot: [9.5, 9.5], mount: [14, 10, 7], turret: 'turret', k: 1.0, cell: 104 },
+  railtank_vox_ax: { vox: { hull: 'railtank_ax_hull.vox', turret: 'railtank_ax_turret.vox' }, pivot: [16, 10], turretPivot: [9.5, 9.5], mount: [14, 10, 7], turret: 'turret', k: 1.0, cell: 88 },
+  recovery_vox_ax: { vox: { hull: 'recovery_ax_hull.vox', turret: 'recovery_ax_turret.vox' }, pivot: [15, 8], turretPivot: [5.5, 5.5], mount: [9, 8, 6], turret: 'turret', k: 1.0, cell: 76 },
+  harvester_vox_ax: { vox: { hull: 'harvester_ax.vox' }, pivot: [19, 9], k: 1.0, cell: 80 },
+  harvester_vox_ax_full: { vox: { hull: 'harvester_ax_full.vox' }, pivot: [19, 9], k: 1.0, cell: 80 },
+  mcv_vox_ax: { vox: { hull: 'mcv_ax.vox' }, pivot: [20, 9], k: 1.0, cell: 92, anchor: 0.72 },
+  heli_vox_ax: { vox: { hull: 'heli_ax.vox' }, pivot: [17.5, 12.5], k: 1.05, cell: 80, rotor: { z: 12.5, r: 19 } },
+  jet_vox_ax: { vox: { hull: 'jet_ax.vox' }, pivot: [18, 16.5], k: 1.0, cell: 80 },
+  bomber_vox_ax: { vox: { hull: 'bomber_ax.vox' }, pivot: [24, 24.5], k: 1.0, cell: 120 },
+  patrol_vox_ax: { vox: { hull: 'patrol_ax_hull.vox', turret: 'patrol_ax_turret.vox' }, pivot: [15, 5.5], turretPivot: [3.5, 3.5], mount: [23, 5.5, 5], turret: 'turret', k: 1.0, cell: 64 },
+  destroyer_vox_ax: { vox: { hull: 'destroyer_ax_hull.vox', turret: 'destroyer_ax_turret.vox' }, pivot: [23, 6.5], turretPivot: [4.5, 4.5], mount: [37.5, 6.5, 6], turret: 'turret', k: 1.2, cell: 104 },
+  sub_vox_ax: { vox: { hull: 'sub_ax.vox' }, pivot: [22, 5.5], k: 1.1, cell: 80 },
+  hover_vox_ax: { vox: { hull: 'hover_ax.vox' }, pivot: [17, 9], k: 1.0, cell: 72 },
+  ...Object.fromEntries(['rifle', 'rocket', 'engineer', 'medic'].flatMap(kind => [0, 1, 2].flatMap(f => [
+    [`${kind}_vox_ax_${f}`, { vox: { hull: `${kind}_ax_${f}.vox` }, pivot: [2.5, 3.5], k: 1.25, cell: 40, anchor: 0.75 }],
+    [`${kind}_vox_ax_up_${f}`, { vox: { hull: `${kind}_ax_${f}_up.vox` }, pivot: [2.5, 3.5], k: 1.25, cell: 40, anchor: 0.75 }]]))),
+};
+for (const k of ['tank', 'railtank', 'recovery']) {
+  const m = AX[k + '_vox_ax'], up = ([x, y, ...z]) => [x + 1, y + 1, ...z];
+  AX[k + '_vox_ax_up'] = Object.assign({}, m, {
+    vox: Object.fromEntries(Object.entries(m.vox).map(([p, f]) => [p, f.replace('.vox', '_up.vox')])),
+    pivot: up(m.pivot), mount: up(m.mount), turretPivot: up(m.turretPivot),
+  });
+}
+for (const t of [1, 2, 3, 4]) {
+  const s = t > 1 ? '_t' + t : '';
+  for (const f of [0, 1, 2]) AX[`goliath_vox_ax${s}_${f}`] = { vox: { hull: `goliath_ax${s}_${f}.vox` }, pivot: [6, 10.5], k: 1.5, cell: 88, anchor: 0.75 };
+  AX[`behemoth_vox_ax${s}`] = { vox: { hull: `behemoth_ax${s}_hull.vox`, turret: `behemoth_ax${s}_turret.vox` }, pivot: [25, 18], turretPivot: [16.5, 16.5], mount: [21, 18, 12], turret: 'turret', k: 1.35, cell: 168 };
+  AX[`valkyrie_vox_ax${s}`] = { vox: { hull: `valkyrie_ax${s}.vox` }, pivot: [21, 16.5], k: 1.45, cell: 168 };
+  AX[`leviathan_vox_ax${s}`] = { vox: { hull: `leviathan_ax${s}_hull.vox`, turret: `leviathan_ax${s}_turret.vox` }, pivot: [42, 11.5], turretPivot: [6.5, 6.5], mount: [66.5, 11.5, 7], turret: 'turret', k: 1.3, cell: 192, anchor: 0.7 };
+}
+const AX_GUNS = { turret: [4.5, 4], railturret: [5.5, 5], sam: [5.5, 3], mortar: [4.5, 1] };
+for (const key of ['cc', 'power', 'refinery', 'barracks', 'factory', 'radar', 'airfield', 'tech', 'super_lance', 'turret', 'railturret', 'sam', 'wall', 'mortar', 'sensor', 'drill', 'shipyard']) {
+  const looks = ['power', 'refinery', 'barracks', 'factory', 'airfield', 'shipyard', 'drill', 'turret', 'railturret', 'sam', 'mortar', 'sensor'].includes(key) ? ['', '_up'] : [''];
+  for (const up of looks) {
+    AX[`b_${key}_ax${up}`] = Object.assign({}, MODELS[`b_${key}`], { vox: { hull: `b_${key}_ax${up}.vox` } });
+    if (AX_GUNS[key]) { const [p, lift] = AX_GUNS[key]; AX[`b_${key}_ax${up}_gun`] = Object.assign({}, MODELS[`b_${key}_gun`], { vox: { hull: `b_${key}_ax${up}_gun.vox` }, pivot: [p, p], lift }); }
+  }
+}
+Object.assign(MODELS, AX);
+
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'assets', 'sprites');
 
@@ -135,7 +180,8 @@ function serve(modelDir) {
   let meta = {};
   if (fs.existsSync(metaFile)) meta = JSON.parse(fs.readFileSync(metaFile, 'utf8').replace(/^[^{]*/, '').replace(/;\s*$/, ''));
   for (const [key, cfg] of Object.entries(MODELS)) {
-    if (only.length && !only.includes(key)) continue;
+    // keys to render: exact names, or /regex/ (e.g. node render.js . /_ax/ for the Axis look)
+    if (only.length && !only.some(o => o === key || (o.length > 2 && o.startsWith('/') && o.endsWith('/') && new RegExp(o.slice(1, -1)).test(key)))) continue;
     const r = await page.evaluate(c => window.renderSheet(c), cfg);
     for (const [part, imgs] of Object.entries(r.images)) {
       for (const [pass, url] of Object.entries(imgs)) {
