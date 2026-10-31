@@ -214,5 +214,15 @@ dish and superweapon effects are drawn live on top. Defences have separately rot
 `tools/sprites/voxel_upgrades.js`, which reads the finished models and bolts on the upgrade kits; run it after the
 other voxel scripts. The game only downloads those sheets once a player has the upgrade. The ultimate units have one
 model per Mk (`*_t2` to `*_t4` after the Mk I), built by `tools/sprites/voxel_ultimates.js`; the refitted ones load
-the same way, when first needed. Open the game with `?style=model` to use the ITHappy tank, IFV and
+the same way, when first needed.
+
+The two factions look different. The Allies use the models above (soft blob camouflage, cool grey
+panels, glass and team-coloured roofs). The Axis have their own model of every unit and structure the
+factions share, built by `tools/sprites/voxel_east.js` (with `voxel_east_buildings.js`): splinter
+camouflage, cast round turrets and fuel drums, 8x8 trucks, greatcoats and fur hats, Flanker-style jets,
+rust-red ship decks, and brutalist concrete-and-brick structures with stepped towers, cooling towers and
+smokestacks. They are written as `*_ax` models (with their own `_up` and `_t2`-`_t4` looks), and the
+same script repaints the Axis-only models in the Axis style; run it last. Render them with
+`node render.js . /_ax/`. The game picks the `_ax` sheets for Axis teams and only downloads them when a
+match has an Axis team in it. Open the game with `?style=model` to use the ITHappy tank, IFV and
 helicopter instead.

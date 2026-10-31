@@ -96,6 +96,7 @@ const SPRITE_META = {
   "titan_vox": {
     "cell": 96,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 48,
     "ay": 63.5,
@@ -2473,6 +2474,1355 @@ const SPRITE_META = {
     },
     "style": "voxel",
     "turretOffset": 31.85,
+    "camo": true
+  },
+  "tank_vox_ax": {
+    "cell": 104,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 52,
+    "ay": 68.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -2,
+    "camo": true
+  },
+  "railtank_vox_ax": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 58,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -2,
+    "camo": true
+  },
+  "recovery_vox_ax": {
+    "cell": 76,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 38,
+    "ay": 50,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -6,
+    "camo": true
+  },
+  "harvester_vox_ax": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "harvester_vox_ax_full": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "mcv_vox_ax": {
+    "cell": 92,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 46,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "heli_vox_ax": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "rotor": {
+      "z": 13.125,
+      "r": 19.95
+    },
+    "camo": true
+  },
+  "jet_vox_ax": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "bomber_vox_ax": {
+    "cell": 120,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 60,
+    "ay": 79,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "patrol_vox_ax": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 42,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 8,
+    "camo": true
+  },
+  "destroyer_vox_ax": {
+    "cell": 104,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 52,
+    "ay": 68.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 17.4,
+    "camo": true
+  },
+  "sub_vox_ax": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 53,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "hover_vox_ax": {
+    "cell": 72,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 36,
+    "ay": 47.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_ax_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_ax_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_ax_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_ax_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_ax_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rifle_vox_ax_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_ax_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_ax_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_ax_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_ax_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_ax_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "rocket_vox_ax_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_ax_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_ax_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_ax_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_ax_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_ax_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "engineer_vox_ax_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_ax_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_ax_up_0": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_ax_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_ax_up_1": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_ax_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "medic_vox_ax_up_2": {
+    "cell": 40,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 20,
+    "ay": 30,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "tank_vox_ax_up": {
+    "cell": 104,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 52,
+    "ay": 68.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -2,
+    "camo": true
+  },
+  "railtank_vox_ax_up": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 58,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -2,
+    "camo": true
+  },
+  "recovery_vox_ax_up": {
+    "cell": 76,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 38,
+    "ay": 50,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -6,
+    "camo": true
+  },
+  "goliath_vox_ax_0": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_1": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_2": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox_ax": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -5.4,
+    "camo": true
+  },
+  "valkyrie_vox_ax": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox_ax": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
+  },
+  "goliath_vox_ax_t2_0": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_t2_1": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_t2_2": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox_ax_t2": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -5.4,
+    "camo": true
+  },
+  "valkyrie_vox_ax_t2": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox_ax_t2": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
+  },
+  "goliath_vox_ax_t3_0": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_t3_1": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_t3_2": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox_ax_t3": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -5.4,
+    "camo": true
+  },
+  "valkyrie_vox_ax_t3": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox_ax_t3": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
+  },
+  "goliath_vox_ax_t4_0": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_t4_1": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "goliath_vox_ax_t4_2": {
+    "cell": 88,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 44,
+    "ay": 66,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "behemoth_vox_ax_t4": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": -5.4,
+    "camo": true
+  },
+  "valkyrie_vox_ax_t4": {
+    "cell": 168,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 84,
+    "ay": 111,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "leviathan_vox_ax_t4": {
+    "cell": 192,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 96,
+    "ay": 134.5,
+    "parts": {
+      "hull": true,
+      "turret": true
+    },
+    "style": "voxel",
+    "turretOffset": 31.85,
+    "camo": true
+  },
+  "b_cc_ax": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_power_ax": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_power_ax_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_refinery_ax": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_refinery_ax_up": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_barracks_ax": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_barracks_ax_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_factory_ax": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_factory_ax_up": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_radar_ax": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_airfield_ax": {
+    "cell": 184,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 92,
+    "ay": 132,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_airfield_ax_up": {
+    "cell": 184,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 92,
+    "ay": 132,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_tech_ax": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_super_lance_ax": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_turret_ax": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_turret_ax_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_turret_ax_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_turret_ax_up_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_railturret_ax": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_railturret_ax_gun": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 49.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_railturret_ax_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_railturret_ax_up_gun": {
+    "cell": 80,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 40,
+    "ay": 49.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sam_ax": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sam_ax_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sam_ax_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sam_ax_up_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_wall_ax": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_mortar_ax": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_mortar_ax_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_mortar_ax_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_mortar_ax_up_gun": {
+    "cell": 64,
+    "cols": 8,
+    "facings": 32,
+    "res": 2,
+    "ax": 32,
+    "ay": 39.5,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sensor_ax": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_sensor_ax_up": {
+    "cell": 88,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 44,
+    "ay": 60,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_drill_ax": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_drill_ax_up": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_shipyard_ax": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true
+  },
+  "b_shipyard_ax_up": {
+    "cell": 216,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 108,
+    "ay": 156,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
     "camo": true
   }
 };

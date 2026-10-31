@@ -25,6 +25,10 @@ col('red', [190, 40, 34]);
 // warships: haze grey hulls, dark decks and the red anti-fouling at the waterline
 col('hull', [138, 146, 152]); col('hullDark', [98, 106, 112]); col('deck', [84, 88, 88]); col('deckLight', [118, 122, 120]);
 col('boot', [140, 46, 40]); col('black', [30, 32, 34]); col('flightDeck', [66, 70, 72]); col('skirt', [42, 42, 40]);
+// the Axis look (voxel_east.js): warm brutalist concrete, brick, rust-red decks, Flanker-blue splinter
+col('concreteE', [168, 160, 142]); col('concreteEDark', [118, 112, 100]); col('brick', [134, 74, 54]); col('brickDark', [96, 54, 42]);
+col('roofE', [88, 96, 82]); col('fur', [112, 96, 76]); col('wood', [126, 82, 46]); col('jetBlue', [118, 140, 162]);
+col('hullE', [116, 124, 120]); col('hullEDark', [80, 88, 86]); col('deckE', [116, 68, 56]); col('orange', [222, 112, 34]);
 const TEAM = 6, TEAM_LIGHT = 7, TEAM_DARK = 4;
 
 // three-tone camouflage: soft blobs in 3D so the pattern wraps over edges
@@ -40,6 +44,14 @@ function camoAt(x, y, z, shift = 0) {
   return C.camo;
 }
 
+// the Axis camouflage: hard-edged diagonal splinter bands instead of soft blobs, so the two
+// factions read differently at a glance even when their paint colours are close
+function camoEast(x, y, z, shift = 0) {
+  const v = x * 0.62 - y * 0.34 + z * 0.95 + shift * 2.3 + Math.sin(x * 0.29 + y * 0.21 + shift) * 1.6;
+  const band = Math.floor(v / 3.4), h = Math.abs(Math.sin(band * 78.233 + shift * 1.7) * 43758.5453) % 1;
+  return h < 0.5 ? C.camo : h < 0.8 ? C.camoDark : C.camoLight;
+}
+
 function grid() {
   const v = new Map();
   return {
@@ -50,6 +62,8 @@ function grid() {
     box(x0, x1, y0, y1, z0, z1, c) { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) this.set(x, y, z, c); },
     // box painted with camouflage (seed shifts the pattern between models)
     camo(x0, x1, y0, y1, z0, z1, seed = 0) { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) this.set(x, y, z, camoAt(x, y, z, seed)); },
+    // box painted with the Axis splinter camouflage
+    camoE(x0, x1, y0, y1, z0, z1, seed = 0) { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) this.set(x, y, z, camoEast(x, y, z, seed)); },
     clear(x0, x1, y0, y1, z0, z1) { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) this.del(x, y, z); },
     // recolour the outer ring of a horizontal layer (team bands)
     band(z, c) { for (const e of this.v.values()) if (e[2] === z && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => !this.v.has(`${e[0] + dx},${e[1] + dy},${z}`))) e[3] = c; },
@@ -79,4 +93,4 @@ function writeVox(name, g) {
   console.log('wrote', name, `${sx}x${sy}x${sz}`, vox.length, 'voxels');
 }
 
-module.exports = { PALETTE, C, TEAM, TEAM_LIGHT, TEAM_DARK, camoAt, grid, writeVox };
+module.exports = { PALETTE, C, TEAM, TEAM_LIGHT, TEAM_DARK, camoAt, camoEast, grid, writeVox };

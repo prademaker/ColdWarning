@@ -409,6 +409,7 @@ class Game {
     this.shake = 0;
     this.teams = Game.makeTeams(opts, lineup);
     this.neutral = Game.makeNeutral();
+    if (typeof preloadLooks === 'function') preloadLooks(this.teams);
     this.player = 0;
     this.ai = {};
     this.over = null;
