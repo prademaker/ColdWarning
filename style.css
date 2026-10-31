@@ -269,6 +269,9 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 .ob { color: #e3ebf3; }
 .ob.done { color: #7f9; text-decoration: line-through; text-decoration-color: rgba(127,255,153,.5); }
 .ob.failed { color: #f66; }
+.ob .cp { color: var(--gold); }
+.ob-tip { color: #b9c7d6; font-size: .9em; margin: 2px 0 4px 14px; }
+.ob-alert { color: #ffd27a; font-size: .9em; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--edge2); }
 .ob.bonus { color: #b9c6d3; }
 .ob.bonus.done { color: #7f9; }
 .ob i { color: var(--dim); font-size: 12px; }

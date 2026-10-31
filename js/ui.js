@@ -957,9 +957,11 @@ const UI = {
   // campaign: objectives (and the mission clock) top-left, radio transmissions bottom-left
   updateMission(top) {
     const M = G.mission, box = document.getElementById('objectives'), radio = document.getElementById('radio');
-    box.hidden = !M; radio.hidden = !M || !M.current;
-    if (!M) return;
+    const C = !M && G.coach && !G.coach.over ? G.coach : null;
+    box.hidden = !M && !C; radio.hidden = !M || !M.current;
     box.style.top = top + 'px';
+    if (C) { this.updateCoach(C, box); return; }
+    if (!M) return;
     const mark = { active: '◇', done: '✓', failed: '✗' };
     let html = '<div class="ob-head">Objectives</div>';
     if (M.clock) {
@@ -978,6 +980,22 @@ const UI = {
         radio.classList.remove('in'); void radio.offsetWidth; radio.classList.add('in');
       }
     }
+  },
+
+  // the field guide: steps done so far, the current one with how to do it, and any one-off tip
+  updateCoach(C, box) {
+    const cur = C.current(), t = G.playerTeam, touch = Touch.on;
+    let html = '<div class="ob-head">Field guide</div>';
+    for (const s of C.steps()) {
+      if (C.done[s.id]) html += `<div class="ob done">✓ ${s.text}</div>`;
+      else if (s === cur) {
+        html += `<div class="ob">◇ ${s.text}${s.progress ? ' <span class="cp">' + s.progress(t) + '</span>' : ''}</div><div class="ob-tip">${s.tip(touch)}</div>`;
+        break;
+      }
+    }
+    if (!cur) html += `<div class="ob-tip">Basic training complete. ${touch ? 'The How to play notes on the menu' : 'F1'} list every control.</div>`;
+    if (C.tip) html += `<div class="ob-alert">${C.tip.text}</div>`;
+    if (html !== this.obHtml) { box.innerHTML = html; this.obHtml = html; }
   },
 
   updateSelInfo() {

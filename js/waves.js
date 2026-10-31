@@ -6,11 +6,12 @@ class WaveDirector {
   // cfg lets a campaign mission override the defense-mode pacing: { total, first, interval }
   constructor(team, difficulty, cfg = {}) {
     this.team = team;
-    this.mult = (DIFFICULTY[difficulty] || DIFFICULTY.normal).income;
+    const d = DIFFICULTY[difficulty] || DIFFICULTY.normal, calm = d.calm || 1;
+    this.mult = d.income;
     this.total = cfg.total || DEFENSE.waves;
-    this.interval = cfg.interval || DEFENSE.interval;
+    this.interval = (cfg.interval || DEFENSE.interval) * calm;
     this.wave = 0;                 // waves launched so far
-    this.next = cfg.first || DEFENSE.firstWave; // game time of the next wave
+    this.next = (cfg.first || DEFENSE.firstWave) * calm; // game time of the next wave
     this.paid = 0;                 // last wave whose clearing bounty was paid
     this.warned = 0;
     this.thinkT = 0;
