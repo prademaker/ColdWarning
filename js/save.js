@@ -20,6 +20,7 @@ const SaveCodec = {
       AI: { cls: AI },
       WaveDirector: { cls: WaveDirector, make: () => new WaveDirector({}, 'normal') },
       Mission: { cls: Mission, make: () => new Mission(null, null) },
+      Coach: { cls: Coach },
       GameMap: { cls: GameMap },
     };
   },

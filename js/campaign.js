@@ -8,6 +8,7 @@
 
 // who talks over the radio, and in which colour
 const CAST = {
+  reyes: { name: 'Sgt. Dana Reyes', role: 'Drill instructor', color: '#9fe3a8' },
   hale: { name: 'Col. Mara Hale', role: 'Allied JTF Northwind', color: '#9cc6ff' },
   raven: { name: 'Raven', role: 'Commando', color: '#ffd27a' },
   harker: { name: 'Maj. Ellen Harker', role: '22 SAS', color: '#c8d0ff' },
@@ -19,7 +20,7 @@ const CAST = {
 };
 
 // minutes on the silo clock in Countdown, by difficulty
-const SILO_MINUTES = { easy: 20, normal: 16, hard: 13 };
+const SILO_MINUTES = { recruit: 24, easy: 20, normal: 16, hard: 13 };
 
 // The story runs through every country: the Allies (USA, EU, UK, Japan) against the Axis
 // (Soviet Union, Russia, North Korea, China), and each mission shows off a few countries'
@@ -27,6 +28,121 @@ const SILO_MINUTES = { easy: 20, normal: 16, hard: 13 };
 const CAMPAIGN = {
   name: 'Operation Northwind',
   missions: [
+    // ------------------------------------------------------------------ tutorial
+    {
+      id: 'boot_camp', title: 'Boot Camp', place: 'Fort Drum, New York', date: 'January 2030', tutorial: true,
+      theater: 'temperate', map: 'small', seed: 20300, starts: 2,
+      teams: [
+        { faction: 'usa', ally: 0, credits: 8000 },
+        { faction: 'russia', ally: 1, ai: null, noBase: true, name: 'Opposing force' },
+      ],
+      features: 'The tutorial: deploy a base, build an economy, train an army and take out a small outpost. Sergeant Reyes walks you through every step.',
+      briefing: [
+        "Before you command a theatre, you command a training range. Sergeant Reyes will walk you through it one step at a time: deploy a base, get power and credits flowing, train troops and tanks.",
+        "On the far side of the range sits an outpost played by the opposing-force company. They are not out to beat you, but they will send a patrol to see if you are awake.",
+      ],
+      goals: ['Set up a base', 'Train infantry and tanks', 'Destroy the outpost'],
+      win: "Range cleared. Reyes signs you off: you are ready for Operation Northwind.",
+      lose: 'The range is lost. Reyes is not impressed. Try again, Commander.',
+      setup(M) {
+        const [px, py] = M.start(0);
+        M.focusOn(px, py);
+        M.startingForces(0);
+        // the outpost: a power plant, a barracks, a gun and a few riflemen dug in
+        const [ox, oy] = M.start(1);
+        M.vars.outpost = [M.build(1, 'power', ox - 1, oy - 1), M.build(1, 'barracks', ...M.rel(1, 2, 2))];
+        M.defenses(1, ['turret'], 5);
+        M.squad('rifle', 1, ...M.rel(1, 6, 0), 3);
+        M.objective('deploy', 'Deploy the MCV');
+        M.say('reyes', "Morning, Commander. I'm Sergeant Reyes, and this range is yours for the day.", 1);
+        M.say('reyes', Touch.on ? 'That big truck is your MCV. Tap it, then tap Deploy on the left. It unfolds into a Command Center.'
+          : 'That big truck is your MCV. Click it and press D, or click it again. It unfolds into a Command Center.');
+      },
+      objectives: {
+        deploy: {
+          check: () => G.playerTeam.countOf('cc') > 0,
+          done(M) {
+            M.objective('power', 'Build a Power Plant');
+            M.say('reyes', Touch.on ? 'Everything runs on power. Open the Base tab and tap Power Plant. When it says READY, tap it, tap the ground by your base and tap the outline to place it.'
+              : 'Everything runs on power. On the Base tab (B) click Power Plant. When it says READY, click it again and place it next to the Command Center.');
+          },
+        },
+        power: {
+          check: () => G.playerTeam.countOf('power') > 0,
+          done(M) {
+            M.objective('refinery', 'Build an Ore Refinery');
+            M.say('reyes', 'Now money. An Ore Refinery comes with a Harvester that collects the gold ore and turns it into credits. Put it close to an ore field.');
+          },
+        },
+        refinery: {
+          check: () => G.playerTeam.countOf('refinery') > 0,
+          done(M) {
+            M.objective('barracks', 'Build a Barracks');
+            M.say('reyes', 'Watch your credits tick up when the Harvester unloads. Next, a Barracks so you can train infantry.');
+          },
+        },
+        barracks: {
+          check: () => G.playerTeam.countOf('barracks') > 0,
+          done(M) {
+            M.objective('rifles', 'Train 5 Riflemen');
+            M.say('reyes', Touch.on ? 'Open the Infantry tab and tap Rifleman five times. They come out of the Barracks as they finish.'
+              : 'Open the Infantry tab (C) and click Rifleman five times, or Shift+click it once to queue five.');
+          },
+        },
+        rifles: {
+          check: () => (G.playerTeam.stats.made.rifle || 0) >= 5,
+          done(M) {
+            // a patrol from the outpost tests the new base
+            const [hx, hy] = M.rel(0, 14, 0);
+            M.vars.raid = M.spawn('rifle', 1, hx, hy, 4);
+            const hq = M.playerHQ();
+            if (hq) G.commandMove(M.vars.raid, hq.tx + 1, hq.ty + 1, true, true);
+            G.ping(hx * TILE + TILE / 2, hy * TILE + TILE / 2, 'unit');
+            M.objective('raid', 'Stop the enemy patrol');
+            M.say('reyes', 'Heads up, enemy patrol coming in!');
+            M.say('reyes', Touch.on ? 'Tap Army on the left to select every fighter, then tap an enemy soldier to attack it. Tap the ! button to jump to the action.'
+              : 'Drag a box around your soldiers to select them, then right-click an enemy to attack. Space jumps the camera to the alert.');
+          },
+        },
+        raid: {
+          check: M => M.alive(M.vars.raid).length === 0,
+          done(M) {
+            M.objective('factory', 'Build a War Factory');
+            M.say('reyes', "Patrol down. Nice shooting. Infantry won't take that outpost on their own, though: build a War Factory for tanks.");
+          },
+        },
+        factory: {
+          check: () => G.playerTeam.countOf('factory') > 0,
+          done(M) {
+            M.objective('tanks', 'Build 3 tanks');
+            M.objective('radar', 'Build a Radar Station', { optional: true });
+            M.say('reyes', Touch.on ? 'Open the Armor tab and queue three tanks.' : 'Open the Armor tab (V) and queue three tanks.');
+            M.say('reyes', 'If you have credits to spare, a Radar Station switches on the minimap.');
+          },
+        },
+        tanks: {
+          check: () => (G.playerTeam.stats.made.tank || 0) >= 3,
+          done(M) {
+            const [ox, oy] = M.start(1);
+            M.marker('outpost', ox, oy, 'OUTPOST');
+            G.ping(ox * TILE + TILE / 2, oy * TILE + TILE / 2, 'info');
+            M.objective('outpost', 'Destroy the enemy outpost');
+            M.say('reyes', "That's an army. The outpost is marked on the map. Time to graduate.");
+            M.say('reyes', Touch.on ? 'Tap Army, tap Attack, then tap near the outpost. Attack-move fights everything on the way there.'
+              : 'Ctrl+A selects your whole army. Press A, then click near the outpost: attack-move fights everything on the way there.');
+          },
+        },
+        radar: {
+          check: () => G.playerTeam.countOf('radar') > 0,
+          done: M => M.say('reyes', 'Radar up. Red dots on the minimap are enemies you can see. Click the minimap to look anywhere.'),
+        },
+        outpost: {
+          check: () => !G.entities.some(e => e.kind === 'building' && e.team === 1 && !e.dead),
+          done: M => M.say('reyes', "Outpost flattened. That's everything I can teach you. Go win a war, Commander."),
+        },
+      },
+    },
+
     // ------------------------------------------------------------------ 1
     {
       id: 'thin_ice', title: 'Thin Ice', place: 'Svalbard approaches', date: 'February 2030',
@@ -416,9 +532,11 @@ const CampaignProgress = {
   record(id) { return (this.load().done || {})[id] || null; },
   // a mission opens once the one before it is won ('?unlock' in the URL opens them all); one
   // already won stays open even if a mission is added before it
+  // a tutorial is always open and never stands in the way of the next mission
   unlocked(i) {
-    if (i === 0 || /[?&]unlock\b/.test(location.search)) return true;
-    return !!this.record(CAMPAIGN.missions[i - 1].id) || !!this.record(CAMPAIGN.missions[i].id);
+    const m = CAMPAIGN.missions[i], prev = CAMPAIGN.missions.slice(0, i).filter(p => !p.tutorial).pop();
+    if (!prev || m.tutorial || /[?&]unlock\b/.test(location.search)) return true;
+    return !!this.record(prev.id) || !!this.record(m.id);
   },
   complete(id, time, difficulty) {
     const p = this.load();

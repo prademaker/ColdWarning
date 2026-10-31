@@ -19,7 +19,7 @@ const Main = {
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
       mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true,
-      seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null,
+      seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, hints: Main.hintsPref(),
     };
     this.buildMenu();
     document.getElementById('load-game').onclick = () => { Sfx.resume(); this.openSaves('load'); };
@@ -43,9 +43,14 @@ const Main = {
         speed: params.has('speed') ? +params.get('speed') : 1,
         superweapons: params.get('superweapons') !== '0',
         ultimates: params.get('ultimates') !== '0',
+        ceasefire: +params.get('ceasefire') || 0,
+        hints: params.has('hints') ? params.get('hints') !== '0' : this.settings.hints,
       }));
     }
   },
+
+  // hints stay on until the player turns them off on the menu
+  hintsPref() { try { return localStorage.getItem('cw2030.hints') !== '0'; } catch (e) { return true; } },
 
   buildMenu() {
     const s = this.settings;
@@ -94,6 +99,11 @@ const Main = {
     opts('mapsize', Object.entries(MAP_SIZES).map(([id, m]) => [id, m.label]), 'mapSize');
     opts('water', Object.entries(MAP_WATER).map(([id, m]) => [id, m.label]), 'water');
     opts('superweapons', [[true, 'On'], [false, 'Off']], 'superweapons');
+    opts('ceasefire', CEASEFIRE_OPTIONS, 'ceasefire');
+    opts('hints', [[true, 'On'], [false, 'Off']], 'hints');
+    document.getElementById('cease-box').hidden = s.mode !== 'skirmish';
+    document.getElementById('hints-box').hidden = camp;
+    try { localStorage.setItem('cw2030.hints', s.hints ? '1' : '0'); } catch (e) { /* not remembered */ }
     opts('ultimates', [[true, 'On'], [false, 'Off']], 'ultimates');
     document.getElementById('lineup-box').hidden = s.mode !== 'skirmish';
     document.getElementById('enemy-title').textContent = s.mode === 'defense' ? 'Attacker' : 'Opponent';
@@ -160,16 +170,19 @@ const Main = {
     const s = this.settings, list = CAMPAIGN.missions;
     if (!s.mission || !list.some((m, i) => m.id === s.mission && CampaignProgress.unlocked(i))) {
       // default to the first mission not yet won
-      const i = list.findIndex((m, k) => CampaignProgress.unlocked(k) && !CampaignProgress.record(m.id));
+      // (a veteran who has won a real mission isn't sent back to the tutorial)
+      const vet = list.some(m => !m.tutorial && CampaignProgress.record(m.id));
+      const i = list.findIndex((m, k) => CampaignProgress.unlocked(k) && !CampaignProgress.record(m.id) && !(vet && m.tutorial));
       s.mission = list[i >= 0 ? i : 0].id;
     }
     const box = document.getElementById('c-missions');
     box.innerHTML = '';
+    let n = 0;
     list.forEach((m, i) => {
-      const open = CampaignProgress.unlocked(i), rec = CampaignProgress.record(m.id);
+      const open = CampaignProgress.unlocked(i), rec = CampaignProgress.record(m.id), num = m.tutorial ? '★' : ++n;
       const b = document.createElement('button');
       b.className = 'cm' + (s.mission === m.id ? ' sel' : '') + (open ? '' : ' locked');
-      b.innerHTML = `<div class="cm-pic" style="background-image:url(assets/terrain/${THEATERS[m.theater].art}.webp)"><span>${i + 1}</span></div>
+      b.innerHTML = `<div class="cm-pic" style="background-image:url(assets/terrain/${THEATERS[m.theater].art}.webp)"><span>${num}</span></div>
         <div class="cm-text"><div class="cm-title">${m.title}</div><div class="cm-place">${m.place} · ${m.date}</div>
         <div class="cm-status">${rec ? '✓ Completed · ' + this.clock(rec.time) : open ? 'Ready' : '🔒 Win the previous mission'}</div></div>`;
       if (open) b.addEventListener('click', () => { s.mission = m.id; this.buildMenu(); });

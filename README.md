@@ -106,6 +106,11 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   starts shooting at it.
 - Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
+- New-player help: **Boot Camp**, a tutorial mission where Sergeant Reyes walks you from deploying the MCV to destroying an outpost
+  (always open, and it doesn't lock the real missions); a **Field guide** box in skirmish and defense that shows the next basic step
+  and drops one-off tips (low power, first attack, idle credits), switched on and off on the menu; a **Recruit** difficulty below Easy
+  (first attack wave no earlier than minute 10, slower AI, 50% longer gaps between defense waves); and a skirmish **Ceasefire** (5/10/15 minutes in which
+  the computer players don't scout, raid, attack or fire superweapons).
 - Campaign, *Operation Northwind*: five Allies vs Axis missions with briefings, radio chatter, objectives and a mission select screen
   (each mission unlocks when you win the one before; add `?unlock` to the URL to open them all, or `?mission=<id>` to jump straight in).
   The Allies take on General Volkov's revived Soviet Union:
@@ -152,6 +157,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/game.js` | Simulation: units, combat, harvesting, production, power, fog |
 | `js/ai.js` | Computer opponent |
 | `js/waves.js` | Defense mode waves |
+| `js/coach.js` | Field guide: step-by-step hints for new players in skirmish and defense |
 | `js/campaign.js` | Campaign missions (data plus a small script each) and the mission runtime: objectives, radio, markers, timers |
 | `js/art.js` | 3D prism models for units, structures and scenery; sprite caches; sidebar cameos |
 | `js/render.js` | Isometric draw loop: terrain chunks, depth-sorted sprites, effects, fog, overlays |
@@ -163,7 +169,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 
 `index.html?autoplay` runs an AI-vs-AI match, which is handy for testing balance
 (add `&faction=russia&enemy=eu&theater=arctic&seed=42` to pick the setup, `&lineup=2v2` or `ffa4` for more players,
-`&map=small|medium|large`, `&mode=defense`, `&difficulty=easy|normal|hard`).
+`&map=small|medium|large`, `&mode=defense`, `&difficulty=recruit|easy|normal|hard`, `&ceasefire=10`, `&hints=0`).
 
 ## Art
 

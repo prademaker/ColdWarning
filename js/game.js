@@ -448,6 +448,8 @@ class Game {
       md && md.waves ? new WaveDirector(this.teams[md.waves.team], opts.difficulty, md.waves) : null;
     this.mission = md ? new Mission(md, opts) : null;
     if (this.mission) this.mission.setup();
+    // the field guide walks a new player through the basics (skirmish and defense, not missions)
+    this.coach = !md && !opts.autoplay && opts.hints !== false ? new Coach() : null;
     this.updateFog();
   }
 
@@ -1308,6 +1310,14 @@ class Game {
     for (const id in this.ai) this.ai[id].update(dt);
     if (this.waves) this.waves.update(dt);
     if (this.mission) this.mission.update(dt);
+    if (this.coach) this.coach.update(dt);
+    const cease = this.mode === 'skirmish' ? (this.opts.ceasefire || 0) * 60 : 0;
+    if (cease) {
+      const crossed = s => this.time >= s && this.time - dt < s;
+      if (crossed(1)) this.eva(`Ceasefire: no attacks for ${this.opts.ceasefire} minutes`, this.player);
+      if (crossed(cease - 60)) this.eva('Ceasefire ends in one minute', this.player);
+      if (crossed(cease)) this.eva('Ceasefire over', this.player);
+    }
     this.updateCharges(dt);
     this.updateMines(dt);
     this.auraT = (this.auraT || 0) - dt;

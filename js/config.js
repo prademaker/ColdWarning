@@ -740,12 +740,17 @@ function queueTypeOf(key) {
 
 // AI tactics per difficulty: counter = adapt unit mix to what scouts have seen,
 // raid = harvester raiding party size, engineers = how many ride along with attack waves,
-// retreat = pull a wave back once it drops below this share of its starting strength.
+// retreat = pull a wave back once it drops below this share of its starting strength,
+// calm = stretch the time before and between defense-mode and mission waves.
 const DIFFICULTY = {
+  recruit: { label: 'Recruit', build: 0.55, income: 0.6, firstAttack: 600, waveBase: 4, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0, calm: 1.5 },
   easy:   { label: 'Easy',   build: 0.7, income: 0.8, firstAttack: 420, waveBase: 5, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0 },
   normal: { label: 'Normal', build: 1.0, income: 1.0, firstAttack: 300, waveBase: 7, waveGrow: 2, counter: true, raid: 3, engineers: 1, retreat: 0.35 },
   hard:   { label: 'Brutal', build: 1.35, income: 1.35, firstAttack: 200, waveBase: 9, waveGrow: 3, counter: true, raid: 4, engineers: 2, retreat: 0.4 },
 };
+
+// Skirmish ceasefire: minutes before the computer players may attack anyone.
+const CEASEFIRE_OPTIONS = [[0, 'Off'], [5, '5 min'], [10, '10 min'], [15, '15 min']];
 
 const START_CREDITS = 10000;
 const BUILD_RADIUS = 5; // tiles from an existing structure

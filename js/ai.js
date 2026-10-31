@@ -55,6 +55,9 @@ class AI {
     this.nextFleet = 0;
   }
 
+  // a skirmish ceasefire: nobody is attacked until it runs out
+  ceasefire() { return G.mode === 'skirmish' && G.time < (G.opts.ceasefire || 0) * 60; }
+
   myUnits() { return G.entities.filter(e => e.kind === 'unit' && e.team === this.team.id && !e.dead); }
   myBuildings() { return G.entities.filter(e => e.kind === 'building' && e.team === this.team.id && !e.dead); }
   unit(id) { const u = G.byId.get(id); return u && !u.dead && u.team === this.team.id ? u : null; }
@@ -142,7 +145,7 @@ class AI {
     this.manageArmy(units);
 
     for (const b of blds) if (b.hp < b.maxHp * 0.6 && t.credits > 400) b.repairing = true;
-    if (t.superReady) this.useSuper();
+    if (t.superReady && !this.ceasefire()) this.useSuper();
   }
 
   // ---------- intel ----------
@@ -551,10 +554,11 @@ class AI {
     for (const u of support) if (!u.order && Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, false, true);
     this.mendBridges(support.filter(u => u.def.engineer));
     this.manageMines(home.filter(u => u.def.mines));
-    this.manageBombers(home.filter(u => u.def.prefer === 'structures'));
+    const peace = this.ceasefire();
+    if (!peace) this.manageBombers(home.filter(u => u.def.prefer === 'structures'));
 
-    this.manageScout(fighters);
-    this.manageRaid(fighters);
+    // (a scout would start a fight, so it waits for the ceasefire to end too)
+    if (!peace) { this.manageScout(fighters); this.manageRaid(fighters); }
     this.manageGarrisons(fighters);
 
     const waveSize = Math.min(24, this.d.waveBase + this.waves * this.d.waveGrow);
@@ -562,7 +566,7 @@ class AI {
       !(u.order && u.order.type === 'garrison'));
     // hold the army at home while enemies are known to be near the base
     // (a garrisoned building nearby doesn't count: it isn't going anywhere)
-    if (G.time >= this.nextAttack && pool.length >= waveSize && this.threatNear(hx, hy, 22, true) < 1500) {
+    if (!peace && G.time >= this.nextAttack && pool.length >= waveSize && this.threatNear(hx, hy, 22, true) < 1500) {
       if (this.wave && this.wave.state !== 'retreat') this.reinforce(pool);
       else if (!this.wave) {
         // only attack with the odds in our favour, unless the army is as big as it gets
@@ -574,7 +578,7 @@ class AI {
       }
     }
     if (this.wave) this.manageWave();
-    if (this.sea) this.manageFleet(units.filter(u => u.def.naval && u.def.weapon));
+    if (this.sea && !peace) this.manageFleet(units.filter(u => u.def.naval && u.def.weapon));
   }
 
   launch(foe, fighters, engineers) {
