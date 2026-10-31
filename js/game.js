@@ -1042,7 +1042,11 @@ class Game {
           // a ship goes down: the burning hull settles into a ring of foam
           this.effects.push({ type: 'sinking', key: e.key, team: e.team, x: e.x, y: e.y, facing: e.facing, t: 0, life: 2.4 });
           this.effects.push({ type: 'splash', x: e.x, y: e.y, t: 0, life: 1.6, size: e.def.radius * 2 });
-        } else this.decal(e.x, e.y, e.def.radius * 1.6);
+        } else {
+          this.decal(e.x, e.y, e.def.radius * 1.6);
+          // the burnt-out hull stays on the field for a while (cosmetic only)
+          this.effects.push({ type: 'wreck', key: e.key, team: e.team, x: e.x, y: e.y, facing: e.facing, twist: (Math.random() - 0.5) * 1.2, t: 0, life: 16 });
+        }
       }
       if (e.team === this.player) this.eva('Unit lost', e.team);
       if (e.def.mcv || e.def.harvester) t.recount();
@@ -1064,6 +1068,18 @@ class Game {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = (0.4 + Math.random()) * size * 1.6;
       this.effects.push({ type: 'debris', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, z, vz: 40 + Math.random() * 80, t: -delay, life: 0.9 });
+    }
+    // cosmetic: a dust ring on the ground, hot embers, and smoke that lingers after the fireball
+    if (big && size >= 20 && z < 4) this.effects.push({ type: 'shock', x, y, z: 0, size, t: -delay, life: 0.45 + size / 200 });
+    const embers = big ? 6 + Math.min(10, size / 6 | 0) : 2;
+    for (let i = 0; i < embers; i++) {
+      const a = Math.random() * Math.PI * 2, s = (0.3 + Math.random()) * (40 + size * 1.5);
+      this.effects.push({ type: 'ember', x, y, z: z + 4, vx: Math.cos(a) * s, vy: Math.sin(a) * s, vz: 60 + Math.random() * 120, t: -delay, life: 0.5 + Math.random() * 0.5 });
+    }
+    if (big) {
+      for (let i = 0, n = 3 + Math.min(6, size / 12 | 0); i < n; i++) {
+        this.effects.push({ type: 'smoke', dark: i % 2 === 0, x: x + (Math.random() - 0.5) * size * 0.6, y: y + (Math.random() - 0.5) * size * 0.6, z: z + size * 0.3, t: -delay - 0.25 - Math.random() * 0.3, life: 2 + size / 40, size: 3 + size * 0.12 });
+      }
     }
     if (delay === 0) this.sound(big ? 'boom' : 'pop', x, y);
     if (big && size > 60) this.shake = Math.min(12, this.shake + size / 25);
@@ -2075,7 +2091,7 @@ class Game {
       case 'tracer': {
         const jx = (Math.random() - 0.5) * 8, jy = (Math.random() - 0.5) * 8;
         this.effects.push({ type: 'tracer', x: sx, y: sy, z: sz, x2: tx + jx, y2: ty + jy, z2: tz, t: 0, life: 0.08, hot });
-        this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.06, size: 5 });
+        this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, a: ang, t: 0, life: 0.06, size: 5 });
         this.damage(t, dmg, w.warhead, by);
         if (vis) this.sound(w.warhead === 'flak' ? 'flak' : 'gun', sx, sy);
         break;
@@ -2165,7 +2181,8 @@ class Game {
           p.dur = 0.7; p.target = null; p.tz = 0; p.drop = true;
         }
         this.projectiles.push(p);
-        this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, t: 0, life: 0.08, size: w.proj === 'shell' ? 9 : 6 });
+        this.effects.push({ type: 'flash', x: sx, y: sy, z: sz, a: ang, t: 0, life: w.proj === 'shell' ? 0.1 : 0.08, size: w.proj === 'shell' ? 9 : 6 });
+        if (w.proj === 'shell') this.effects.push({ type: 'smoke', x: sx + Math.cos(ang) * 4, y: sy + Math.sin(ang) * 4, z: sz, t: 0, life: 0.9, size: 2.5 });
         if (vis) this.sound(w.proj === 'shell' ? 'cannon' : 'rocket', sx, sy);
         break;
       }
@@ -2489,7 +2506,11 @@ class Game {
         f.x += f.vx * dt; f.y += f.vy * dt; f.vz -= 250 * dt; f.z = Math.max(0, (f.z || 0) + f.vz * dt);
         f.vx *= 0.96; f.vy *= 0.96;
       }
-      if (f.type === 'smoke') f.z = (f.z || 0) + 14 * dt;
+      if (f.type === 'smoke' && f.t > 0) { f.z = (f.z || 0) + 14 * dt; f.x += WIND.x * dt; f.y += WIND.y * dt; }
+      if (f.type === 'ember' && f.t > 0) {
+        f.x += f.vx * dt; f.y += f.vy * dt; f.vz -= 220 * dt; f.z = (f.z || 0) + f.vz * dt;
+        if (f.z < 0) { f.z = 0; f.vz *= -0.3; f.vx *= 0.5; f.vy *= 0.5; }
+      }
       if (f.type === 'falling') f.alt = Math.max(0, f.alt - 60 * dt);
     }
     this.effects = this.effects.filter(f => f.t < f.life);
