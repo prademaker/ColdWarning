@@ -153,7 +153,7 @@ const UNITS = {
   hacker: {
     name: 'Cyber Warfare Unit', cat: 'infantry', armor: 'infantry', from: 'barracks', req: ['barracks', 'radar'], nation: 'china',
     cost: 900, time: 9, hp: 140, speed: 1.3, sight: 8, radius: 5, key: 'T',
-    weapon: { warhead: 'hack', damage: 0, range: 7, cooldown: 2, proj: 'hack', only: ['vehicle'], ground: true, air: false },
+    weapon: { warhead: 'hack', damage: 0, range: 5, cooldown: 2, proj: 'hack', only: ['vehicle'], ground: true, air: false },
     desc: 'China only. Hacks into enemy vehicles: a few seconds of uplink and the vehicle joins your side.',
   },
   // Campaign hero: never on a build list, she arrives with the mission. Enemies can't pick her out

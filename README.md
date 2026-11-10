@@ -19,7 +19,7 @@ Every country adds a unit with a special ability (â—†) and an edge structure (â–
 | United Kingdom | Allies | Infantry +25% armor | SAS Operative: hidden until it fires, C4 on structures | GCHQ Listening Post: shows every enemy unit on the map | Railgun Tank / Orbital Lance |
 | Japan | Allies | Vehicles +15% armor | Raijin EMP Walker: EMP bolts shut down vehicles, helicopters and defenses | Robotics Plant: vehicles and aircraft build 50% faster | Railgun Tank / Orbital Lance |
 | Russia | Axis | Armor +15% firepower | Iskander-M: missile strikes from 16 tiles | Krasukha EW Station: enemies nearby move and fire 35% slower | Titan Tank / Hypersonic Silo |
-| China | Axis | Structures build 25% faster | Cyber Warfare Unit: hacks enemy vehicles over to your side | Support Hub: heals nearby units | Railgun Tank / Orbital Lance |
+| China | Axis | Structures build 25% faster | Cyber Warfare Unit: hacks enemy vehicles over to your side (short range, one uplink pulse a second per target) | Support Hub: heals nearby units | Railgun Tank / Orbital Lance |
 | Soviet Union | Axis | Infantry 25% cheaper | Kirov Airship: armored flying bomber | Propaganda Tower: nearby friendly units fire 30% faster | Titan Tank / Hypersonic Silo |
 | North Korea | Axis | Defenses 25% cheaper | Demolition Truck: drives in and detonates, also blows up when destroyed | Koksan Gun Emplacement: 15-tile artillery, needs no power | Titan Tank / Hypersonic Silo |
 

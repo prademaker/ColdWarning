@@ -2260,7 +2260,9 @@ class Game {
   // bigger machines take more pulses, and progress fades if the uplink breaks off.
   hack(t, s) {
     if (t.kind !== 'unit' || t.dead || t.def.hero || t.def.ultimate || !this.hostile(t.team, s.team)) return;
-    if (t.hackTeam !== s.team || this.time - (t.hackT || -99) > 6) { t.hackTeam = s.team; t.hackP = 0; }
+    if (t.hackTeam !== s.team || this.time - (t.hackT || -99) > 6) { t.hackTeam = s.team; t.hackP = 0; t.hackT = -99; }
+    // one uplink pulse a second at most: a crowd of hackers doesn't steal a tank in an instant
+    if (this.time - t.hackT < 1) return;
     t.hackP++; t.hackT = this.time;
     if (t.hackP < hackPulses(t)) return;
     this.convert(t, s.team);
