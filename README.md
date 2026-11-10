@@ -1,5 +1,10 @@
 # Cold War 2: 2030
 
+**▶ Play it now: <https://prademaker.github.io/ColdWarning/>** (free, runs in the browser on PC, tablet or phone, nothing to install)
+
+New players can press **Play now** on the first screen for a gentle 1 vs 1 with on-screen tips, or try the **Boot Camp**
+tutorial. **Invite a friend** on that screen shares the link or shows a QR code to scan.
+
 *Same rivals. New world.* A base-building real-time strategy game in the spirit of *Command & Conquer: Red Alert 2*, set in the year 2030.
 
 Two factions, the Allies and the Axis, fight over rare-earth ore fields with four countries each. Each faction
