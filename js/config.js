@@ -225,8 +225,8 @@ const UNITS = {
   railtank: {
     name: 'Railgun Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], pkg: 'tech',
     cost: 1500, time: 14, hp: 600, speed: 2.0, sight: 8, radius: 12, turn: 4, key: 'R',
-    weapon: { warhead: 'rail', damage: 160, range: 7, cooldown: 2.6, proj: 'rail', pierce: true, ground: true, air: false },
-    desc: 'Electromagnetic railgun that pierces through every target in a line.',
+    weapon: { warhead: 'rail', damage: 145, range: 7, cooldown: 2.6, proj: 'rail', pierce: true, pierceFall: 0.6, ground: true, air: false },
+    desc: 'Electromagnetic railgun that pierces through every target in a line, losing punch with each one.',
   },
   titan: {
     name: 'Titan Tank', cat: 'vehicle', armor: 'heavy', from: 'factory', req: ['factory', 'tech'], pkg: 'heavy',
@@ -742,15 +742,25 @@ function queueTypeOf(key) {
 // raid = harvester raiding party size, engineers = how many ride along with attack waves,
 // retreat = pull a wave back once it drops below this share of its starting strength,
 // calm = stretch the time before and between defense-mode and mission waves.
+// superAt: seconds into a match before the computer builds its superweapon
 const DIFFICULTY = {
-  recruit: { label: 'Recruit', build: 0.55, income: 0.6, firstAttack: 600, waveBase: 4, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0, calm: 1.5 },
-  easy:   { label: 'Easy',   build: 0.7, income: 0.8, firstAttack: 420, waveBase: 5, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0 },
-  normal: { label: 'Normal', build: 1.0, income: 1.0, firstAttack: 300, waveBase: 7, waveGrow: 2, counter: true, raid: 3, engineers: 1, retreat: 0.35 },
-  hard:   { label: 'Brutal', build: 1.35, income: 1.35, firstAttack: 200, waveBase: 9, waveGrow: 3, counter: true, raid: 4, engineers: 2, retreat: 0.4 },
+  recruit: { label: 'Recruit', build: 0.55, income: 0.6, firstAttack: 600, waveBase: 4, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0, calm: 1.5, superAt: 1200 },
+  easy:   { label: 'Easy',   build: 0.7, income: 0.8, firstAttack: 420, waveBase: 5, waveGrow: 1, counter: false, raid: 0, engineers: 0, retreat: 0, superAt: 900 },
+  normal: { label: 'Normal', build: 1.0, income: 1.0, firstAttack: 300, waveBase: 7, waveGrow: 2, counter: true, raid: 3, engineers: 1, retreat: 0.35, superAt: 600 },
+  hard:   { label: 'Brutal', build: 1.35, income: 1.35, firstAttack: 200, waveBase: 9, waveGrow: 3, counter: true, raid: 4, engineers: 2, retreat: 0.4, superAt: 480 },
 };
 
 // Skirmish ceasefire: minutes before the computer players may attack anyone.
 const CEASEFIRE_OPTIONS = [[0, 'Off'], [5, '5 min'], [10, '10 min'], [15, '15 min']];
+
+// Skirmish stalemate breaker. Once a match has gone `after` seconds and nobody has lost a
+// structure to an enemy for `quiet` seconds, high command orders an all-out offensive: every
+// base shows on everyone's map and the computer players attack with everything they have.
+// A grinding match gets the same order at `late` seconds even if structures keep falling.
+// With a time limit set, an armistice ends the match at the limit (warned `warn` seconds ahead,
+// which also starts the offensive): the side holding the most (structures plus army) wins.
+const STALEMATE = { after: 20 * 60, quiet: 6 * 60, late: 40 * 60, warn: 5 * 60 };
+const TIME_LIMIT_OPTIONS = [[0, 'Off'], [45, '45 min'], [60, '60 min'], [90, '90 min']];
 
 const START_CREDITS = 10000;
 const BUILD_RADIUS = 5; // tiles from an existing structure

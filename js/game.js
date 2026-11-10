@@ -1012,7 +1012,7 @@ class Game {
     const t = this.teamOf(e.team), civ = e.def.cat === 'civilian';
     if (attacker && this.hostile(attacker.team, e.team) && !civ) {
       const at = this.teams[attacker.team];
-      if (e.kind === 'building') at.stats.structuresKilled++; else at.stats.kills++;
+      if (e.kind === 'building') { at.stats.structuresKilled++; if (!e.def.wall) this.lastRaze = this.time; } else at.stats.kills++;
       if (attacker.kind === 'unit' && !attacker.dead) {
         attacker.kills++;
         const r = attacker.kills >= RANK_KILLS[1] ? 2 : attacker.kills >= RANK_KILLS[0] ? 1 : 0;
@@ -1377,7 +1377,8 @@ class Game {
   checkVictory() {
     for (const t of this.teams) {
       if (t.defeated || t.waves || t.noBase) continue;
-      const alive = this.entities.some(e => e.team === t.id && !e.dead && (e.kind === 'building' ? e.def.cat !== 'civilian' : e.def.mcv));
+      // walls don't count: nobody should have to hunt down one stray slab of concrete to win
+      const alive = this.entities.some(e => e.team === t.id && !e.dead && (e.kind === 'building' ? e.def.cat !== 'civilian' && !e.def.wall : e.def.mcv));
       if (!alive) {
         t.defeated = true;
         this.mines = this.mines.filter(m => m.team !== t.id);
@@ -1389,12 +1390,61 @@ class Game {
         }
       }
     }
+    this.checkStalemate();
+    if (this.over) { this.eva(this.over.win ? 'Mission accomplished' : 'Mission failed', this.player); return; }
     const p = this.playerTeam;
     if (this.mission) this.mission.check();
     else if (p.defeated) this.over = { win: false, time: this.time };
     else if (this.waves) { if (this.waves.won) this.over = { win: true, time: this.time }; }
     else if (this.teams.every(t => !this.hostile(t.id, this.player) || t.defeated)) this.over = { win: true, time: this.time };
     if (this.over) this.eva(this.over.win ? 'Mission accomplished' : 'Mission failed', this.player);
+  }
+
+  // ---------- stalemate breaker (skirmish) ----------
+  // seconds of play the match is limited to (0: no limit)
+  get timeLimit() { return this.mode === 'skirmish' ? (this.opts.limit || 0) * 60 : 0; }
+
+  checkStalemate() {
+    if (this.mode !== 'skirmish' || this.over) return;
+    const cease = (this.opts.ceasefire || 0) * 60;
+    const quiet = this.time - Math.max(this.lastRaze || 0, cease);
+    const limit = this.timeLimit;
+    if (!this.offensive && this.time >= cease + STALEMATE.after && (quiet >= STALEMATE.quiet || this.time >= cease + STALEMATE.late)) this.startOffensive();
+    if (!limit) return;
+    if (this.time >= limit - STALEMATE.warn && !this.limitWarned) {
+      this.limitWarned = true;
+      this.eva('Armistice in five minutes. Hold all the ground you can', this.player);
+      if (!this.offensive) this.startOffensive();
+    }
+    if (this.time >= limit) this.armistice();
+  }
+
+  // every base shows on everyone's map and the computer players go all in (see AI.manageArmy)
+  startOffensive() {
+    this.offensive = this.time;
+    this.fogDirty = true;
+    this.eva('Stalemate: all-out offensive ordered. Enemy bases revealed', this.player);
+  }
+
+  // what a team holds: its standing structures and its army, by what they cost
+  holdings(id) {
+    let v = 0;
+    for (const e of this.entities) {
+      if (e.dead || e.team !== id) continue;
+      if (e.kind === 'building') { if (e.def.cat !== 'civilian' && !e.def.wall) v += (e.def.cost || 0) * e.hp / e.maxHp; }
+      else if (!e.def.harvester) v += e.def.cost || 0;
+    }
+    return Math.round(v);
+  }
+
+  // the time limit is up: the alliance holding the most wins on points
+  armistice() {
+    const score = {};
+    for (const t of this.teams) if (!t.defeated) score[t.ally] = (score[t.ally] || 0) + this.holdings(t.id);
+    const mine = this.playerTeam.ally;
+    const best = Math.max(...Object.values(score));
+    const win = !this.playerTeam.defeated && score[mine] === best;
+    this.over = { win, time: this.time, armistice: score };
   }
 
   // ---------- fog of war ----------
@@ -1416,6 +1466,11 @@ class Game {
       }
     }
     if (this.reveals(pid)) for (const e of this.entities) if (e.kind === 'unit' && this.hostile(e.team, pid) && !e.dead) vis[e.ty * N + e.tx] = 1;
+    // stalemate offensive: every enemy structure shows (and stays marked) on the map
+    if (this.offensive) for (const e of this.entities) {
+      if (e.kind !== 'building' || e.dead || !this.hostile(e.team, pid)) continue;
+      for (let y = e.ty; y < e.ty + e.h; y++) for (let x = e.tx; x < e.tx + e.w; x++) { vis[y * N + x] = 1; exp[y * N + x] = 1; }
+    }
     for (const e of this.entities) if (e.kind === 'building' && !this.allied(e.team, pid) && this.isVisibleBld(e)) e.seen = true;
     this.fogVersion = (this.fogVersion || 0) + 1;
   }
@@ -2137,14 +2192,18 @@ class Game {
         const ex = sx + Math.cos(a) * L, ey = sy + Math.sin(a) * L;
         this.effects.push({ type: 'rail', x: sx, y: sy, z: sz, x2: w.pierce ? ex : tx, y2: w.pierce ? ey : ty, z2: tz, t: 0, life: 0.45 });
         if (w.pierce) {
-          const hit = this.unitsNear((sx + ex) / 2, (sy + ey) / 2, L / 2 + 20);
+          const hit = this.unitsNear((sx + ex) / 2, (sy + ey) / 2, L / 2 + 20), line = [];
           for (const o of hit) {
             if (!this.hostile(o.team, s.team) || o.air) continue;
             const px = o.x - sx, py = o.y - sy;
             const along = px * Math.cos(a) + py * Math.sin(a);
             const perp = Math.abs(-px * Math.sin(a) + py * Math.cos(a));
-            if (along > 0 && along < L && perp < o.def.radius + 6) this.damage(o, dmg, w.warhead, by);
+            if (along > 0 && along < L && perp < o.def.radius + 6) line.push([along, o]);
           }
+          // the slug loses punch with every hull it goes through (pierceFall: share kept per hit)
+          line.sort((p, q) => p[0] - q[0]);
+          let d = dmg;
+          for (const [, o] of line) { this.damage(o, d, w.warhead, by); d *= w.pierceFall || 1; }
           if (t.kind === 'building') this.damage(t, dmg, w.warhead, by);
         } else this.damage(t, dmg, w.warhead, by);
         this.effects.push({ type: 'flash', x: tx, y: ty, z: tz, t: 0, life: 0.15, size: 10, color: '#8ff' });

@@ -98,6 +98,7 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
   color: var(--text); padding: 4px 6px 4px 12px; font-family: var(--head); letter-spacing: 1px; font-size: 14px; border-radius: 2px; }
 #wave-info button { background: var(--panel2); border: 1px solid var(--edge2); color: var(--text); font-family: var(--head); letter-spacing: 1px; font-size: 12px; padding: 3px 9px; border-radius: 2px; cursor: pointer; }
 #wave-info button:hover { border-color: #ffe08a; color: #ffe08a; }
+#wave-info.urgent { border-color: #f55; color: #ffb0a8; }
 #sidebar { --team: var(--blue); position: absolute; right: 0; top: 0; bottom: 0; width: var(--sb-w); display: flex; flex-direction: column; padding: 8px; gap: 6px; overflow: hidden;
   background: linear-gradient(180deg, #0c1a2c, #070f1a); border-left: 2px solid color-mix(in srgb, var(--team) 70%, #000); box-shadow: -6px 0 18px rgba(0,0,0,.5); }
 #sb-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 2px 6px;

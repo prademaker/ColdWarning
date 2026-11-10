@@ -924,7 +924,18 @@ const UI = {
     } else ebox.hidden = true;
     // defense mode wave counter
     const wbox = document.getElementById('wave-info'), W = G.waves;
-    wbox.hidden = !W;
+    // skirmish: the stalemate offensive and the armistice clock share the wave box
+    const limit = G.timeLimit, clockOn = !W && (G.offensive || (limit && G.time >= limit - STALEMATE.warn));
+    wbox.hidden = !W && !clockOn;
+    wbox.style.top = !W && !ebox.hidden ? '52px' : '';
+    if (clockOn) {
+      const left = limit ? Math.max(0, limit - G.time) : 0;
+      const txt = limit && left <= STALEMATE.warn ? `Armistice in ${Main.clock(left)}` : limit ? `All-out offensive · armistice in ${Main.clock(left)}` : 'All-out offensive';
+      const el = document.getElementById('wave-text');
+      if (el.textContent !== txt) el.textContent = txt;
+      document.getElementById('wave-call').hidden = true;
+      wbox.classList.toggle('urgent', !!limit && left <= STALEMATE.warn);
+    }
     if (W) {
       const left = W.countdown;
       const txt = left === null ? `Final wave · ${W.units().length} attackers left` :
