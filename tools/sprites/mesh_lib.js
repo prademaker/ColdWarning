@@ -35,6 +35,25 @@ const MAT = {
   jet: { c: [150, 156, 162] }, jetDark: { c: [108, 114, 120] }, jetBlue: { c: [118, 140, 162] }, orange: { c: [214, 112, 44] }, flame: { c: [255, 170, 70], glow: 1 },
 };
 
+// Surface finish per material: rough (0 polished .. 1 matte), metal (0..1) and wear (how much
+// weathering, dust and grime the renderer adds; 1 = normal). Unlisted materials get matte paint.
+const FINISH = {
+  painted: { rough: 0.62, metal: 0.08, wear: 1 },
+  metal: { rough: 0.42, metal: 0.55, wear: 0.8 },
+  rubber: { rough: 0.95, metal: 0, wear: 1.3 },
+  glass: { rough: 0.08, metal: 0.2, wear: 0.15 },
+  stone: { rough: 0.92, metal: 0, wear: 1.25 },
+  cloth: { rough: 0.98, metal: 0, wear: 0.9 },
+};
+const FINISH_OF = {
+  steel: 'metal', steelDark: 'metal', gun: 'metal', gunDark: 'metal', hub: 'metal', metal: 'metal', metalLight: 'metal', copper: 'metal', jet: 'painted',
+  track: 'rubber', rubber: 'rubber', grille: 'rubber', asphalt: 'stone',
+  glass: 'glass', glassLight: 'glass',
+  concrete: 'stone', concreteDark: 'stone', concreteLight: 'stone', brick: 'stone', sand: 'stone', ore: 'stone', oreDark: 'stone', roof: 'stone', roofDark: 'stone', warm: 'stone', warmDark: 'stone',
+  canvas: 'cloth', olive: 'cloth', skin: 'cloth', wood: 'cloth',
+};
+for (const [k, v] of Object.entries(MAT)) if (!v.glow) Object.assign(v, FINISH[FINISH_OF[k] || 'painted'], v);
+
 const OUT = path.join(__dirname, '..', '..', 'assets', 'models');
 
 // Model builder. Every primitive takes a material name and optional rotation r = [roll, pitch, yaw]

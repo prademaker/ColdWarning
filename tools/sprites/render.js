@@ -177,6 +177,8 @@ function serve(modelDir) {
   return new Promise(r => server.listen(0, '127.0.0.1', () => r(server)));
 }
 
+// DUMP_MODELS=<file> writes the key -> model config table and exits (for one-off test renders)
+if (process.env.DUMP_MODELS) { fs.writeFileSync(process.env.DUMP_MODELS, JSON.stringify(MODELS)); process.exit(0); }
 (async () => {
   const modelDir = path.resolve(process.argv[2] || '');
   if (!process.argv[2] || !fs.existsSync(modelDir)) { console.error('usage: node render.js <folder with .glb files>'); process.exit(1); }
