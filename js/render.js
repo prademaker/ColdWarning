@@ -300,8 +300,9 @@ const Render = {
       ctx.drawImage(s.c, src[0], src[1] + cut * r, src[2], src[3] - cut * r, sx - s.ox, sy - s.oy + cut, s.w, s.h - cut);
       return;
     }
-    Art.blit(ctx, s, sx, sy);
-    if (BLD_TURRETS[b.key]) Art.blit(ctx, buildingTurretSprite(b, team), sx, sy);
+    const body = () => { Art.blit(ctx, s, sx, sy); if (BLD_TURRETS[b.key]) Art.blit(ctx, buildingTurretSprite(b, team), sx, sy); };
+    body();
+    Combat.overlay(ctx, b, body);
     const live = (factionSprite('b_' + b.key, team) !== 'b_' + b.key && BLD_LIVE_AX[b.key]) || BLD_LIVE[b.key];
     if (live) live(ctx, (lx, ly, lz) => this.P(b.tx * TILE + lx, b.ty * TILE + ly, lz), b, team, t, team.lowPower);
     if (b.garrison && b.garrison.length) this.drawGarrison(ctx, b, team);
@@ -361,7 +362,11 @@ const Render = {
       ctx.restore();
       const roll = Math.sin(u.anim * 1.6 + u.id) * 0.8;
       if (under) ctx.globalAlpha = 0.42;
+      const rec = u.recoil;
       drawUnitArt(ctx, u, team, sx, sy + roll + (under ? 3 : 0));
+      const rec2 = u.recoil;
+      if (!under) Combat.overlay(ctx, u, () => { u.recoil = rec; drawUnitArt(ctx, u, team, sx, sy + roll); });
+      u.recoil = rec2;
       ctx.globalAlpha = 1;
       this.drawStatus(ctx, u, sx, sy);
       if (u.def.ultimate) ultMark(ctx, sx, sy - ULT_BADGE[u.key], u.def.tier);
@@ -379,7 +384,12 @@ const Render = {
     const bob = u.air && !u.def.jet ? Math.sin(u.anim * 3) * 2 : 0;
     const hidden = u.def.stealth && G.stealthRange(u) < 1e9;
     if (hidden) ctx.globalAlpha = 0.55;
+    const rec = u.recoil;
     drawUnitArt(ctx, u, team, sx, sy - bob);
+    // hit flash and battle wear (drawn again over itself; the recoil only winds down once)
+    const rec2 = u.recoil;
+    Combat.overlay(ctx, u, () => { u.recoil = rec; drawUnitArt(ctx, u, team, sx, sy - bob); });
+    u.recoil = rec2;
     ctx.globalAlpha = 1;
     if (bags) this.drawSandbags(ctx, u, bags, true);
     this.drawStatus(ctx, u, sx, sy - bob);
@@ -733,7 +743,7 @@ const Render = {
     const sel = new Set(ui.selection), groups = ui.groupOf();
     const ents = list.filter(it => it.e).map(it => it.e).concat(air);
     for (const e of ents) {
-      const isSel = sel.has(e), hover = ui.hover === e, recent = e.hitT && G.time - e.hitT < 2.5;
+      const isSel = sel.has(e), hover = ui.hover === e, recent = Combat.engaged(e);
       if (e.kind === 'building' && isSel) this.drawBuildingSelection(ctx, e);
       if (e.kind === 'unit' && e.air && isSel) {
         const [x, y] = this.P(e.x, e.y, e.alt + 6);
@@ -751,6 +761,7 @@ const Render = {
         ctx.fillStyle = '#ffd27a'; ctx.fillText(mk.label, x, y);
       }
     }
+    Combat.drawOverlay(ctx, this);
     if (ui.drag) {
       const d = ui.drag;
       ctx.strokeStyle = 'rgba(140,255,140,0.9)'; ctx.lineWidth = 1;
@@ -782,10 +793,7 @@ const Render = {
       const [sx, sy] = this.P(e.x, e.y, (e.alt || 0) + (e.def.cat === 'infantry' ? 20 : 26));
       w = Math.max(18, e.def.radius * 2.4); x = sx - w / 2; y = sy;
     }
-    const f = Math.max(0, e.hp / e.maxHp);
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - 1, y - 1, w + 2, 5);
-    ctx.fillStyle = f > 0.6 ? '#3f3' : f > 0.3 ? '#fd3' : '#f33';
-    ctx.fillRect(x, y, w * f, 3);
+    Combat.drawBar(ctx, e, x, y, w);
     if (e.kind === 'unit' && e.def.harvester && e.team === G.player) {
       ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(x - 1, y + 4, w + 2, 4);
       ctx.fillStyle = '#e6b23a'; ctx.fillRect(x, y + 5, w * e.cargo / e.def.capacity, 2);
