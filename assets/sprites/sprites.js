@@ -308,7 +308,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_power": {
     "cell": 152,
@@ -321,7 +322,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_refinery": {
     "cell": 216,
@@ -334,7 +336,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_barracks": {
     "cell": 152,
@@ -347,7 +350,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_factory": {
     "cell": 216,
@@ -360,7 +364,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_radar": {
     "cell": 152,
@@ -373,7 +378,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_airfield": {
     "cell": 184,
@@ -386,7 +392,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_tech": {
     "cell": 152,
@@ -399,7 +406,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_super_lance": {
     "cell": 216,
@@ -412,7 +420,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_super_silo": {
     "cell": 216,
@@ -425,7 +434,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_super_silo_open": {
     "cell": 216,
@@ -438,7 +448,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_turret": {
     "cell": 88,
@@ -451,7 +462,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_railturret": {
     "cell": 88,
@@ -464,7 +476,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_sam": {
     "cell": 88,
@@ -477,7 +490,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_turret_gun": {
     "cell": 64,
@@ -678,7 +692,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_laser": {
     "cell": 88,
@@ -691,7 +706,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_laser_gun": {
     "cell": 72,
@@ -877,7 +893,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_koksan": {
     "cell": 152,
@@ -890,7 +907,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_gchq": {
     "cell": 152,
@@ -903,7 +921,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_robotics": {
     "cell": 152,
@@ -916,7 +935,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_krasukha": {
     "cell": 152,
@@ -929,7 +949,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_propaganda": {
     "cell": 88,
@@ -942,7 +963,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_thaad_gun": {
     "cell": 80,
@@ -1095,7 +1117,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "recovery_vox": {
     "cell": 72,
@@ -1203,7 +1226,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_mortar": {
     "cell": 88,
@@ -1216,7 +1240,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_missilenest": {
     "cell": 88,
@@ -1229,7 +1254,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_flametower": {
     "cell": 88,
@@ -1242,7 +1268,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_sensor": {
     "cell": 88,
@@ -1255,7 +1282,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_drill": {
     "cell": 152,
@@ -1268,7 +1296,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_mortar_gun": {
     "cell": 64,
@@ -1838,7 +1867,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_refinery_up": {
     "cell": 216,
@@ -1851,7 +1881,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_barracks_up": {
     "cell": 152,
@@ -1864,7 +1895,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_factory_up": {
     "cell": 216,
@@ -1877,7 +1909,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_airfield_up": {
     "cell": 184,
@@ -1890,7 +1923,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_shipyard_up": {
     "cell": 216,
@@ -1903,7 +1937,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_drill_up": {
     "cell": 152,
@@ -1916,7 +1951,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_turret_up": {
     "cell": 88,
@@ -1929,7 +1965,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_turret_up_gun": {
     "cell": 64,
@@ -1955,7 +1992,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_railturret_up_gun": {
     "cell": 80,
@@ -1981,7 +2019,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_sam_up_gun": {
     "cell": 64,
@@ -2007,7 +2046,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_laser_up_gun": {
     "cell": 72,
@@ -2033,7 +2073,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_mortar_up_gun": {
     "cell": 64,
@@ -2059,7 +2100,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_missilenest_up_gun": {
     "cell": 72,
@@ -2085,7 +2127,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_flametower_up_gun": {
     "cell": 80,
@@ -2111,7 +2154,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_thaad_up_gun": {
     "cell": 80,
@@ -2137,7 +2181,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_koksan_up_gun": {
     "cell": 112,
@@ -2163,7 +2208,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "goliath_vox_0": {
     "cell": 80,
@@ -3372,7 +3418,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_power_ax": {
     "cell": 152,
@@ -3385,7 +3432,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_power_ax_up": {
     "cell": 152,
@@ -3398,7 +3446,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_refinery_ax": {
     "cell": 216,
@@ -3411,7 +3460,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_refinery_ax_up": {
     "cell": 216,
@@ -3424,7 +3474,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_barracks_ax": {
     "cell": 152,
@@ -3437,7 +3488,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_barracks_ax_up": {
     "cell": 152,
@@ -3450,7 +3502,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_factory_ax": {
     "cell": 216,
@@ -3463,7 +3516,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_factory_ax_up": {
     "cell": 216,
@@ -3476,7 +3530,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_radar_ax": {
     "cell": 152,
@@ -3489,7 +3544,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_airfield_ax": {
     "cell": 184,
@@ -3502,7 +3558,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_airfield_ax_up": {
     "cell": 184,
@@ -3515,7 +3572,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_tech_ax": {
     "cell": 152,
@@ -3528,7 +3586,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_super_lance_ax": {
     "cell": 216,
@@ -3541,7 +3600,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_turret_ax": {
     "cell": 88,
@@ -3554,7 +3614,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_turret_ax_gun": {
     "cell": 64,
@@ -3580,7 +3641,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_turret_ax_up_gun": {
     "cell": 64,
@@ -3606,7 +3668,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_railturret_ax_gun": {
     "cell": 80,
@@ -3632,7 +3695,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_railturret_ax_up_gun": {
     "cell": 80,
@@ -3658,7 +3722,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_sam_ax_gun": {
     "cell": 64,
@@ -3684,7 +3749,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_sam_ax_up_gun": {
     "cell": 64,
@@ -3710,7 +3776,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_mortar_ax": {
     "cell": 88,
@@ -3723,7 +3790,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_mortar_ax_gun": {
     "cell": 64,
@@ -3749,7 +3817,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_mortar_ax_up_gun": {
     "cell": 64,
@@ -3775,7 +3844,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_sensor_ax_up": {
     "cell": 88,
@@ -3788,7 +3858,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_drill_ax": {
     "cell": 152,
@@ -3801,7 +3872,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_drill_ax_up": {
     "cell": 152,
@@ -3814,7 +3886,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_shipyard_ax": {
     "cell": 216,
@@ -3827,7 +3900,8 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   },
   "b_shipyard_ax_up": {
     "cell": 216,
@@ -3840,6 +3914,7 @@ const SPRITE_META = {
       "hull": true
     },
     "style": "voxel",
-    "camo": true
+    "camo": true,
+    "ground": true
   }
 };

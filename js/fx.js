@@ -84,6 +84,92 @@ const FX = {
     }
   },
 
+  // ---------- grounding ----------
+  // Under every structure (ground pass, world coordinates): soil worn bare around it, a dark
+  // contact band where its slab meets the ground, and tracks or a footpath out of its exit for
+  // the producers. Cached per footprint, map and variant; drawn before the sun shadows.
+  aprons: new Map(),
+  APRON: 30,
+  apron(b, th, theater) {
+    const v = ((b.tx * 7 + b.ty * 13) % 3 + 3) % 3, exit = b.def.produces === 'vehicle' || b.key === 'refinery' ? 'track' : b.def.produces === 'infantry' ? 'path' : '';
+    const small = b.def.wall || (b.w === 1 && b.h === 1);
+    const key = `${b.w},${b.h},${theater},${v},${exit},${small ? 1 : 0}`;
+    let a = this.aprons.get(key);
+    if (a) return a;
+    const P = this.APRON, W = b.w * TILE, H = b.h * TILE;
+    const c = document.createElement('canvas'); c.width = W + 2 * P; c.height = H + 2 * P;
+    const x = c.getContext('2d');
+    let seed = 4111 + v * 977 + b.w * 31 + b.h * 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const soil = th.dirt.map((n, i) => Math.round(n * 0.7 + th.dry[i] * 0.3)), dark = th.dirt.map(n => Math.round(n * 0.55));
+    const blob = (px, py, r, col, a) => {
+      const g = x.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},${a})`); g.addColorStop(1, `rgba(${col[0]},${col[1]},${col[2]},0)`);
+      x.fillStyle = g; x.fillRect(px - r, py - r, r * 2, r * 2);
+    };
+    // worn ground: soft soil blotches around the rim, thinning out with distance
+    const reach = small ? 9 : 22, n = Math.round((W + H) / (small ? 4 : 2.5));
+    for (let i = 0; i < n; i++) {
+      const t = rnd() * 2 * (W + H);
+      let ex, ey;
+      if (t < W) { ex = t; ey = 0; } else if (t < W + H) { ex = W; ey = t - W; } else if (t < 2 * W + H) { ex = t - W - H; ey = H; } else { ex = 0; ey = t - 2 * W - H; }
+      const out = Math.pow(rnd(), 1.6) * reach, ang = rnd() * Math.PI * 2;
+      const px = P + ex + (ex === 0 ? -out : ex === W ? out : 0) + Math.cos(ang) * 3, py = P + ey + (ey === 0 ? -out : ey === H ? out : 0) + Math.sin(ang) * 3;
+      blob(px, py, (small ? 4 : 6) + rnd() * (small ? 5 : 11), soil, (0.3 + rnd() * 0.3) * (1 - out / (reach + 4)));
+    }
+    if (!small) for (let i = 0; i < 18; i++) blob(P + rnd() * W, P + rnd() * H, 8 + rnd() * 14, soil, 0.35);   // under the slab (shows at its edge)
+    // tyre tracks or a footpath from the exit in the middle of the +y side
+    if (exit) {
+      const ex = P + W / 2, wob = (rnd() - 0.5) * 16, len = P + 10;
+      const lane = (off, w, col, a) => {
+        x.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${a})`; x.lineWidth = w; x.lineCap = 'round';
+        x.beginPath(); x.moveTo(ex + off, P + H - 4); x.quadraticCurveTo(ex + off, P + H + len * 0.5, ex + off + wob, P + H + len); x.stroke();
+      };
+      // fade the ends out with a gradient mask afterwards
+      x.save();
+      if (exit === 'track') { lane(0, 14, soil, 0.35); for (const o of [-5, 5]) lane(o, 2.2, dark, 0.32); }
+      else { lane(0, 7, soil, 0.4); lane(0, 3, dark, 0.15); }
+      x.restore();
+      x.save();
+      x.globalCompositeOperation = 'destination-out';
+      const g = x.createLinearGradient(0, P + H + 4, 0, P + H + len + 2);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)');
+      x.fillStyle = g; x.fillRect(ex - 30, P + H + 4, 60, len + 6);
+      x.restore();
+    }
+    // contact shadow: a dark band hugging the slab, fading outwards (ambient occlusion)
+    for (let i = 0; i < 6; i++) {
+      x.strokeStyle = `rgba(14,12,10,${0.2 * (1 - i / 6)})`; x.lineWidth = 1.5;
+      x.strokeRect(P - 0.5 - i * 1.4, P - 0.5 - i * 1.4, W + 1 + i * 2.8, H + 1 + i * 2.8);
+    }
+    // project it onto the iso ground once, so each frame is a plain blit
+    const Wp = c.width, Hp = c.height, iso = document.createElement('canvas');
+    iso.width = Wp + Hp; iso.height = Math.ceil((Wp + Hp) / 2);
+    const ix = iso.getContext('2d');
+    ix.setTransform(1, 0.5, -1, 0.5, Hp, 0); ix.drawImage(c, 0, 0);
+    a = { c: iso, P, ox: Hp };
+    this.aprons.set(key, a);
+    return a;
+  },
+  // drawn in screen space (call it with the ground transform set: it is put back afterwards)
+  drawBuildingGround(ctx, R, tx0, ty0, tx1, ty1) {
+    const m = G.map, pid = G.player;
+    if (!m.theme) return;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    for (const b of G.entities) {
+      if (b.kind !== 'building' || b.dead || b.def.bridge || b.def.water || b.def.noShadow) continue;
+      if (b.tx + b.w < tx0 - 1 || b.ty + b.h < ty0 - 1 || b.tx > tx1 + 1 || b.ty > ty1 + 1) continue;
+      if (b.team !== pid && !G.isVisibleBld(b)) continue;
+      const a = this.apron(b, m.theme, m.theater);
+      const k = b.built !== undefined ? b.built : 1;
+      ctx.globalAlpha = Math.min(1, 0.35 + k);
+      const [sx, sy] = R.P(b.tx * TILE - a.P, b.ty * TILE - a.P);
+      ctx.drawImage(a.c, sx - a.ox, sy);
+    }
+    ctx.restore();
+  },
+
   // rocks get a small soft shadow to the lower right, like the trees already have
   drawRockShadow(ctx, sx, sy) {
     if (!this.rockShadow) {

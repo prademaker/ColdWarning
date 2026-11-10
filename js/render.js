@@ -98,6 +98,7 @@ const Render = {
     }
     ctx.save();
     this.ground(ctx);
+    FX.drawBuildingGround(ctx, this, tx0, ty0, tx1, ty1);
     this.drawOre(ctx, tx0, ty0, tx1, ty1);
     FX.drawWater(ctx, tx0, ty0, tx1, ty1);
     for (const d of G.decals) FX.drawDecal(ctx, d);
