@@ -265,7 +265,7 @@ function buildPrims(list, mats, surf) {
     if (p.t !== 'ext') place(mesh, p);
     mesh.castShadow = mesh.receiveShadow = !def.glow;
     // flags live in userData so they survive clone() (the turret is rendered from a clone)
-    mesh.userData.flags = { team: def.team ? 1 : 0, camo: def.camo ? 1 : 0 };
+    mesh.userData.flags = { team: def.team ? 1 : 0, camo: def.camo ? 1 : 0, ground: p.ground ? 1 : 0 };
     g.add(mesh);
   }
   return g;
@@ -320,7 +320,7 @@ function maskMaterials(root, rules, which = 'mask') {
     if (!o.isMesh) return;
     saved.set(o, o.material);
     const mf = o.userData.flags;
-    if (mf) { o.material = new THREE.MeshBasicMaterial({ toneMapped: false, color: which === 'mask' && mf.team || which === 'camo' && mf.camo ? 0xffffff : 0x000000 }); return; }
+    if (mf) { o.material = new THREE.MeshBasicMaterial({ toneMapped: false, color: which === 'mask' && mf.team || which === 'camo' && mf.camo || which === 'ground' && mf.ground ? 0xffffff : 0x000000 }); return; }
     const vc = VOX_COLORS.get(o.geometry);
     if (vc) {
       o.geometry.setAttribute('color', vc[which]);
@@ -378,7 +378,9 @@ async function renderSheet(cfg) {
     const holder = new THREE.Group(); holder.add(obj); scene.add(holder);
     const sheets = {};
     let comp = null;
-    for (const pass of cfg.vox || cfg.mesh ? ['base', 'mask', 'camo'] : ['base', 'mask']) {
+    // structures also get a 'ground' sheet marking their concrete slab (weathered to the map in game)
+    const groundPass = cfg.mesh && /^b_/.test(cfg.mesh) && !/_gun$/.test(cfg.mesh) ? ['ground'] : [];
+    for (const pass of cfg.vox || cfg.mesh ? ['base', 'mask', 'camo', ...groundPass] : ['base', 'mask']) {
       const restore = pass !== 'base' ? maskMaterials(obj, cfg.mask || {}, pass) : () => {};
       const sheet = document.createElement('canvas');
       sheet.width = C * NC; sheet.height = C * NR;
@@ -424,6 +426,7 @@ async function renderSheet(cfg) {
     out[part] = {};
     for (const [pass, c] of Object.entries(sheets)) out[part][pass] = c.toDataURL('image/png');
     if (sheets.camo) meta.camo = true;
+    if (sheets.ground) meta.ground = true;
     meta.parts[part] = true;
   }
   return { meta, images: out };

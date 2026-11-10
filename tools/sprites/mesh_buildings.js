@@ -23,8 +23,9 @@ function site(W, H, o = {}) {
   m.X = X; m.Y = Y; m.W = W; m.H = H; m.ax = o.ax; m.up = o.up;
   m.wall = o.ax ? 'warm' : 'metal'; m.wallDark = o.ax ? 'warmDark' : 'steel'; m.roof = o.ax ? 'roofGreen' : 'roof';
   if (o.pad !== false) {
-    m.cb(0.3, W - 0.3, 0.3, H - 0.3, 0, 0.5, 'concreteDark');
-    m.cb(1.2, W - 1.2, 1.2, H - 1.2, 0.5, 0.6, o.ax ? 'warmDark' : 'asphalt');
+    // ground: 1 marks the slab in a 'ground' mask sheet, so the game can weather it to the map
+    m.cb(0.3, W - 0.3, 0.3, H - 0.3, 0, 0.5, 'concreteDark', { ground: 1 });
+    m.cb(1.2, W - 1.2, 1.2, H - 1.2, 0.5, 0.6, o.ax ? 'warmDark' : 'asphalt', { ground: 1 });
     if (o.up) for (const [x, y] of [[1, 1], [W - 1, 1], [1, H - 1], [W - 1, H - 1]]) m.cb(x - 0.8, x + 0.8, y - 0.8, y + 0.8, 0.5, 1.6, 'hazard'); // refit: corner bollards
   }
   return m;
@@ -211,7 +212,7 @@ function radar(o) {
 // ---------- Airfield (3x2): runway with the edge lights drawn live along y = 25, control tower ----------
 function airfield(o) {
   const m = site(48, 32, { ...o, pad: false });
-  m.cb(0.5, 47.5, 0.5, 31.5, 0, 0.4, 'asphalt');
+  m.cb(0.5, 47.5, 0.5, 31.5, 0, 0.4, 'asphalt', { ground: 1 });
   m.cb(1.5, 46.5, 9.4, 26, 0.4, 0.45, 'roofDark');
   for (let x = 6; x <= 40; x += 6) m.cb(x, x + 3, 17.2, 18.0, 0.45, 0.5, 'white');
   for (let y = 11; y <= 23; y += 3) m.cb(2, 4.4, y, y + 1.4, 0.45, 0.5, 'white');

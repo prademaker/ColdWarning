@@ -171,10 +171,13 @@ function loadSheet(key) {
   for (const part of Object.keys(m.parts)) {
     const base = new Image(), mask = new Image();
     base.src = `assets/sprites/${key}_${part}.png`; mask.src = `assets/sprites/${key}_${part}_mask.png`;
-    let camo = null;
+    let camo = null, ground = null;
     if (m.camo) { camo = new Image(); camo.src = `assets/sprites/${key}_${part}_camo.png`; }
-    for (const img of [base, mask, camo]) if (img) img.onload = () => { Art.version++; };
-    SHEETS[key + '_' + part] = { base, mask, camo };
+    // structures: a mask of their concrete slab, weathered to the map's soil in game
+    if (m.ground && part === 'hull') { ground = new Image(); ground.src = `assets/sprites/${key}_${part}_ground.png`; }
+    for (const img of [base, mask, camo, ground]) if (img) img.onload = () => { Art.version++; };
+    if (ground) ground.onerror = () => { ground.failed = true; Art.version++; };
+    SHEETS[key + '_' + part] = { base, mask, camo, ground };
   }
 }
 // the upgraded looks (keys with _up, the refit tiers _t2 to _t4 of the ultimate units) and the
@@ -188,7 +191,10 @@ function sheetReady(key) {
   if (!m) return false;
   const parts = Object.keys(m.parts);
   if (!SHEETS[key + '_' + parts[0]]) loadSheet(key);
-  return parts.every(p => { const sh = SHEETS[key + '_' + p]; return loaded(sh.base) && loaded(sh.mask) && (!sh.camo || loaded(sh.camo)); });
+  return parts.every(p => sheetLoaded(SHEETS[key + '_' + p]));
+}
+function sheetLoaded(sh) {
+  return !!sh && loaded(sh.base) && loaded(sh.mask) && (!sh.camo || loaded(sh.camo)) && (!sh.ground || loaded(sh.ground) || sh.ground.failed);
 }
 
 // ---------- the two factions' looks ----------
@@ -224,10 +230,71 @@ function gradeCanvas(x, w, h) {
   x.fillStyle = '#808080'; x.fillRect(0, 0, w, h); x.restore();
 }
 
+// The light and soil of the map being played: every sheet takes on a faint cast of the
+// ground's colour (sky and bounce light), and the concrete slabs of structures pick up its dirt.
+function mapLook() {
+  const m = typeof G !== 'undefined' && G.map;
+  return m && m.theme ? { name: m.theater, th: m.theme } : null;
+}
+const mixRgb = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k));
+const rgbStr = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+// a tileable patchy alpha texture (seeded, so every sheet weathers the same way)
+let grimeTex = null;
+function grimeTexture() {
+  if (grimeTex) return grimeTex;
+  const S = 96, c = document.createElement('canvas'); c.width = c.height = S;
+  const x = c.getContext('2d');
+  let seed = 9173;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  x.fillStyle = 'rgba(0,0,0,0.35)'; x.fillRect(0, 0, S, S);
+  for (let i = 0; i < 90; i++) {
+    const px = rnd() * S, py = rnd() * S, r = 3 + rnd() * 12, a = 0.15 + rnd() * 0.4;
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) {
+      const g = x.createRadialGradient(px + ox, py + oy, 0, px + ox, py + oy, r);
+      g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+      x.fillStyle = g; x.fillRect(px + ox - r, py + oy - r, r * 2, r * 2);
+    }
+  }
+  return (grimeTex = c);
+}
+// the slab under a structure: soil-tinted concrete, with dirt gathered at its rim and along
+// the foot of the walls (the mask minus a blurred copy of itself), broken up by a patchy texture
+function weatherSlab(x, sh, w, h, th, res) {
+  const soil = mixRgb(th.dirt, th.dry, 0.55);
+  const tinted = (color, img) => {
+    const l = document.createElement('canvas'); l.width = w; l.height = h;
+    const lx = l.getContext('2d');
+    lx.drawImage(img, 0, 0);
+    lx.globalCompositeOperation = 'source-in'; lx.fillStyle = color; lx.fillRect(0, 0, w, h);
+    return l;
+  };
+  const slab = tinted(rgbStr(soil), sh.ground);
+  x.save();
+  x.globalCompositeOperation = 'color'; x.globalAlpha = 0.28; x.drawImage(slab, 0, 0);
+  x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.18; x.drawImage(tinted(rgbStr(mixRgb(soil, [255, 255, 255], 0.25)), sh.ground), 0, 0);
+  // rim grime: a cheap blur by shrinking the mask and stretching it back
+  const k = Math.max(4, 5 * res), sw = Math.max(1, Math.round(w / k)), shh = Math.max(1, Math.round(h / k));
+  const small = document.createElement('canvas'); small.width = sw; small.height = shh;
+  const smx = small.getContext('2d'); smx.imageSmoothingEnabled = true; smx.drawImage(sh.ground, 0, 0, sw, shh);
+  const rim = tinted(rgbStr(mixRgb(th.dirt, [0, 0, 0], 0.15)), sh.ground), rx = rim.getContext('2d');
+  rx.imageSmoothingEnabled = true;
+  rx.globalCompositeOperation = 'destination-out'; rx.drawImage(small, 0, 0, w, h);
+  rx.globalCompositeOperation = 'destination-in'; rx.fillStyle = rx.createPattern(grimeTexture(), 'repeat'); rx.globalAlpha = 1;
+  for (let i = 0; i < 2; i++) rx.fillRect(0, 0, w, h);
+  x.globalCompositeOperation = 'source-over'; x.globalAlpha = 1;
+  x.drawImage(rim, 0, 0);
+  // and a light, patchy film of dust over the whole slab
+  const dust = tinted(rgbStr(soil), sh.ground), dx = dust.getContext('2d');
+  dx.globalCompositeOperation = 'destination-in'; dx.fillStyle = dx.createPattern(grimeTexture(), 'repeat'); dx.fillRect(0, 0, w, h);
+  x.globalAlpha = 0.6; x.drawImage(dust, 0, 0);
+  x.restore();
+}
+
 function teamSheet(key, part, team) {
   const sh = SHEETS[key + '_' + part];
-  if (!sh || !loaded(sh.base) || !loaded(sh.mask) || (sh.camo && !loaded(sh.camo))) return null;
-  return Art.get(`S|${key}|${part}|${team.faction}|${team.color}`, () => {
+  if (!sheetLoaded(sh)) return null;
+  const look = mapLook();
+  return Art.get(`S|${key}|${part}|${team.faction}|${team.color}|${look ? look.name : ''}`, () => {
     const w = sh.base.naturalWidth, h = sh.base.naturalHeight;
     const layer = (color, img = sh.mask) => {
       const l = document.createElement('canvas'); l.width = w; l.height = h;
@@ -244,6 +311,13 @@ function teamSheet(key, part, team) {
       // parts (fender edges, turret band, rear plate), keeping the voxels' shading
       if (sh.camo) { x.globalCompositeOperation = 'multiply'; x.drawImage(layer(VOX_CAMO[team.faction] || '#c8b48c', sh.camo), 0, 0); }
       gradeCanvas(x, w, h);
+      if (look) {
+        // the map's light: a faint cast of its ground colour, so models sit in the same air
+        x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.14;
+        x.fillStyle = rgbStr(mixRgb(look.th.dry, [255, 255, 255], 0.45)); x.fillRect(0, 0, w, h);
+        x.globalAlpha = 1;
+        if (sh.ground && loaded(sh.ground)) weatherSlab(x, sh, w, h, look.th, SPRITE_META[key].res || 1);
+      }
       // structures wear a slightly muted team colour so roofs don't overpower the scene
       const tc = key.startsWith('b_') ? tone(team.color, -0.15) : team.color;
       x.globalCompositeOperation = 'color'; x.globalAlpha = 0.85;
