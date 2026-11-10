@@ -13,14 +13,26 @@ const loader = new GLTFLoader();
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 // camera looks from the screen's lower edge (+x, +z in three) down 30 degrees, like the game
 const VIEW = new THREE.Vector3(Math.cos(Math.PI / 6) / Math.SQRT2, 0.5, Math.cos(Math.PI / 6) / Math.SQRT2);
 
-function lights(scene) {
-  scene.add(new THREE.HemisphereLight(0xdfe7f5, 0x3c4430, 0.95));
-  const sun = new THREE.DirectionalLight(0xfff1dc, 1.9);
+function lights(scene, shadowR = 0) {
+  scene.add(new THREE.HemisphereLight(0xdfe7f5, 0x3c4430, shadowR ? 1.15 : 0.95));
+  const sun = new THREE.DirectionalLight(0xfff1dc, shadowR ? 1.75 : 1.9);
   sun.position.set(-0.5, 1, 0.65); // same light direction as the game's procedural art
+  if (shadowR) {
+    // low-poly models cast shadows onto themselves (turret on hull, roofs on walls)
+    sun.position.multiplyScalar(shadowR * 2);
+    sun.castShadow = true;
+    const c = sun.shadow.camera;
+    c.left = c.bottom = -shadowR; c.right = c.top = shadowR; c.near = 0.1; c.far = shadowR * 6;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+    sun.shadow.radius = 2;
+  }
   scene.add(sun);
 }
 
@@ -105,6 +117,81 @@ function voxMesh(vox, pivot, lift) {
   return mesh;
 }
 
+// ---- low-poly models (mesh_lib.js -> assets/models/*.json) ----
+// Model axes x forward, y right, z up -> three (x, z, y). Primitives are built in three's own
+// axes so nothing is mirrored.
+const MESH_FLAGS = new WeakMap();
+const MAT_CACHE = new Map();
+function meshMaterial(name, def) {
+  if (!MAT_CACHE.has(name)) {
+    const color = new THREE.Color().setRGB(def.c[0] / 255, def.c[1] / 255, def.c[2] / 255, THREE.SRGBColorSpace);
+    const m = def.glow ? new THREE.MeshBasicMaterial({ color })
+      : def.shiny ? new THREE.MeshPhongMaterial({ color, shininess: 60, specular: 0x667788, flatShading: true })
+      : new THREE.MeshLambertMaterial({ color, flatShading: true });
+    MAT_CACHE.set(name, m);
+  }
+  return MAT_CACHE.get(name);
+}
+function primGeometry(p) {
+  let g;
+  if (p.t === 'box') {
+    g = new THREE.BoxGeometry(p.s[0], p.s[2], p.s[1]);
+  } else if (p.t === 'cyl') {
+    const seg = p.seg || 14;
+    g = new THREE.CylinderGeometry(p.r2 !== undefined ? p.r2 : p.rad, p.rad, p.len, seg, 1, false);
+    // three's cylinder runs along +y (model z); the top radius is r2
+    if (p.axis === 'x') g.rotateZ(-Math.PI / 2);        // +y -> +x
+    else if (p.axis === 'y') g.rotateX(Math.PI / 2);    // +y -> +z (three) = model +y
+  } else if (p.t === 'sph') {
+    g = new THREE.SphereGeometry(p.rad, p.seg || 12, Math.max(6, (p.seg || 12) >> 1));
+    if (p.s) g.scale(p.s[0], p.s[2], p.s[1]);
+  } else if (p.t === 'ext') {
+    const shape = new THREE.Shape();
+    const pts = p.pts.map(([a, b]) => p.plane === 'side' ? [a, b] : p.plane === 'top' ? [a, -b] : [-a, b]);
+    // keep the outline counter-clockwise so the caps face outward
+    let area = 0;
+    for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; area += x1 * y2 - x2 * y1; }
+    if (area < 0) pts.reverse();
+    pts.forEach(([a, b], i) => i ? shape.lineTo(a, b) : shape.moveTo(a, b));
+    g = new THREE.ExtrudeGeometry(shape, { depth: p.b - p.a, bevelEnabled: false });
+    g.translate(0, 0, p.a);
+    if (p.plane === 'top') g.rotateX(-Math.PI / 2);       // (x, -y, d) -> (x, d, y)
+    else if (p.plane === 'front') g.rotateY(Math.PI / 2); // (-y, z, d) -> (d, z, y)
+  }
+  return g;
+}
+function place(obj, p) {
+  const pos = p.p || [0, 0, 0];
+  obj.position.set(pos[0], pos[2], pos[1]);
+  if (p.r) { obj.rotation.order = 'YZX'; obj.rotation.set(p.r[0] * Math.PI / 180, -p.r[2] * Math.PI / 180, p.r[1] * Math.PI / 180); }
+}
+function buildPrims(list, mats) {
+  const g = new THREE.Group();
+  for (const p of list) {
+    if (p.t === 'grp') { const c = buildPrims(p.c, mats); place(c, p); g.add(c); continue; }
+    const geo = primGeometry(p), def = mats[p.m];
+    const mesh = new THREE.Mesh(geo, meshMaterial(p.m, def));
+    if (p.t !== 'ext') place(mesh, p);
+    mesh.castShadow = mesh.receiveShadow = !def.glow;
+    MESH_FLAGS.set(mesh, { team: def.team ? 1 : 0, camo: def.camo ? 1 : 0 });
+    g.add(mesh);
+  }
+  return g;
+}
+async function loadMeshModel(cfg) {
+  const d = await (await fetch('/mesh/' + cfg.mesh + '.json')).json();
+  const root = new THREE.Group();
+  const hull = buildPrims(d.parts.hull, d.mats);
+  hull.name = 'hull'; root.add(hull);
+  if (d.parts.turret) {
+    const t = new THREE.Group(); t.name = 'turret';
+    t.add(buildPrims(d.parts.turret, d.mats));
+    t.position.set(d.mount[0], d.mount[2], d.mount[1]);
+    root.add(t);
+  }
+  return root;
+}
+
 async function loadVoxModel(cfg) {
   const fetchVox = async f => parseVox(await (await fetch('/vox/' + f)).arrayBuffer());
   const root = new THREE.Group();
@@ -125,6 +212,8 @@ function maskMaterials(root, rules, which = 'mask') {
   root.traverse(o => {
     if (!o.isMesh) return;
     saved.set(o, o.material);
+    const mf = MESH_FLAGS.get(o);
+    if (mf) { o.material = new THREE.MeshBasicMaterial({ color: which === 'mask' && mf.team || which === 'camo' && mf.camo ? 0xffffff : 0x000000 }); return; }
     const vc = VOX_COLORS.get(o.geometry);
     if (vc) {
       o.geometry.setAttribute('color', vc[which]);
@@ -140,7 +229,7 @@ function maskMaterials(root, rules, which = 'mask') {
 }
 
 async function renderSheet(cfg) {
-  const root = cfg.vox ? await loadVoxModel(cfg) : (await loader.loadAsync('/models/' + cfg.file)).scene;
+  const root = cfg.mesh ? await loadMeshModel(cfg) : cfg.vox ? await loadVoxModel(cfg) : (await loader.loadAsync('/models/' + cfg.file)).scene;
   const C = cfg.cell * RES;                 // cell size in pixels
   const s = RES * cfg.k * Math.SQRT2;       // pixels per model unit
   const ay = Math.round(C * (cfg.anchor || 0.66));
@@ -151,7 +240,7 @@ async function renderSheet(cfg) {
   root.updateMatrixWorld(true);
   for (const name of cfg.hide || []) root.getObjectByName(name).visible = false;
   const NF = cfg.facings || FACINGS, NC = Math.min(COLS, NF), NR = Math.ceil(NF / NC);
-  const meta = { cell: cfg.cell, cols: NC, facings: NF, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {}, style: cfg.vox ? 'voxel' : 'model' };
+  const meta = { cell: cfg.cell, cols: NC, facings: NF, res: RES, ax: cfg.cell / 2, ay: ay / RES, parts: {}, style: cfg.vox || cfg.mesh ? 'voxel' : 'model' };
   const turretNode = cfg.turret ? root.getObjectByName(cfg.turret) : null;
   if (cfg.rotor && typeof cfg.rotor === 'object') meta.rotor = { z: cfg.rotor.z * cfg.k, r: cfg.rotor.r * cfg.k };
   else if (cfg.rotor) {
@@ -169,16 +258,18 @@ async function renderSheet(cfg) {
     t.position.set(0, wp.y, 0);
     const g = new THREE.Group(); g.add(t);
     parts.turret = g;
-    meta.turretOffset = (cfg.vox ? wp.x : wp.z) * cfg.k; // forward offset of the turret pivot from the hull pivot (world px)
+    meta.turretOffset = (cfg.vox || cfg.mesh ? wp.x : wp.z) * cfg.k; // forward offset of the turret pivot from the hull pivot (world px)
   }
 
   const out = {};
   for (const [part, obj] of Object.entries(parts)) {
     const scene = new THREE.Scene();
-    lights(scene);
+    let shadowR = 0;
+    if (cfg.mesh) { const sph = new THREE.Box3().setFromObject(root).getBoundingSphere(new THREE.Sphere()); shadowR = sph.radius + sph.center.length() + 2; }
+    lights(scene, shadowR);
     const holder = new THREE.Group(); holder.add(obj); scene.add(holder);
     const sheets = {};
-    for (const pass of cfg.vox ? ['base', 'mask', 'camo'] : ['base', 'mask']) {
+    for (const pass of cfg.vox || cfg.mesh ? ['base', 'mask', 'camo'] : ['base', 'mask']) {
       const restore = pass !== 'base' ? maskMaterials(obj, cfg.mask || {}, pass) : () => {};
       const sheet = document.createElement('canvas');
       sheet.width = C * NC; sheet.height = C * NR;
@@ -186,7 +277,7 @@ async function renderSheet(cfg) {
       for (let f = 0; f < NF; f++) {
         // game facing a (0 = +x, towards +y) -> rotate the model's forward axis onto it
         // (.glb models face +Z; voxel models face +X)
-        holder.rotation.y = (cfg.vox ? 0 : Math.PI / 2) - f / NF * Math.PI * 2;
+        holder.rotation.y = (cfg.vox || cfg.mesh ? 0 : Math.PI / 2) - f / NF * Math.PI * 2;
         renderer.render(scene, cam);
         sx.drawImage(renderer.domElement, (f % NC) * C, Math.floor(f / NC) * C);
       }
