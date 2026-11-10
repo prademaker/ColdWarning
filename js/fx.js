@@ -225,6 +225,7 @@ const FX = {
     const x = a.x, cl = this.cloudSheet();
     if (!a.pat) a.pat = x.createPattern(cl.c, 'repeat');
     x.clearRect(0, 0, w, h);
+    if (G.daytime === 'night') { x.drawImage(a.v, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(a.c, 0, 0, w, h, 0, 0, w * Q, h * Q); return; }   // no cloud shadows without the sun
     // world-anchored: offset by the camera, then drift slowly to the lower right
     const t = G.time, ox = (-R.cx + t * 9) / Q, oy = (-R.cy + t * 3) / Q;
     a.pat.setTransform(new DOMMatrix([1 / Q, 0, 0, 1 / Q, ox, oy]));
@@ -298,7 +299,26 @@ const FX = {
   },
 
   // ---------- scorch marks ----------
-  drawDecal(ctx, d) {
+  // a scorch mark; crater = an aged one, baked into the ground: soil thrown up in a pale rim
+  // round a darker, sunken centre
+  drawDecal(ctx, d, crater) {
+    if (crater && d.r > 6) {
+      const th = G.map.theme, s = th.snow ? [190, 198, 206] : th.dirt;
+      const rim = ctx.createRadialGradient(d.x, d.y, d.r * 0.45, d.x, d.y, d.r * 1.35);
+      rim.addColorStop(0, `rgba(${s[0]},${s[1]},${s[2]},0)`); rim.addColorStop(0.45, `rgba(${s[0] * 1.1 | 0},${s[1] * 1.1 | 0},${s[2] * 1.1 | 0},0.45)`); rim.addColorStop(1, `rgba(${s[0]},${s[1]},${s[2]},0)`);
+      ctx.fillStyle = rim; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r * 1.35, d.r * 1.1, d.a, 0, Math.PI * 2); ctx.fill();
+      // the lit far lip and the shaded near bowl (light from the upper left)
+      ctx.strokeStyle = 'rgba(255,245,225,0.16)'; ctx.lineWidth = Math.max(1, d.r * 0.1);
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r * 0.6, Math.PI * 0.75, Math.PI * 1.75); ctx.stroke();
+    }
+    if (crater) {
+      // the scorch has weathered: a soft, faint bowl (so heavy shelling turns the ground over
+      // rather than painting it black)
+      const b = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r * 0.75);
+      b.addColorStop(0, 'rgba(22,16,10,0.34)'); b.addColorStop(1, 'rgba(30,22,14,0)');
+      ctx.fillStyle = b; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.r * 0.75, d.r * 0.6, d.a, 0, Math.PI * 2); ctx.fill();
+      return;
+    }
     const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
     g.addColorStop(0, 'rgba(12,8,4,0.62)'); g.addColorStop(0.45, 'rgba(22,16,10,0.42)'); g.addColorStop(1, 'rgba(30,22,14,0)');
     ctx.fillStyle = g;
