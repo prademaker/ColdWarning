@@ -367,9 +367,10 @@ const Render = {
       return;
     }
     if (!u.air) {
-      const r = u.def.radius * 1.15;
-      ctx.fillStyle = 'rgba(0,0,0,0.32)';
-      ctx.beginPath(); ctx.ellipse(sx + 2, sy + 1, r * 1.25, r * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+      // a cast shadow from the unit's own silhouette, and a faint contact shadow under it
+      const cast = drawUnitShadow(ctx, u, team, sx, sy), r = u.def.radius * 1.15;
+      ctx.fillStyle = cast ? 'rgba(0,0,0,0.16)' : 'rgba(0,0,0,0.32)';
+      ctx.beginPath(); ctx.ellipse(sx + (cast ? 1 : 2), sy + 1, r * (cast ? 1.0 : 1.25), r * (cast ? 0.5 : 0.65), 0, 0, Math.PI * 2); ctx.fill();
     }
     // a dug-in soldier sits in a ring of sandbags: the far half behind them, the near half in front
     const bags = u.dug ? 1 : u.digging ? Math.max(0, Math.min(1, u.digging > 0 ? 1 - u.digT / u.def.dig.time : u.digT / u.def.dig.pack)) : 0;

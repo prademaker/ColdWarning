@@ -822,6 +822,7 @@ class GameMap {
       if (dc.kind === 'bush') this.drawDecor(ctx, dc, th, rng);
       else this.props.push({ kind: 'tree', x: dc.x * TILE, y: dc.y * TILE, v: (rng() * 6) | 0 });
     }
+    if (typeof gradeCanvas === 'function') gradeCanvas(ctx, cv.width, cv.height);   // the same muted grade as the sprites (art.js)
     this.terrainCanvas = cv;
 
     // minimap terrain
