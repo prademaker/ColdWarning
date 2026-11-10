@@ -28,6 +28,7 @@ const FX = {
         dark: make([[0, 'rgba(48,44,40,0.95)'], [0.45, 'rgba(40,36,32,0.6)'], [1, 'rgba(30,28,26,0)']]),
         fire: make([[0, 'rgba(255,226,150,1)'], [0.3, 'rgba(255,160,60,0.9)'], [0.65, 'rgba(220,80,15,0.5)'], [1, 'rgba(140,25,0,0)']]),
         glow: make([[0, 'rgba(255,210,140,0.9)'], [0.4, 'rgba(255,140,50,0.35)'], [1, 'rgba(255,90,20,0)']]),
+        dust: make([[0, 'rgba(150,134,108,0.85)'], [0.5, 'rgba(132,118,96,0.5)'], [1, 'rgba(120,108,90,0)']]),
         white: make([[0, 'rgba(255,255,255,1)'], [0.35, 'rgba(255,245,215,0.7)'], [1, 'rgba(255,220,160,0)']]),
       };
     }
@@ -246,6 +247,22 @@ const FX = {
       const px = x + Math.cos(a) * d, py = y - s * 0.25 + Math.sin(a) * d * 0.6 - p * s * 0.5 * this.hash(f, i + 3);
       const r = s * (0.3 + 0.55 * Math.min(1, p * 2.2)) * (0.6 + 0.5 * this.hash(f, i + 5));
       this.dab(ctx, 'fire', px, py, r, Math.pow(fade, 1.6) * 0.75);
+    }
+    ctx.restore();
+    // earth thrown up by the blast: a low, spreading skirt of dust and clods flung out on arcs
+    ctx.save();
+    for (let i = 0; i < 4; i++) {
+      const a = this.hash(f, i + 40) * Math.PI * 2, d = s * (0.3 + 0.9 * Math.sqrt(p));
+      this.dab(ctx, 'dust', gx + Math.cos(a) * d, gy + Math.sin(a) * d * 0.5 - s * 0.1, s * (0.3 + 0.45 * p), 0.5 * Math.min(1, p * 6) * (1 - p));
+    }
+    if (s > 10) {
+      ctx.globalAlpha = Math.min(1, (1 - p) * 2.5); ctx.fillStyle = '#2a241c';
+      for (let i = 0; i < 7; i++) {
+        const a = this.hash(f, i + 50) * Math.PI * 2, v = s * (0.7 + 0.8 * this.hash(f, i + 60)), up = s * (1.0 + 1.4 * this.hash(f, i + 70));
+        const ex = Math.cos(a) * v * p, ey = Math.sin(a) * v * p * 0.5, ez = up * p * (1 - p) * 4 * 0.5;
+        const sz = 0.8 + 1.1 * this.hash(f, i + 80);
+        ctx.fillRect(gx + ex - sz / 2, gy + ey - ez - sz / 2, sz, sz);
+      }
     }
     ctx.restore();
     // and the smoke it leaves, darkening as the fire dies

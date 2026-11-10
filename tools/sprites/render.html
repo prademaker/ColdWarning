@@ -7,6 +7,12 @@
 // 32 facings, a lit "base" sheet and a "mask" sheet marking paintable hull areas.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const FACINGS = 32, COLS = 8, ROWS = FACINGS / COLS, RES = 2;
 const loader = new GLTFLoader();
@@ -15,13 +21,30 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setClearColor(0x000000, 0);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.toneMappingExposure = 1.0;
+// soft image-based light for the physically based materials (reflections on glass and metal)
+const ENV = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+// ambient occlusion: crevices, the ground side of hulls and the gaps between parts darken
+function aoComposer(scene, cam, C) {
+  const comp = new EffectComposer(renderer, new THREE.WebGLRenderTarget(C, C, { type: THREE.HalfFloatType, samples: 4 }));
+  comp.setSize(C, C);
+  comp.addPass(new RenderPass(scene, cam));
+  const ao = new GTAOPass(scene, cam, C, C);
+  ao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.5, thickness: 1.2, scale: 1.25, samples: 16 });
+  ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+  ao.blendIntensity = 0.85;
+  comp.addPass(ao);
+  comp.addPass(new OutputPass());
+  return comp;
+}
 
 // camera looks from the screen's lower edge (+x, +z in three) down 30 degrees, like the game
 const VIEW = new THREE.Vector3(Math.cos(Math.PI / 6) / Math.SQRT2, 0.5, Math.cos(Math.PI / 6) / Math.SQRT2);
 
 function lights(scene, shadowR = 0) {
-  scene.add(new THREE.HemisphereLight(0xdfe7f5, 0x3c4430, shadowR ? 1.15 : 0.95));
-  const sun = new THREE.DirectionalLight(0xfff1dc, shadowR ? 1.75 : 1.9);
+  scene.add(new THREE.HemisphereLight(0xdfe7f5, 0x4a4636, shadowR ? 0.2 : 0.95));
+  const sun = new THREE.DirectionalLight(0xfff1dc, shadowR ? 2.35 : 1.9);
   sun.position.set(-0.5, 1, 0.65); // same light direction as the game's procedural art
   if (shadowR) {
     // low-poly models cast shadows onto themselves (turret on hull, roofs on walls)
@@ -120,30 +143,97 @@ function voxMesh(vox, pivot, lift) {
 // ---- low-poly models (mesh_lib.js -> assets/models/*.json) ----
 // Model axes x forward, y right, z up -> three (x, z, y). Primitives are built in three's own
 // axes so nothing is mirrored.
-const MESH_FLAGS = new WeakMap();
 const MAT_CACHE = new Map();
-function meshMaterial(name, def) {
-  if (!MAT_CACHE.has(name)) {
+// Physically based materials: each palette entry carries roughness / metalness (mesh_lib.js).
+// A shader hook adds weathering in model space: large soft blotches of wear, fine grain, and
+// dust building up toward the ground, so flat paint reads as a real, used surface.
+const WEATHER = `
+float wHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float wNoise(vec3 x) {
+  vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(wHash(i), wHash(i + vec3(1,0,0)), f.x), mix(wHash(i + vec3(0,1,0)), wHash(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(wHash(i + vec3(0,0,1)), wHash(i + vec3(1,0,1)), f.x), mix(wHash(i + vec3(0,1,1)), wHash(i + vec3(1,1,1)), f.x), f.y), f.z);
+}
+float wFbm(vec3 p) { return 0.5 * wNoise(p) + 0.25 * wNoise(p * 2.03) + 0.125 * wNoise(p * 4.1) + 0.0625 * wNoise(p * 8.3); }
+`;
+// Surface patterns for structures, in model units: 1 = steel cladding (panel seams, standing-seam
+// roofs), 2 = concrete (slab joints), 3 = brick (course tint), 4 = plaster/render (rain streaks only).
+const SURF_PAT = { metal: 1, steel: 1, steelDark: 1, roof: 1, roofDark: 1, roofGreen: 1, metalLight: 1,
+  concrete: 2, concreteDark: 2, concreteLight: 2, asphalt: 2, warm: 4, warmDark: 4, brick: 3 };
+// on every model: 5 = track links, 6 = welded hull plating on ships
+const ANY_PAT = { track: 5, hull: 6, hullDark: 6 };
+const SURF_FN = `
+float wSeam(float v, float s, float w) { float f = abs(fract(v / s + 0.5) - 0.5) * s; float fw = fwidth(v) * 0.8; return 1.0 - smoothstep(w - fw, w + fw, f); }
+`;
+function weathered(m, def, pat) {
+  const amt = def.wear === undefined ? 1 : def.wear;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uWear = { value: amt };
+    sh.uniforms.uPat = { value: pat };
+    sh.vertexShader = 'varying vec3 vObj;\nvarying vec3 vObjN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvObj = position; vObjN = normal;');
+    sh.fragmentShader = 'varying vec3 vObj;\nvarying vec3 vObjN;\nuniform float uWear;\nuniform int uPat;\n' + WEATHER + SURF_FN + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      float blot = wFbm(vObj * 0.22);
+      float grain = wNoise(vObj * 3.1);
+      float dust = 1.0 - smoothstep(0.2, 3.2, vObj.y);
+      vec3 dustCol = vec3(0.52, 0.46, 0.36);
+      vec3 an = abs(normalize(vObjN));
+      bool wall = an.y < 0.55;
+      // horizontal coordinate along a wall, ground plane coordinates on tops
+      float along = an.x > an.z ? vObj.z : vObj.x;
+      vec2 top = vObj.xz;
+      float shade = 1.0;
+      if (uPat == 1) {
+        if (wall) { shade -= 0.22 * wSeam(along, 2.4, 0.07) + 0.18 * wSeam(vObj.y, 6.0, 0.06); shade += 0.05 * (wHash(vec3(floor(along / 2.4), floor(vObj.y / 6.0), 3.0)) - 0.5); }
+        else shade -= 0.16 * wSeam(top.x, 1.6, 0.08);
+      } else if (uPat == 2) {
+        vec2 q = wall ? vec2(along, vObj.y) : top;
+        shade -= 0.2 * max(wSeam(q.x, 5.0, 0.06), wSeam(q.y, 5.0, 0.06));
+        shade += 0.08 * (wHash(vec3(floor(q / 5.0), 7.0)) - 0.5);
+      } else if (uPat == 3) {
+        float row = floor(vObj.y / 0.6);
+        shade += 0.14 * (wHash(vec3(floor((along + row * 0.6) / 1.2), row, 5.0)) - 0.5);
+        shade -= 0.1 * wSeam(vObj.y, 0.6, 0.05);
+      }
+      else if (uPat == 5) {
+        shade -= 0.3 * wSeam(vObj.x, 0.75, 0.12);
+        dust = max(dust, 0.55);
+      } else if (uPat == 6) {
+        if (wall) shade -= 0.16 * max(wSeam(vObj.y, 2.2, 0.05), wSeam(along, 7.0, 0.05));
+        shade -= 0.12 * smoothstep(0.55, 0.85, wFbm(vec3(along * 0.9, vObj.y * 0.3, 2.0))) * (wall ? 1.0 : 0.0);
+      }
+      // rain streaks run down walls from the eaves
+      if (wall && uPat > 0) shade -= 0.14 * smoothstep(0.45, 0.8, wFbm(vec3(along * 1.7, vObj.y * 0.08, 1.0))) * uWear;
+      diffuseColor.rgb *= shade * mix(1.0, 0.78 + 0.34 * blot + 0.06 * grain, uWear);
+      diffuseColor.rgb = mix(diffuseColor.rgb, dustCol * (0.8 + 0.4 * blot), dust * 0.45 * uWear);`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n      roughnessFactor = clamp(roughnessFactor + (blot - 0.5) * 0.3 * uWear, 0.04, 1.0);');
+  };
+  m.customProgramCacheKey = () => 'wear' + amt + 'p' + pat;
+  return m;
+}
+function meshMaterial(name, def, surf) {
+  const pat = ANY_PAT[name] || (surf === 'building' ? SURF_PAT[name] || 0 : 0), key = name + '|' + pat;
+  if (!MAT_CACHE.has(key)) {
     const color = new THREE.Color().setRGB(def.c[0] / 255, def.c[1] / 255, def.c[2] / 255, THREE.SRGBColorSpace);
     const m = def.glow ? new THREE.MeshBasicMaterial({ color })
-      : def.shiny ? new THREE.MeshPhongMaterial({ color, shininess: 60, specular: 0x667788, flatShading: true })
-      : new THREE.MeshLambertMaterial({ color, flatShading: true });
-    MAT_CACHE.set(name, m);
+      : weathered(new THREE.MeshStandardMaterial({ color, roughness: def.rough !== undefined ? def.rough : 0.72, metalness: def.metal || 0, envMapIntensity: 0.35 }), def, pat);
+    MAT_CACHE.set(key, m);
   }
-  return MAT_CACHE.get(name);
+  return MAT_CACHE.get(key);
 }
 function primGeometry(p) {
   let g;
   if (p.t === 'box') {
-    g = new THREE.BoxGeometry(p.s[0], p.s[2], p.s[1]);
+    // softly rounded edges catch the light the way real plate edges do
+    const r = Math.min(p.bevel !== undefined ? p.bevel : 0.14, Math.min(p.s[0], p.s[1], p.s[2]) * 0.22);
+    g = r > 0.02 ? new RoundedBoxGeometry(p.s[0], p.s[2], p.s[1], 2, r) : new THREE.BoxGeometry(p.s[0], p.s[2], p.s[1]);
   } else if (p.t === 'cyl') {
-    const seg = p.seg || 14;
+    const seg = Math.max(p.seg || 14, 18);
     g = new THREE.CylinderGeometry(p.r2 !== undefined ? p.r2 : p.rad, p.rad, p.len, seg, 1, false);
     // three's cylinder runs along +y (model z); the top radius is r2
     if (p.axis === 'x') g.rotateZ(-Math.PI / 2);        // +y -> +x
     else if (p.axis === 'y') g.rotateX(Math.PI / 2);    // +y -> +z (three) = model +y
   } else if (p.t === 'sph') {
-    g = new THREE.SphereGeometry(p.rad, p.seg || 12, Math.max(6, (p.seg || 12) >> 1));
+    g = new THREE.SphereGeometry(p.rad, Math.max(p.seg || 12, 20), Math.max(10, (p.seg || 12) >> 1));
     if (p.s) g.scale(p.s[0], p.s[2], p.s[1]);
   } else if (p.t === 'ext') {
     const shape = new THREE.Shape();
@@ -153,8 +243,9 @@ function primGeometry(p) {
     for (let i = 0; i < pts.length; i++) { const [x1, y1] = pts[i], [x2, y2] = pts[(i + 1) % pts.length]; area += x1 * y2 - x2 * y1; }
     if (area < 0) pts.reverse();
     pts.forEach(([a, b], i) => i ? shape.lineTo(a, b) : shape.moveTo(a, b));
-    g = new THREE.ExtrudeGeometry(shape, { depth: p.b - p.a, bevelEnabled: false });
-    g.translate(0, 0, p.a);
+    const bev = Math.min(0.12, (p.b - p.a) * 0.2);
+    g = new THREE.ExtrudeGeometry(shape, { depth: Math.max(0.01, p.b - p.a - bev * 2), bevelEnabled: bev > 0.02, bevelThickness: bev, bevelSize: bev * 0.8, bevelSegments: 1 });
+    g.translate(0, 0, p.a + bev);
     if (p.plane === 'top') g.rotateX(-Math.PI / 2);       // (x, -y, d) -> (x, d, y)
     else if (p.plane === 'front') g.rotateY(Math.PI / 2); // (-y, z, d) -> (d, z, y)
   }
@@ -165,27 +256,43 @@ function place(obj, p) {
   obj.position.set(pos[0], pos[2], pos[1]);
   if (p.r) { obj.rotation.order = 'YZX'; obj.rotation.set(p.r[0] * Math.PI / 180, -p.r[2] * Math.PI / 180, p.r[1] * Math.PI / 180); }
 }
-function buildPrims(list, mats) {
+function buildPrims(list, mats, surf) {
   const g = new THREE.Group();
   for (const p of list) {
-    if (p.t === 'grp') { const c = buildPrims(p.c, mats); place(c, p); g.add(c); continue; }
+    if (p.t === 'grp') { const c = buildPrims(p.c, mats, surf); place(c, p); g.add(c); continue; }
     const geo = primGeometry(p), def = mats[p.m];
-    const mesh = new THREE.Mesh(geo, meshMaterial(p.m, def));
+    const mesh = new THREE.Mesh(geo, meshMaterial(p.m, def, surf));
     if (p.t !== 'ext') place(mesh, p);
     mesh.castShadow = mesh.receiveShadow = !def.glow;
-    MESH_FLAGS.set(mesh, { team: def.team ? 1 : 0, camo: def.camo ? 1 : 0 });
+    // flags live in userData so they survive clone() (the turret is rendered from a clone)
+    mesh.userData.flags = { team: def.team ? 1 : 0, camo: def.camo ? 1 : 0 };
     g.add(mesh);
   }
   return g;
 }
+// bake every primitive's transform into its geometry, so positions are in model space (the
+// weathering noise then sticks to the model) and the part is one flat group
+function flatten(g) {
+  g.updateMatrixWorld(true);
+  const out = new THREE.Group(), meshes = [];
+  g.traverse(o => { if (o.isMesh) meshes.push(o); });
+  for (const o of meshes) {
+    o.geometry.applyMatrix4(o.matrixWorld);
+    o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1);
+    out.add(o);
+  }
+  return out;
+}
 async function loadMeshModel(cfg) {
   const d = await (await fetch('/mesh/' + cfg.mesh + '.json')).json();
   const root = new THREE.Group();
-  const hull = buildPrims(d.parts.hull, d.mats);
+  // structures get cladding seams, slab joints and rain streaks; their rotating guns do not
+  const surf = /^b_/.test(cfg.mesh) && !/_gun$/.test(cfg.mesh) ? 'building' : '';
+  const hull = flatten(buildPrims(d.parts.hull, d.mats, surf));
   hull.name = 'hull'; root.add(hull);
   if (d.parts.turret) {
     const t = new THREE.Group(); t.name = 'turret';
-    t.add(buildPrims(d.parts.turret, d.mats));
+    t.add(flatten(buildPrims(d.parts.turret, d.mats, '')));
     t.position.set(d.mount[0], d.mount[2], d.mount[1]);
     root.add(t);
   }
@@ -212,8 +319,8 @@ function maskMaterials(root, rules, which = 'mask') {
   root.traverse(o => {
     if (!o.isMesh) return;
     saved.set(o, o.material);
-    const mf = MESH_FLAGS.get(o);
-    if (mf) { o.material = new THREE.MeshBasicMaterial({ color: which === 'mask' && mf.team || which === 'camo' && mf.camo ? 0xffffff : 0x000000 }); return; }
+    const mf = o.userData.flags;
+    if (mf) { o.material = new THREE.MeshBasicMaterial({ toneMapped: false, color: which === 'mask' && mf.team || which === 'camo' && mf.camo ? 0xffffff : 0x000000 }); return; }
     const vc = VOX_COLORS.get(o.geometry);
     if (vc) {
       o.geometry.setAttribute('color', vc[which]);
@@ -267,8 +374,10 @@ async function renderSheet(cfg) {
     let shadowR = 0;
     if (cfg.mesh) { const sph = new THREE.Box3().setFromObject(root).getBoundingSphere(new THREE.Sphere()); shadowR = sph.radius + sph.center.length() + 2; }
     lights(scene, shadowR);
+    if (cfg.mesh && !window.NOENV) { scene.environment = ENV; scene.environmentIntensity = 0.16; }
     const holder = new THREE.Group(); holder.add(obj); scene.add(holder);
     const sheets = {};
+    let comp = null;
     for (const pass of cfg.vox || cfg.mesh ? ['base', 'mask', 'camo'] : ['base', 'mask']) {
       const restore = pass !== 'base' ? maskMaterials(obj, cfg.mask || {}, pass) : () => {};
       const sheet = document.createElement('canvas');
@@ -279,6 +388,24 @@ async function renderSheet(cfg) {
         // (.glb models face +Z; voxel models face +X)
         holder.rotation.y = (cfg.vox || cfg.mesh ? 0 : Math.PI / 2) - f / NF * Math.PI * 2;
         renderer.render(scene, cam);
+        if (cfg.mesh && pass === 'base' && !window.NOAO) {
+          // colour from the ambient-occlusion pipeline (drawn over an opaque ground tone),
+          // coverage from the plain render
+          const alpha = document.createElement('canvas'); alpha.width = alpha.height = C;
+          alpha.getContext('2d').drawImage(renderer.domElement, 0, 0);
+          renderer.setClearColor(0x5a5a50, 1);
+          comp = comp || aoComposer(scene, cam, C);
+          comp.render();
+          renderer.setClearColor(0x000000, 0);
+          const col = document.createElement('canvas'); col.width = col.height = C;
+          const cx = col.getContext('2d');
+          cx.drawImage(renderer.domElement, 0, 0);
+          const cd = cx.getImageData(0, 0, C, C), ad = alpha.getContext('2d').getImageData(0, 0, C, C);
+          for (let i = 3; i < cd.data.length; i += 4) cd.data[i] = ad.data[i];
+          cx.putImageData(cd, 0, 0);
+          sx.drawImage(col, (f % NC) * C, Math.floor(f / NC) * C);
+          continue;
+        }
         sx.drawImage(renderer.domElement, (f % NC) * C, Math.floor(f / NC) * C);
       }
       restore();

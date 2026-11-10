@@ -222,6 +222,13 @@ Structures use one unit = 2 game pixels, centred on the footprint; flags, lights
 superweapon effects are drawn live on top at fixed spots (`BLD_LIVE` in `js/art.js`), so the models
 put masts, roofs and pads under them. Defences have separately rotating guns (`b_<key>_gun`).
 
+`render.html` renders them with physically based materials (each palette entry has a roughness,
+metalness and wear amount, see `FINISH` in `mesh_lib.js`), ambient occlusion, softly rounded edges and
+a weathering shader: grime, dust toward the ground, and surface detail per material (cladding seams,
+concrete joints, brick courses and rain streaks on structures, track links, welded ship plating). In
+game, faction paints are muted real-world colours, a light colour grade is baked into the sprites and
+the ground once (`gradeCanvas` in `js/art.js`), and units cast a shadow from their own silhouette.
+
 The upgraded looks (`*_up`: reactive armour, body armour, Mk II structure refits) and the ultimate
 units' refit tiers (`*_t2` to `*_t4`) are built by the same scripts; the game only downloads those
 sheets once a player has the upgrade. The two factions look different: the Allies get NATO-style

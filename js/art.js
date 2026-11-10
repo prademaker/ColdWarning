@@ -212,8 +212,17 @@ const UP_LOOKS = { infantry: 'up_armor', vehicle: 'up_era' };
 function wearsUpgrade(team, cat) { const k = UP_LOOKS[cat]; return !!(k && team && team.upgrades && team.upgrades[k]); }
 const CAMO_TINT = { usa: '#e6dcc4', russia: '#a9b480', china: '#98b78b', eu: '#a4ad98', soviet: '#b3ae7c', uk: '#d9d2b8', japan: '#a6b394', northkorea: '#a6aa80' };
 // voxel camouflage is stored as greys and painted in these faction colours
-const VOX_CAMO = { usa: '#d8c39a', russia: '#97a06a', china: '#86a273', eu: '#9aa390', soviet: '#aaa26c', uk: '#c8b98e', japan: '#94a37f', northkorea: '#9ca06c' };
+// (muted real-world paints: CARC tan, Russian protective green, PLA green, NATO grey-green, ...)
+const VOX_CAMO = { usa: '#d2bd94', russia: '#8f9a64', china: '#84976e', eu: '#979e8d', soviet: '#a29d6a', uk: '#c8b78f', japan: '#909b80', northkorea: '#979a68' };
 const loaded = img => img.complete && img.naturalWidth > 0;
+
+// Colour grade baked into sprites and the ground once (not per frame): saturation pulled down
+// toward the muted tones of real daylight footage. Team colours are applied after it.
+const GRADE = 0.22;
+function gradeCanvas(x, w, h) {
+  x.save(); x.globalCompositeOperation = 'saturation'; x.globalAlpha = GRADE;
+  x.fillStyle = '#808080'; x.fillRect(0, 0, w, h); x.restore();
+}
 
 function teamSheet(key, part, team) {
   const sh = SHEETS[key + '_' + part];
@@ -234,12 +243,16 @@ function teamSheet(key, part, team) {
       // voxel units: faction-tinted camouflage on the armour, solid team colour on the accent
       // parts (fender edges, turret band, rear plate), keeping the voxels' shading
       if (sh.camo) { x.globalCompositeOperation = 'multiply'; x.drawImage(layer(VOX_CAMO[team.faction] || '#c8b48c', sh.camo), 0, 0); }
+      gradeCanvas(x, w, h);
       // structures wear a slightly muted team colour so roofs don't overpower the scene
       const tc = key.startsWith('b_') ? tone(team.color, -0.15) : team.color;
       x.globalCompositeOperation = 'color'; x.globalAlpha = 0.85;
       x.drawImage(layer(tc), 0, 0);
       x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.2;
       x.drawImage(layer(tc), 0, 0);
+      // the grade painted the empty corners too: cut back to the sprite's own outline
+      x.globalCompositeOperation = 'destination-in'; x.globalAlpha = 1;
+      x.drawImage(sh.base, 0, 0);
     } else {
       x.globalCompositeOperation = 'multiply';
       x.drawImage(layer(CAMO_TINT[team.faction] || '#ffffff'), 0, 0);
@@ -503,6 +516,35 @@ function ultMark(ctx, x, y, tier) {
 }
 // refits researched toward an ultimate (0 to 3); team can be a plain copy without Team's methods
 function ultLevel(team, key) { return Math.min(3, (team && team.upgrades && team.upgrades[UNITS[key].refit]) || 0); }
+
+// A unit's cast shadow: its own silhouette, softened once per sheet, then squashed onto the ground
+// and leaned away from the sun (upper left), so it lands to the lower right like the structures'.
+function shadowSheet(key, part) {
+  const sh = SHEETS[key + '_' + part];
+  if (!sh || !loaded(sh.base)) return null;
+  return Art.get(`SH|${key}|${part}`, () => {
+    const w = sh.base.naturalWidth, h = sh.base.naturalHeight;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    if ('filter' in x) x.filter = 'blur(2px)';
+    x.drawImage(sh.base, 0, 0);
+    x.filter = 'none'; x.globalCompositeOperation = 'source-in';
+    x.fillStyle = 'rgb(10,14,22)'; x.fillRect(0, 0, w, h);
+    return c;
+  });
+}
+function drawUnitShadow(ctx, u, team, sx, sy) {
+  const sk = spriteKeyFor(u, team), m = typeof SPRITE_META !== 'undefined' ? SPRITE_META[sk] : null;
+  const c = m && shadowSheet(sk, 'hull');
+  if (!c) return false;
+  const f = (m.facings || FACINGS) === 1 ? 0 : facingIndex(u.facing), C = m.cell * m.res;
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  ctx.transform(1, 0, -0.75, 0.42, sx, sy);
+  ctx.drawImage(c, (f % m.cols) * C, Math.floor(f / m.cols) * C, C, C, -m.ax, -m.ay, m.cell, m.cell);
+  ctx.restore();
+  return true;
+}
 
 function drawUnitArt(ctx, u, team, sx, sy) {
   const m = UNIT_MODELS[u.key];
