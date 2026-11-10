@@ -39,6 +39,7 @@ const SPRITE_META = {
   "tank_vox": {
     "cell": 104,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 52,
     "ay": 68.5,
@@ -62,12 +63,13 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": 0,
+    "turretOffset": -1,
     "camo": true
   },
   "mlrs_vox": {
     "cell": 64,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 32,
     "ay": 42,
@@ -82,6 +84,7 @@ const SPRITE_META = {
   "railtank_vox": {
     "cell": 80,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 40,
     "ay": 53,
@@ -90,7 +93,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -1.5,
+    "turretOffset": -1,
     "camo": true
   },
   "titan_vox": {
@@ -111,6 +114,7 @@ const SPRITE_META = {
   "harvester_vox": {
     "cell": 72,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 36,
     "ay": 47.5,
@@ -123,6 +127,7 @@ const SPRITE_META = {
   "harvester_vox_full": {
     "cell": 72,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 36,
     "ay": 47.5,
@@ -135,6 +140,7 @@ const SPRITE_META = {
   "mcv_vox": {
     "cell": 84,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 42,
     "ay": 60.5,
@@ -147,6 +153,7 @@ const SPRITE_META = {
   "heli_vox": {
     "cell": 72,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 36,
     "ay": 47.5,
@@ -163,6 +170,7 @@ const SPRITE_META = {
   "jet_vox": {
     "cell": 72,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 36,
     "ay": 47.5,
@@ -175,6 +183,7 @@ const SPRITE_META = {
   "rifle_vox_0": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -187,6 +196,7 @@ const SPRITE_META = {
   "rifle_vox_1": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -199,6 +209,7 @@ const SPRITE_META = {
   "rifle_vox_2": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -211,6 +222,7 @@ const SPRITE_META = {
   "rocket_vox_0": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -223,6 +235,7 @@ const SPRITE_META = {
   "rocket_vox_1": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -235,6 +248,7 @@ const SPRITE_META = {
   "rocket_vox_2": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -247,6 +261,7 @@ const SPRITE_META = {
   "engineer_vox_0": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -259,6 +274,7 @@ const SPRITE_META = {
   "engineer_vox_1": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -271,6 +287,7 @@ const SPRITE_META = {
   "engineer_vox_2": {
     "cell": 40,
     "cols": 8,
+    "facings": 32,
     "res": 2,
     "ax": 20,
     "ay": 30,
@@ -528,7 +545,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -3,
+    "turretOffset": -2,
     "camo": true
   },
   "iskander_vox": {
@@ -543,7 +560,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -4,
+    "turretOffset": -15,
     "camo": true
   },
   "drone_vox": {
@@ -740,7 +757,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -1.5,
+    "turretOffset": -2,
     "camo": true
   },
   "raijin_vox": {
@@ -980,7 +997,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": 15.6,
+    "turretOffset": 16.2,
     "camo": true
   },
   "sub_vox": {
@@ -1092,7 +1109,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -6,
+    "turretOffset": -5,
     "camo": true
   },
   "phantom_vox": {
@@ -1319,7 +1336,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": 0,
+    "turretOffset": -1,
     "camo": true
   },
   "mlrs_vox_up": {
@@ -1349,7 +1366,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -1.5,
+    "turretOffset": -1,
     "camo": true
   },
   "titan_vox_up": {
@@ -1394,7 +1411,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -3,
+    "turretOffset": -2,
     "camo": true
   },
   "iskander_vox_up": {
@@ -1409,7 +1426,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -4,
+    "turretOffset": -15,
     "camo": true
   },
   "aegis_vox_up": {
@@ -1424,7 +1441,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -1.5,
+    "turretOffset": -2,
     "camo": true
   },
   "raijin_vox_up": {
@@ -1454,7 +1471,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -6,
+    "turretOffset": -5,
     "camo": true
   },
   "phantom_vox_up": {
@@ -2488,7 +2505,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -2,
+    "turretOffset": -0.5,
     "camo": true
   },
   "railtank_vox_ax": {
@@ -2503,7 +2520,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -2,
+    "turretOffset": -1,
     "camo": true
   },
   "recovery_vox_ax": {
@@ -2518,7 +2535,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -6,
+    "turretOffset": -4,
     "camo": true
   },
   "harvester_vox_ax": {
@@ -2983,7 +3000,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -2,
+    "turretOffset": -0.5,
     "camo": true
   },
   "railtank_vox_ax_up": {
@@ -2998,7 +3015,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -2,
+    "turretOffset": -1,
     "camo": true
   },
   "recovery_vox_ax_up": {
@@ -3013,7 +3030,7 @@ const SPRITE_META = {
       "turret": true
     },
     "style": "voxel",
-    "turretOffset": -6,
+    "turretOffset": -4,
     "camo": true
   },
   "goliath_vox_ax_0": {
