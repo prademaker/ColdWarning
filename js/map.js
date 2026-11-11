@@ -32,15 +32,53 @@ function makeNoise(rng, size) {
 // Per-theater palettes (RGB) and scenery.
 const THEMES = {
   temperate: { dry: [112, 110, 62], blades: ['#3d5a26', '#5c7f36', '#7f9a4a', '#a3a866'], grass: [68, 88, 46], dirt: [102, 86, 58], sand: [156, 142, 100], water: [30, 66, 84], deep: [12, 32, 50], rock: [92, 90, 84],
-    water0: 0.3, decor: 'broadleaf', density: 1 / 12, leaf: ['#56803a', '#26431a'] },
+    water0: 0.3, decor: 'broadleaf', density: 1 / 12, leaf: ['#56803a', '#26431a'],
+    trees: ['oak', 'oak', 'elm', 'ash', 'karee', 'oak'], shrubs: ['shrub2', 'shrub3'], rocks: ['boulder1', 'grey3', 'grey6', 'grey1'], clump: 2.2 },
   desert: { dry: [200, 170, 120], blades: null, grass: [184, 156, 108], dirt: [152, 118, 80], sand: [204, 180, 132], water: [40, 104, 110], deep: [18, 60, 74], rock: [146, 108, 76],
-    water0: 0.24, decor: 'shrub', density: 1 / 40, leaf: ['#7d7a45', '#4e4a28'], dunes: true },
+    water0: 0.24, decor: 'shrub', density: 1 / 40, leaf: ['#7d7a45', '#4e4a28'], dunes: true,
+    trees: ['quiver', 'quiver2', 'quiver', 'karee'], shrubs: ['shrub_dry'], rocks: ['boulder2', 'boulder3', 'boulder4', 'boulder5', 'boulder6'], clump: 0.6 },
   arctic: { dry: [196, 206, 220], blades: null, grass: [214, 222, 232], dirt: [146, 154, 158], sand: [186, 204, 218], water: [42, 76, 100], deep: [16, 36, 58], rock: [104, 112, 124],
-    water0: 0.3, decor: 'pine', density: 1 / 14, leaf: ['#3e5e46', '#1c3122'], snow: true },
+    water0: 0.3, decor: 'pine', density: 1 / 14, leaf: ['#3e5e46', '#1c3122'], snow: true,
+    trees: ['fir'], shrubs: ['shrub_dry'], rocks: ['grey1', 'grey3', 'grey4', 'grey6'], clump: 2.5 },
   steppe: { dry: [164, 150, 90], blades: ['#7a7a3e', '#9a944e', '#b8a964', '#5f6a34'], grass: [136, 130, 76], dirt: [116, 96, 64], sand: [172, 158, 112], water: [36, 74, 88], deep: [14, 38, 52], rock: [110, 102, 88],
-    water0: 0.27, decor: 'shrub', density: 1 / 26, leaf: ['#6f7a3c', '#3e4a20'] },
+    water0: 0.27, decor: 'shrub', density: 1 / 26, leaf: ['#6f7a3c', '#3e4a20'],
+    trees: ['karee', 'karee', 'oak', 'elm'], shrubs: ['shrub_dry', 'shrub3'], rocks: ['boulder3', 'boulder4', 'boulder1', 'rock9'], clump: 1.2 },
   jungle: { dry: [70, 104, 44], blades: ['#24461c', '#33602a', '#4d7d34', '#2a5022'], palms: true, grass: [44, 78, 36], dirt: [90, 72, 46], sand: [148, 134, 90], water: [22, 74, 72], deep: [8, 38, 42], rock: [78, 86, 72],
-    water0: 0.32, decor: 'broadleaf', density: 1 / 4, leaf: ['#3f7a2c', '#173a12'] },
+    water0: 0.32, decor: 'broadleaf', density: 1 / 4, leaf: ['#3f7a2c', '#173a12'],
+    trees: ['ash', 'elm', 'oak', 'ash', 'karee'], shrubs: ['shrub2', 'shrub3'], rocks: ['boulder1', 'grey3', 'rock9'], clump: 0.5 },
+};
+
+// Photographed ground. Each theatre lays real ground photographs (public domain, Poly Haven;
+// prepared by tools/terrain/build.py) over its own soil colours: two per big surface, cross-faded
+// by broad noise so no repeat shows. [name, scale] pairs; scale stretches the 512 px photo.
+const GROUND_TEX = {
+  temperate: { grass: [['aerial_grass_rock', 0.9], ['leafy_grass', 0.5]], dirt: [['dirt_aerial_03', 1], ['aerial_ground_rock', 0.7]], sand: [['aerial_beach_01', 0.7]], rock: [['aerial_rocks_02', 0.7]], cliff: 'cliff_side' },
+  desert: { grass: [['aerial_sand', 1], ['gravelly_sand', 0.6]], dirt: [['mud_cracked_dry_03', 0.5], ['dry_ground_01', 0.6]], sand: [['aerial_beach_01', 0.7]], rock: [['aerial_rocks_01', 0.7]], cliff: 'cliff_side' },
+  arctic: { grass: [['snow_02', 1], ['snow_field_aerial', 0.9]], dirt: [['aerial_ground_rock', 0.7], ['snow_field_aerial', 0.7]], sand: [['snow_02', 0.7]], rock: [['aerial_rocks_01', 0.7]], cliff: 'rock_face' },
+  steppe: { grass: [['withered_grass', 0.5], ['sparse_grass', 0.6]], dirt: [['aerial_ground_rock', 0.7], ['dirt_aerial_03', 1]], sand: [['gravelly_sand', 0.6]], rock: [['aerial_rocks_01', 0.7]], cliff: 'cliff_side' },
+  jungle: { grass: [['forrest_ground_01', 0.5], ['aerial_rocks_04', 0.8]], dirt: [['aerial_mud_1', 0.8], ['dirt_aerial_03', 1]], sand: [['aerial_beach_01', 0.7]], rock: [['aerial_rocks_02', 0.7]], cliff: 'rock_face' },
+};
+const GroundTex = {
+  img: {}, waiting: [],
+  names(set) { return [...new Set([...set.grass, ...set.dirt, ...set.sand, ...set.rock].map(t => t[0]).concat(set.cliff))]; },
+  // the photos of one theatre, or null while they load (then `again` runs once they are in)
+  get(theater, again) {
+    const set = GROUND_TEX[theater];
+    if (!set || typeof Image === 'undefined') return null;
+    let pending = 0;
+    for (const n of this.names(set)) {
+      let im = this.img[n];
+      if (!im) {
+        im = this.img[n] = new Image();
+        im.onload = im.onerror = () => { im.done = true; this.waiting = this.waiting.filter(w => !w()); };
+        im.src = `assets/terrain/tex/${n}.webp`;
+      }
+      if (!im.done) pending++;
+    }
+    if (!pending) return this.names(set).every(n => this.img[n].naturalWidth) ? set : null;
+    if (again) this.waiting.push(() => { if (this.names(set).some(n => !this.img[n].done)) return false; again(); return true; });
+    return null;
+  },
 };
 
 // Tileable 256px surface textures (mostly translucent detail laid over the base colour).
@@ -672,6 +710,8 @@ class GameMap {
   renderTerrain() {
     const N = this.w, th = this.theme;
     const rng = makeRng(this.seed ^ 0x5bd1e995);
+    // ground photographs; until they are in, the painted textures stand in and the map is redone after
+    const photo = GroundTex.get(this.theater, () => { if (typeof G !== 'undefined' && G && G.map === this) { this.renderTerrain(); if (typeof Render !== 'undefined' && Render.chunks) Render.chunks.clear(); } });
     const pal = { [T_GRASS]: th.grass, [T_DIRT]: th.dirt, [T_SAND]: th.sand, [T_WATER]: th.water, [T_ROCK]: th.rock, [T_CLIFF]: th.rock.map(v => v * 0.7) };
     // distance from land for water depth
     const depth = new Float32Array(N * N).fill(99);
@@ -693,6 +733,8 @@ class GameMap {
       if (t === T_WATER) {
         const k = Math.min(1, (depth[i] - 1) / 4);
         c = [c[0] + (th.deep[0] - c[0]) * k, c[1] + (th.deep[1] - c[1]) * k, c[2] + (th.deep[2] - c[2]) * k];
+        // clear shallows: the sandy bed shows through at the water's edge
+        if (photo && depth[i] <= 2) { const s = depth[i] <= 1 ? 0.5 : 0.2; c = c.map((v, n) => v + (th.sand[n] * 0.8 - v) * s); }
       }
       // hilltops catch a little more light than the plain
       const v = (1 + (rng() - 0.5) * 0.08) * (this.height[i] && t !== T_CLIFF ? 1.14 : 1);
@@ -745,6 +787,7 @@ class GameMap {
         for (let ch = 0; ch < 3; ch++) {
           const top = tc[a + ch] + (tc[b + ch] - tc[a + ch]) * tx, bot = tc[c + ch] + (tc[e + ch] - tc[c + ch]) * tx;
           let v = top + (bot - top) * ty + shade + m + dune + (th.dry[ch] - th.grass[ch]) * dry * 0.85;
+          if (!water && photo) v *= ch === 2 ? 1.14 : 1.24;   // open ground in daylight: brighter and a touch warmer than the painted look
           if (!water) v = v * (1 + (macro(px / LW * 7, py / LW * 7) - 0.5) * 0.16) + (tint(px / LW * 15 + 3, py / LW * 15 + 1) - 0.5) * (ch === 1 ? 10 : ch === 0 ? 7 : -6);
           if (water && ch === 2) v += m * 0.5;
           d[k + ch] = v;
@@ -770,8 +813,7 @@ class GameMap {
       gi.data[i] = gi.data[i + 1] = gi.data[i + 2] = v; gi.data[i + 3] = rng() * 22;
     }
     gctx.putImageData(gi, 0, 0);
-    ctx.fillStyle = ctx.createPattern(gc, 'repeat');
-    ctx.fillRect(0, 0, cv.width, cv.height);
+    if (!photo) { ctx.fillStyle = ctx.createPattern(gc, 'repeat'); ctx.fillRect(0, 0, cv.width, cv.height); }
 
     // surface detail: a tiling texture per material, laid only where that material is
     const W = cv.width, layer = document.createElement('canvas');
@@ -800,11 +842,33 @@ class GameMap {
     };
     const vrng = makeRng(this.seed ^ 0x61c88647);
     const both = (kind, mask) => { overlay(surfaceTexture(kind, th, rng), masked(mask, false)); overlay(surfaceTexture(kind, th, vrng), masked(mask, true)); };
-    both(th.snow ? 'snow' : th.blades ? 'grass' : 'sand', mGrass);
-    both('dirt', mDirt);
-    overlay(surfaceTexture(th.snow ? 'snow' : 'sand', th, rng), mSand, 0.8);
-    overlay(surfaceTexture('gravel', th, rng), mRock);
-    overlay(surfaceTexture('gravel', th, rng), mCliff, 0.6);
+    // the same burn of rng as the painted textures, so everything seeded after this stays put
+    const burn = (kind, r) => { if (photo) surfaceTexture(kind, th, r); };
+    if (photo) {
+      // real ground: photographs modulate the soil colours (hard-light keeps the theatre's palette)
+      const lay = ([name, scale], mask, alpha = 1) => {
+        lc.globalCompositeOperation = 'source-over'; lc.clearRect(0, 0, W, W);
+        const pat = lc.createPattern(GroundTex.img[name], 'repeat');
+        if (pat.setTransform) pat.setTransform(new DOMMatrix().scale(scale));
+        lc.fillStyle = pat; lc.fillRect(0, 0, W, W);
+        lc.globalCompositeOperation = 'destination-in'; lc.imageSmoothingEnabled = true;
+        lc.drawImage(mask, 0, 0, W, W);
+        ctx.globalCompositeOperation = 'hard-light'; ctx.globalAlpha = alpha;
+        ctx.drawImage(layer, 0, 0);
+        ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+      };
+      const pair = (texs, mask) => { lay(texs[0], masked(mask, false)); lay(texs[1], masked(mask, true)); };
+      pair(photo.grass, mGrass); pair(photo.dirt, mDirt);
+      lay(photo.sand[0], mSand); lay(photo.rock[0], mRock); lay(photo.rock[0], mCliff, 0.7);
+      const gk = th.snow ? 'snow' : th.blades ? 'grass' : 'sand';
+      burn(gk, rng); burn(gk, vrng); burn('dirt', rng); burn('dirt', vrng); burn(th.snow ? 'snow' : 'sand', rng); burn('gravel', rng); burn('gravel', rng);
+    } else {
+      both(th.snow ? 'snow' : th.blades ? 'grass' : 'sand', mGrass);
+      both('dirt', mDirt);
+      overlay(surfaceTexture(th.snow ? 'snow' : 'sand', th, rng), mSand, 0.8);
+      overlay(surfaceTexture('gravel', th, rng), mRock);
+      overlay(surfaceTexture('gravel', th, rng), mCliff, 0.6);
+    }
     overlay(surfaceTexture('water', th, rng), mWater);
     // shoreline: a wide band of wet ground and a thin line of foam just outside the water
     // (computed on the low-resolution grid, then stretched: they are soft anyway)
@@ -833,17 +897,39 @@ class GameMap {
       ctx.fillStyle = 'rgba(220,234,246,0.75)'; ctx.fill();
       ctx.strokeStyle = 'rgba(120,150,175,0.6)'; ctx.lineWidth = 1; ctx.stroke();
     }
-    this.paintDetail(ctx, depth);
-    this.paintRelief(ctx, layer);
+    this.paintDetail(ctx, depth, photo);
+    this.paintRelief(ctx, layer, photo);
     // boulders and trees are upright 3D props drawn by the renderer; only bushes are painted flat
+    // (scanned scenery: each prop also names its model, picked by a separate rng; shrubs and their
+    // shadows are stamped into the ground once the sprites are in)
     this.props = [];
+    const srng = makeRng(this.seed ^ 0x2545f491), pick = l => l[(srng() * l.length) | 0];
+    const scan = typeof PropArt !== 'undefined' && th.trees ? th : null;
+    const shrubsIn = scan && PropArt.all(th.shrubs, () => { if (typeof G !== 'undefined' && G && G.map === this && this.terrainCanvas === cv) { this.renderTerrain(); if (typeof Render !== 'undefined' && Render.chunks) Render.chunks.clear(); } });
+    // a sprite drawn upright on the flat ground texture (the inverse of the iso projection)
+    const stamp = (s, wx, wy, alpha = 1) => { ctx.save(); ctx.setTransform(0.5, -0.5, 1, 1, wx, wy); ctx.globalAlpha = alpha; ctx.drawImage(s.c, -s.ox, -s.oy, s.w, s.h); ctx.restore(); };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
       if (this.terrain[this.idx(x, y)] !== T_ROCK) continue;
-      this.props.push({ kind: 'rock', x: (x + 0.3 + rng() * 0.4) * TILE, y: (y + 0.3 + rng() * 0.4) * TILE, v: (rng() * 8) | 0 });
+      this.props.push({ kind: 'rock', x: (x + 0.3 + rng() * 0.4) * TILE, y: (y + 0.3 + rng() * 0.4) * TILE, v: (rng() * 8) | 0, name: scan && pick(th.rocks), sv: (srng() * 12) | 0 });
     }
+    const open = (x, y) => { const i = this.idx(x | 0, y | 0); return this.inside(x | 0, y | 0) && this.terrain[i] === T_GRASS && this.ore[i] === 0 && !this.civMask[i] && !this.ramp[i]; };
     for (const dc of this.decor) {
-      if (dc.kind === 'bush') this.drawDecor(ctx, dc, th, rng);
-      else this.props.push({ kind: 'tree', x: dc.x * TILE, y: dc.y * TILE, v: (rng() * 6) | 0 });
+      if (dc.kind === 'bush') {
+        const name = scan && pick(th.shrubs), sv = (srng() * 12) | 0;
+        if (!shrubsIn) { this.drawDecor(ctx, dc, th, rng); continue; }
+        rng(); rng();   // keeps the main rng in step with drawDecor
+        const sh = PropArt.get(name, sv, true), sp = PropArt.get(name, sv);
+        if (sh) stamp(sh, dc.x * TILE, dc.y * TILE, 0.42);
+        if (sp) stamp(sp, dc.x * TILE, dc.y * TILE);
+        continue;
+      }
+      this.props.push({ kind: 'tree', x: dc.x * TILE, y: dc.y * TILE, v: (rng() * 6) | 0, name: scan && pick(th.trees), sv: (srng() * 12) | 0 });
+      // real trees stand in clumps: a few neighbours close by
+      if (scan) for (let k = Math.floor(th.clump + srng()); k > 0; k--) {
+        const a = srng() * Math.PI * 2, d = 0.5 + srng() * 1.6, x = dc.x + Math.cos(a) * d, y = dc.y + Math.sin(a) * d;
+        const name = pick(th.trees), sv = (srng() * 12) | 0;
+        if (open(x, y)) this.props.push({ kind: 'tree', x: x * TILE, y: y * TILE, v: 0, name, sv });
+      }
     }
     if (typeof gradeCanvas === 'function') gradeCanvas(ctx, cv.width, cv.height);   // the same muted grade as the sprites (art.js)
     this.terrainCanvas = cv;
@@ -861,7 +947,7 @@ class GameMap {
   // (TILE, TILE): it fills the band of cliff tiles in front of the hill and ends in true vertical
   // corners. Faces are drawn back to front on their own layer, then cut away wherever a hilltop
   // lies in front of them. Ramps are graded slopes; the far edges of a hill get a bright rim.
-  paintRelief(ctx, layer) {
+  paintRelief(ctx, layer, photo) {
     const N = this.w, T = TILE, rock = this.theme.rock, dirt = this.theme.dirt;
     // cliff rock: the theatre's stone warmed toward its soil
     const face0 = rock.map((v, k) => v * 0.6 + dirt[k] * 0.5);
@@ -898,6 +984,14 @@ class GameMap {
       if (cliff(x + 1, y)) faces.push({ x, y, south: false, d: x + y });
     }
     faces.sort((a, b) => a.d - b.d);
+    // photographed rock, laid so it stands upright on screen: u along the face's run, v straight
+    // down the screen (the world diagonal)
+    let rockS = null, rockE = null;
+    if (photo && typeof DOMMatrix !== 'undefined') {
+      const img = GroundTex.img[photo.cliff], k = 0.55;
+      rockS = lc.createPattern(img, 'repeat'); rockS.setTransform(new DOMMatrix([k, 0, k, k, 0, 0]));
+      rockE = lc.createPattern(img, 'repeat'); rockE.setTransform(new DOMMatrix([0, k, k, k, 0, 0]));
+    }
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (const f of faces) {
       // the face's upper edge (ex, ey) along its run, then the face hangs (T, T) below it
@@ -909,25 +1003,29 @@ class GameMap {
       lc.clip();
       const k = f.south ? 1 : 0.66; // light from the upper left: south faces lit, east faces in shade
       const g = f.south ? lc.createLinearGradient(0, ey, 0, ey + T) : lc.createLinearGradient(ex, 0, ex + T, 0);
-      g.addColorStop(0, col(face0, 1.55 * k)); g.addColorStop(0.12, col(face0, 1.25 * k));
+      g.addColorStop(0, col(face0, (rockS ? 1.1 : 1.55) * k)); g.addColorStop(0.12, col(face0, (rockS ? 1.1 : 1.25) * k));
       g.addColorStop(0.65, col(face0, 0.95 * k)); g.addColorStop(1, col(face0, 0.55 * k));
       lc.fillStyle = g; lc.fillRect(ex, ey, 2 * T, 2 * T);
+      if (rockS) {
+        lc.globalCompositeOperation = 'hard-light'; lc.fillStyle = f.south ? rockS : rockE; lc.fillRect(ex, ey, 2 * T, 2 * T); lc.fillRect(ex, ey, 2 * T, 2 * T);
+        lc.globalCompositeOperation = 'source-over';
+      }
       // cracks straight down the face (world lines x - y = c), continuous from face to face
-      for (let c = Math.floor((ex - ey - T) / 3) * 3; c <= ex - ey + T; c += 3) {
+      for (let c = Math.floor((ex - ey - T) / 3) * 3; !rockS && c <= ex - ey + T; c += 3) {
         const r = hash(c * 7919 + 13);
         if (r < 0.4) continue;
         const len = T * (0.5 + hash(c * 31 + 7) * 0.5);
         line(lc, ey + c, ey, ey + c + len, ey + len, r > 0.86 ? 'rgba(255,248,230,0.14)' : `rgba(0,0,0,${0.1 + r * 0.22})`, r > 0.7 ? 1.6 : 1);
       }
       // ledges along the face
-      for (const fr of [0.33, 0.62]) {
+      for (const fr of rockS ? [] : [0.33, 0.62]) {
         const j = fr * T + (hash(ex * 31 + ey * 17 + fr * 100) - 0.5) * 6;
         if (f.south) { line(lc, ex, ey + j, ex + 2 * T, ey + j, 'rgba(0,0,0,0.2)', 1.5); line(lc, ex, ey + j - 1.5, ex + 2 * T, ey + j - 1.5, 'rgba(255,250,235,0.08)'); }
         else { line(lc, ex + j, ey, ex + j, ey + 2 * T, 'rgba(0,0,0,0.2)', 1.5); line(lc, ex + j - 1.5, ey, ex + j - 1.5, ey + 2 * T, 'rgba(255,250,235,0.08)'); }
       }
       lc.restore();
       // the lit lip along the top edge and a dark seam at the foot
-      line(lc, ex, ey, ex + rx, ey + ry, 'rgba(255,250,235,0.55)', 2.5);
+      line(lc, ex, ey, ex + rx, ey + ry, rockS ? 'rgba(255,250,235,0.22)' : 'rgba(255,250,235,0.55)', rockS ? 1.5 : 2.5);
       line(lc, ex + T, ey + T, ex + T + rx, ey + T + ry, 'rgba(0,0,0,0.45)', 1.5);
     }
     if (faces.length) {
@@ -976,7 +1074,7 @@ class GameMap {
   // Scattered ground detail painted into the terrain (its own rng): worn and lush patches,
   // stones half sunk in the soil, tufts and leaf litter, dry cracks, snow drifts, and scree
   // at the foot of the cliffs. Everything is soft and low-contrast: it reads as texture.
-  paintDetail(ctx, depth) {
+  paintDetail(ctx, depth, photo) {
     const N = this.w, T = TILE, th = this.theme, rng = makeRng(this.seed ^ 0x165667b1);
     const rgba = (c, a, k = 1) => `rgba(${Math.min(255, c[0] * k) | 0},${Math.min(255, c[1] * k) | 0},${Math.min(255, c[2] * k) | 0},${a})`;
     const blob = (x, y, r, col, a, sq = 1) => {
@@ -1004,6 +1102,7 @@ class GameMap {
       const i = ty * N + tx, t = this.terrain[i];
       if (!land(i)) continue;
       const X = tx * T, Y = ty * T;
+      if (photo) continue;   // photographed ground brings its own stones, tufts and cracks
       if (rng() < (t === T_DIRT ? 0.5 : 0.18) * (th.snow ? 0.4 : 1)) {
         // a little cluster of stones
         const n = 1 + ((rng() * 4) | 0), cx = X + rng() * T, cy = Y + rng() * T;
@@ -1043,7 +1142,7 @@ class GameMap {
     }
     // scree: fallen rock heaped at the foot of each cliff band
     for (let ty = 0; ty < N; ty++) for (let tx = 0; tx < N; tx++) {
-      if (this.terrain[ty * N + tx] !== T_CLIFF) continue;
+      if (photo || this.terrain[ty * N + tx] !== T_CLIFF) continue;
       for (const [dx, dy] of [[0, 1], [1, 0]]) {
         const nx = tx + dx, ny = ty + dy;
         if (!this.inside(nx, ny) || this.height[this.idx(nx, ny)] !== 0 || this.terrain[this.idx(nx, ny)] === T_WATER) continue;

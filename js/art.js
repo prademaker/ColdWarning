@@ -320,7 +320,8 @@ function teamSheet(key, part, team) {
       }
       // structures wear a slightly muted team colour so roofs don't overpower the scene
       const tc = key.startsWith('b_') ? tone(team.color, -0.15) : team.color;
-      x.globalCompositeOperation = 'color'; x.globalAlpha = 0.85;
+      // (painted steel, not neon: on structures some of the weathered metal shows through)
+      x.globalCompositeOperation = 'color'; x.globalAlpha = key.startsWith('b_') ? 0.7 : 0.85;
       x.drawImage(layer(tc), 0, 0);
       x.globalCompositeOperation = 'multiply'; x.globalAlpha = 0.2;
       x.drawImage(layer(tc), 0, 0);
@@ -982,9 +983,8 @@ const BLD_LIVE = {
     let [x, y] = P(50, 14, 48); blink(ctx, x, y, Math.sin(t * 3) > 0, '#ff4040');
     [x, y] = P(24, 22, 22.5);
     const pulse = low ? 0.1 : 0.45 + 0.35 * Math.sin(t * 3 + b.anim);
-    const g = ctx.createRadialGradient(x, y, 0, x, y, 12);
-    g.addColorStop(0, `rgba(190,250,255,${pulse})`); g.addColorStop(1, 'rgba(60,200,255,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.fill();
+    // a small status lamp on the reactor cap (a real plant does not glow)
+    ctx.fillStyle = `rgba(150,235,255,${pulse})`; ctx.beginPath(); ctx.arc(x, y, 1.4, 0, Math.PI * 2); ctx.fill();
     if (!low && Math.random() < 0.06) { const [wx, wy] = [b.tx * TILE + 50, b.ty * TILE + 14]; G.effects.push({ type: 'smoke', x: wx, y: wy, z: 50, t: 0, life: 1.6, size: 3 }); }
   },
   refinery(ctx, P, b, team, t) {
@@ -1194,10 +1194,67 @@ function treeSprite(theme, v) {
   });
 }
 
+// ---------- scanned scenery (tools/sprites/props.js) ----------
+// Trees, shrubs and boulders are photoscanned models rendered to sprites, each with a separate
+// ground shadow. Images load on first use; until then get() returns null.
+const PropArt = {
+  img: {},
+  get(name, v, shadow) {
+    const list = typeof PROP_META !== 'undefined' && PROP_META[name];
+    if (!list) return null;
+    const i = v % list.length, m = list[i], key = `${name}_${i}${shadow ? '_s' : ''}`;
+    let s = this.img[key];
+    if (!s) {
+      const im = new Image();
+      s = this.img[key] = shadow ? { c: im, ox: m.sox, oy: m.soy, w: m.sw, h: m.sh, ok: false } : { c: im, ox: m.ox, oy: m.oy, w: m.w, h: m.h, ok: false };
+      im.onload = () => { s.ok = true; Art.version++; for (const fn of this.waiting.splice(0)) fn(); };
+      im.src = `assets/props/${key}.webp`;
+    }
+    return s.ok ? s : null;
+  },
+  waiting: [],
+  // every sprite of these props, or null while some still load (then `again` runs when more arrive)
+  all(names, again) {
+    let ok = typeof PROP_META !== 'undefined' && names.every(n => PROP_META[n]);
+    for (const n of names) for (let v = 0; v < ((typeof PROP_META !== 'undefined' && PROP_META[n]) || []).length; v++) {
+      if (!this.get(n, v)) ok = false;
+      if (!this.get(n, v, true)) ok = false;
+    }
+    if (!ok && again && !this.waiting.includes(again)) this.waiting.push(again);
+    return ok;
+  },
+};
+
+// one tile of an ore field from scanned stones: a scatter of ore rubble (or mineral outcrop for
+// lithium), more and bigger with the amount left; null until the stone sprites are in
+function oreScan(gem, level, v) {
+  const kind = gem ? 'gem' : 'ore', names = [1, 2, 3, 4].map(n => kind + n);
+  if (!PropArt.all(names)) return null;
+  return Art.get(`OS|${gem}|${level}|${v}`, () => {
+    const r = makeRng(v * 7919 + level * 131 + (gem ? 3 : 1));
+    const W = 84, H = 64, S = 2, c = document.createElement('canvas');
+    c.width = W * S; c.height = H * S;
+    const x = c.getContext('2d'); x.scale(S, S);
+    const stones = [];
+    for (let i = 0, n = 2 + level * 2; i < n; i++) {
+      // spread over the tile's diamond; the big pieces first, in the middle
+      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (i < 2 ? 0.45 : 1), size = Math.max(1, Math.min(4, level - (i < 2 ? 0 : 1 + ((r() * 2) | 0))));
+      stones.push({ x: W / 2 + Math.cos(a) * d * 27, y: H - 20 + Math.sin(a) * d * 13, name: kind + size, v: (r() * 6) | 0 });
+    }
+    stones.sort((p, q) => p.y - q.y);
+    x.globalAlpha = 0.45;
+    for (const st of stones) { const sh = PropArt.get(st.name, st.v, true); if (sh) x.drawImage(sh.c, st.x - sh.ox, st.y - sh.oy, sh.w, sh.h); }
+    x.globalAlpha = 1;
+    for (const st of stones) { const sp = PropArt.get(st.name, st.v); x.drawImage(sp.c, st.x - sp.ox, st.y - sp.oy, sp.w, sp.h); }
+    return { c, ox: W / 2, oy: H - 20, w: W, h: H };
+  });
+}
+
 // ---------- sidebar cameos ----------
 // Units and structures shown in the style mock use its artwork; everything else gets a
 // rendered cameo in the same dark style.
-const CAMEO_ART = { tank: 1, ifv: 1, heli: 1, jet: 1, rifle: 1, sam: 1, cc: 1, barracks: 1, factory: 1, power: 1, radar: 1, airfield: 1 };
+// (the sidebar now shows every unit and structure as its in-game model, so the painted set is retired)
+const CAMEO_ART = {};
 // countries without their own artwork borrow a close ally's
 const CAMEO_FROM = { uk: 'eu', japan: 'usa', northkorea: 'russia' };
 function cameoFaction(faction) { return CAMEO_FROM[faction] || faction; }
