@@ -45,6 +45,26 @@ const Render = {
     return c;
   },
 
+  // lasting craters: scorch marks that aged out of G.decals are painted into the terrain
+  // texture once, and the iso chunks under them are redrawn on demand
+  bakedCraters: new WeakMap(),
+  bakeCraters() {
+    const cr = G.craters, tc = G.map.terrainCanvas;
+    if (!cr || !tc) return;
+    let n = this.bakedCraters.get(tc) || 0;
+    if (n > cr.length) n = 0;   // the list was trimmed: the old ones are already in the ground
+    if (n === cr.length) return;
+    const x = tc.getContext('2d');
+    for (let k = n; k < cr.length; k++) {
+      const d = cr[k];
+      FX.drawDecal(x, d, true);
+      const sx = d.x - d.y, sy = (d.x + d.y) / 2, r = d.r * 1.6;
+      for (let i = Math.floor((sx - r) / CHUNK); i <= Math.floor((sx + r) / CHUNK); i++)
+        for (let j = Math.floor((sy - r) / CHUNK); j <= Math.floor((sy + r) / CHUNK); j++) this.chunks.delete(i + ',' + j);
+    }
+    this.bakedCraters.set(tc, cr.length);
+  },
+
   updateFogCanvas() {
     if (this.fogVersion === G.fogVersion) return;
     this.fogVersion = G.fogVersion;
@@ -89,6 +109,7 @@ const Render = {
     const ty0 = Math.max(0, Math.floor(wy0 / TILE) - 2), ty1 = Math.min(m.h - 1, Math.ceil((wy1 + 200) / TILE) + 2);
     const onScreen = (sx, sy, pad = 120) => sx > -pad && sx < vw + pad && sy > -pad && sy < vh + pad * 1.6;
 
+    this.bakeCraters();
     // ---- ground pass ----
     for (let j = Math.floor(cy / CHUNK); j * CHUNK < cy + vh; j++) {
       for (let i = Math.floor(cx / CHUNK); i * CHUNK < cx + vw; i++) {
@@ -168,6 +189,7 @@ const Render = {
     for (const e of air) { const [sx, sy] = this.P(e.x, e.y); this.drawUnit(ctx, e, sx, sy); }
     this.drawStrikes(ctx);
     this.drawCharges(ctx);
+    Light.draw(ctx, this);
 
     // ---- fog of war ----
     this.updateFogCanvas();

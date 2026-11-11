@@ -710,6 +710,9 @@ class GameMap {
     const H = (x, y) => hill(x / LW * 9, y / LW * 9) * 0.7 + hill(x / LW * 23 + 7, y / LW * 23 + 3) * 0.3;
     const sm = t => t < 0.1 ? 0 : t > 0.9 ? 1 : (t - 0.1) / 0.8 * ((t - 0.1) / 0.8) * (3 - 2 * (t - 0.1) / 0.8);
     const warp = makeNoise(rng, 64);
+    // broad light and colour variation (its own rng, so everything seeded after it stays put):
+    // breaks up the tiling of the surface textures and gives the plain a lived-in unevenness
+    const mrng = makeRng(this.seed ^ 0x27d4eb2f), macro = makeNoise(mrng, 12), tint = makeNoise(mrng, 20);
     // tiles whose edges stay exact: boulders, cliffs, ramps and the rims of the hills
     const hard = i => { const t = this.terrain[i]; return t === T_ROCK || t === T_CLIFF || this.ramp[i] > 0 || this.noBuild[i] > 0; };
     for (let py = 0; py < LW; py++) {
@@ -742,6 +745,7 @@ class GameMap {
         for (let ch = 0; ch < 3; ch++) {
           const top = tc[a + ch] + (tc[b + ch] - tc[a + ch]) * tx, bot = tc[c + ch] + (tc[e + ch] - tc[c + ch]) * tx;
           let v = top + (bot - top) * ty + shade + m + dune + (th.dry[ch] - th.grass[ch]) * dry * 0.85;
+          if (!water) v = v * (1 + (macro(px / LW * 7, py / LW * 7) - 0.5) * 0.16) + (tint(px / LW * 15 + 3, py / LW * 15 + 1) - 0.5) * (ch === 1 ? 10 : ch === 0 ? 7 : -6);
           if (water && ch === 2) v += m * 0.5;
           d[k + ch] = v;
         }
@@ -780,8 +784,24 @@ class GameMap {
       lc.drawImage(mask, 0, 0, W, W);
       ctx.globalAlpha = alpha; ctx.drawImage(layer, 0, 0); ctx.globalAlpha = 1;
     };
-    overlay(surfaceTexture(th.snow ? 'snow' : th.blades ? 'grass' : 'sand', th, rng), mGrass);
-    overlay(surfaceTexture('dirt', th, rng), mDirt);
+    // two variants of the big surfaces, cross-faded by broad noise, so the tiling never shows
+    const mixA = document.createElement('canvas'); mixA.width = mixA.height = LW;
+    { const mx = mixA.getContext('2d'), im = mx.createImageData(LW, LW);
+      for (let py = 0; py < LW; py++) for (let px = 0; px < LW; px++) {
+        const v = Math.min(1, Math.max(0, (macro(px / LW * 9 + 2, py / LW * 9 + 5) - 0.5) * 3 + 0.5));
+        im.data[(py * LW + px) * 4 + 3] = v * 255;
+      }
+      mx.putImageData(im, 0, 0); }
+    const masked = (mask, inv) => {
+      const c = document.createElement('canvas'); c.width = c.height = LW;
+      const x = c.getContext('2d'); x.drawImage(mask, 0, 0);
+      x.globalCompositeOperation = inv ? 'destination-out' : 'destination-in'; x.drawImage(mixA, 0, 0);
+      return c;
+    };
+    const vrng = makeRng(this.seed ^ 0x61c88647);
+    const both = (kind, mask) => { overlay(surfaceTexture(kind, th, rng), masked(mask, false)); overlay(surfaceTexture(kind, th, vrng), masked(mask, true)); };
+    both(th.snow ? 'snow' : th.blades ? 'grass' : 'sand', mGrass);
+    both('dirt', mDirt);
     overlay(surfaceTexture(th.snow ? 'snow' : 'sand', th, rng), mSand, 0.8);
     overlay(surfaceTexture('gravel', th, rng), mRock);
     overlay(surfaceTexture('gravel', th, rng), mCliff, 0.6);
@@ -798,6 +818,8 @@ class GameMap {
         bx.globalCompositeOperation = 'source-in'; bx.fillStyle = color; bx.fillRect(0, 0, LW, LW);
         ctx.drawImage(bc, 0, 0, W, W);
       };
+      // a pale beach of the theatre's sand, then the wet edge
+      band(7, th.snow ? 'rgba(232,240,248,0.3)' : `rgba(${th.sand[0]},${th.sand[1]},${th.sand[2]},0.32)`);
       band(3, th.snow ? 'rgba(200,220,235,0.35)' : 'rgba(40,30,16,0.38)');
       band(0.5, 'rgba(236,246,250,0.6)');
     }
@@ -811,6 +833,7 @@ class GameMap {
       ctx.fillStyle = 'rgba(220,234,246,0.75)'; ctx.fill();
       ctx.strokeStyle = 'rgba(120,150,175,0.6)'; ctx.lineWidth = 1; ctx.stroke();
     }
+    this.paintDetail(ctx, depth);
     this.paintRelief(ctx, layer);
     // boulders and trees are upright 3D props drawn by the renderer; only bushes are painted flat
     this.props = [];
@@ -947,6 +970,89 @@ class GameMap {
       const X = x * T, Y = y * T;
       if (low(x, y - 1) && !this.ramp[at(x, y - 1)]) { line(ctx, X, Y - 2, X + T, Y - 2, 'rgba(0,0,0,0.45)', 4); line(ctx, X, Y + 1, X + T, Y + 1, 'rgba(255,250,235,0.45)', 2); }
       if (low(x - 1, y) && !this.ramp[at(x - 1, y)]) { line(ctx, X - 2, Y, X - 2, Y + T, 'rgba(0,0,0,0.45)', 4); line(ctx, X + 1, Y, X + 1, Y + T, 'rgba(255,250,235,0.45)', 2); }
+    }
+  }
+
+  // Scattered ground detail painted into the terrain (its own rng): worn and lush patches,
+  // stones half sunk in the soil, tufts and leaf litter, dry cracks, snow drifts, and scree
+  // at the foot of the cliffs. Everything is soft and low-contrast: it reads as texture.
+  paintDetail(ctx, depth) {
+    const N = this.w, T = TILE, th = this.theme, rng = makeRng(this.seed ^ 0x165667b1);
+    const rgba = (c, a, k = 1) => `rgba(${Math.min(255, c[0] * k) | 0},${Math.min(255, c[1] * k) | 0},${Math.min(255, c[2] * k) | 0},${a})`;
+    const blob = (x, y, r, col, a, sq = 1) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, r, r * sq, 0, 0, Math.PI * 2); ctx.fill();
+    };
+    const stone = (x, y, r, col) => {
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x + r * 0.35, y + r * 0.35, r, r * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgba(col, 1, 0.95 + rng() * 0.2); ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.8, rng() * 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,250,235,0.22)'; ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.3, r * 0.45, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+    };
+    const land = i => { const t = this.terrain[i]; return t !== T_WATER && t !== T_CLIFF && t !== T_ROCK && !this.ramp[i]; };
+    const lush = th.snow ? [150, 170, 196] : th.grass.map(v => v * 0.72), worn = th.snow ? [176, 186, 196] : th.dirt;
+    // large soft patches: darker lush hollows and paler worn ground
+    for (let k = 0; k < N * N / 9; k++) {
+      const tx = (rng() * N) | 0, ty = (rng() * N) | 0, i = ty * N + tx;
+      if (!land(i)) continue;
+      const x = (tx + rng()) * T, y = (ty + rng()) * T, r = T * (0.8 + rng() * 1.6);
+      if (this.terrain[i] === T_GRASS && rng() < 0.55) blob(x, y, r, lush, 0.2 + rng() * 0.14, 0.6 + rng() * 0.4);
+      else blob(x, y, r * 0.8, worn, 0.16 + rng() * 0.12, 0.6 + rng() * 0.4);
+    }
+    // per tile: stones, tufts or leaf litter, cracks, drifts
+    for (let ty = 0; ty < N; ty++) for (let tx = 0; tx < N; tx++) {
+      const i = ty * N + tx, t = this.terrain[i];
+      if (!land(i)) continue;
+      const X = tx * T, Y = ty * T;
+      if (rng() < (t === T_DIRT ? 0.5 : 0.18) * (th.snow ? 0.4 : 1)) {
+        // a little cluster of stones
+        const n = 1 + ((rng() * 4) | 0), cx = X + rng() * T, cy = Y + rng() * T;
+        for (let s = 0; s < n; s++) stone(cx + (rng() - 0.5) * 10, cy + (rng() - 0.5) * 10, 1 + rng() * 2.2, th.rock);
+      }
+      if (t === T_GRASS && th.blades && rng() < 0.45) {
+        // a darker tuft of rank grass with a lit crown
+        const cx = X + rng() * T, cy = Y + rng() * T, r = 2.5 + rng() * 4;
+        blob(cx + 1.5, cy + 1.5, r * 1.2, [10, 14, 6], 0.25);
+        blob(cx, cy, r, th.grass.map(v => v * 0.8), 0.55);
+        blob(cx - r * 0.3, cy - r * 0.3, r * 0.5, th.dry, 0.25);
+      }
+      if (th.palms && t === T_GRASS && rng() < 0.35) for (let s = 0; s < 4; s++) {
+        // leaf litter on the jungle floor
+        ctx.fillStyle = rgba(rng() < 0.5 ? [96, 78, 40] : [60, 88, 34], 0.45);
+        ctx.beginPath(); ctx.ellipse(X + rng() * T, Y + rng() * T, 1.6, 0.9, rng() * 3, 0, Math.PI * 2); ctx.fill();
+      }
+      if ((th.dunes || th.decor === 'shrub') && (t === T_DIRT || t === T_SAND) && rng() < 0.3) {
+        // sun-baked cracks: a small polygon net
+        ctx.strokeStyle = 'rgba(50,34,18,0.22)'; ctx.lineWidth = 0.8;
+        let px = X + rng() * T, py = Y + rng() * T;
+        ctx.beginPath(); ctx.moveTo(px, py);
+        for (let s = 0; s < 6; s++) { px += (rng() - 0.5) * 12; py += (rng() - 0.5) * 12; ctx.lineTo(px, py); }
+        ctx.stroke();
+      }
+      if (th.snow && rng() < 0.25) {
+        // wind-packed drift: a bright crest with a blue shadow on its lee side
+        const cx = X + rng() * T, cy = Y + rng() * T, l = 6 + rng() * 10;
+        blob(cx + 2, cy + 2, l, [110, 140, 180], 0.14, 0.3);
+        blob(cx, cy, l, [255, 255, 255], 0.3, 0.25);
+      }
+      // puddles and reeds of darker soil along the shore
+      if (depth && !th.snow && rng() < 0.4) {
+        const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => this.inside(tx + dx, ty + dy) && this.terrain[this.idx(tx + dx, ty + dy)] === T_WATER);
+        if (near) blob(X + rng() * T, Y + rng() * T, 4 + rng() * 6, [40, 32, 20], 0.22, 0.6);
+      }
+    }
+    // scree: fallen rock heaped at the foot of each cliff band
+    for (let ty = 0; ty < N; ty++) for (let tx = 0; tx < N; tx++) {
+      if (this.terrain[ty * N + tx] !== T_CLIFF) continue;
+      for (const [dx, dy] of [[0, 1], [1, 0]]) {
+        const nx = tx + dx, ny = ty + dy;
+        if (!this.inside(nx, ny) || this.height[this.idx(nx, ny)] !== 0 || this.terrain[this.idx(nx, ny)] === T_WATER) continue;
+        for (let s = 0; s < 7; s++) {
+          const along = rng() * T, out = Math.pow(rng(), 2) * T * 0.55;
+          const x = dx ? nx * T + out : tx * T + along, y = dy ? ny * T + out : ty * T + along;
+          stone(x, y, 0.9 + rng() * 2.2 * (1 - out / T), th.rock.map(v => v * 0.9));
+        }
+      }
     }
   }
 
