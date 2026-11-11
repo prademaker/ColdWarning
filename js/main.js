@@ -22,6 +22,7 @@ const Main = {
       seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, limit: 60, hints: Main.hintsPref(),
     };
     this.buildMenu();
+    this.initFront();
     for (const th in GROUND_TEX) GroundTex.get(th);   // fetch the ground photographs while the menu is up
     document.getElementById('load-game').onclick = () => { Sfx.resume(); this.openSaves('load'); };
     document.getElementById('p-resume').onclick = () => this.togglePause();
@@ -50,6 +51,113 @@ const Main = {
         hints: params.has('hints') ? params.get('hints') !== '0' : this.settings.hints,
       }));
     }
+  },
+
+  // ---- front door: the first thing a newcomer sees (Quick battle, Boot Camp, Custom battle, Invite) ----
+  SHARE_URL: 'https://prademaker.github.io/ColdWarning/',
+  QUICK_LEVELS: { recruit: 5, easy: 3, normal: 0 }, // difficulty -> ceasefire minutes
+
+  initFront() {
+    const $ = id => document.getElementById(id);
+    this.quickLevel = 'recruit';
+    try { const q = localStorage.getItem('cw2030.quick'); if (this.QUICK_LEVELS[q] !== undefined) this.quickLevel = q; } catch (e) { /* default */ }
+    this.buildFront();
+    $('fd-quick').onclick = () => { Sfx.resume(); this.quickBattle(); };
+    $('fd-boot').onclick = () => {
+      Sfx.resume();
+      const boot = CAMPAIGN.missions.find(m => m.tutorial);
+      this.settings.difficulty = 'recruit';
+      this.startMission(boot.id);
+    };
+    $('fd-custom').onclick = () => { Sfx.resume(); this.showCustom(true); };
+    $('fd-back').onclick = () => this.showCustom(false);
+    $('fd-invite').onclick = () => { Sfx.resume(); this.openInvite(); };
+    $('fd-load').onclick = () => { Sfx.resume(); this.openSaves('load'); };
+    $('fd-keys').onclick = () => this.openKeys();
+    // install: Chrome/Edge/Android hand us a prompt; iPhone and iPad need Share > Add to Home Screen
+    const installed = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!installed && ios) $('fd-install').hidden = false;
+    addEventListener('beforeinstallprompt', e => { e.preventDefault(); this.installPrompt = e; $('fd-install').hidden = false; });
+    addEventListener('appinstalled', () => { this.installPrompt = null; $('fd-install').hidden = true; });
+    $('fd-install').onclick = () => {
+      if (this.installPrompt) {
+        this.installPrompt.prompt();
+        this.installPrompt.userChoice.finally(() => { this.installPrompt = null; $('fd-install').hidden = true; });
+      } else this.openInstallTip();
+    };
+  },
+
+  buildFront() {
+    const box = document.getElementById('fd-diff');
+    box.innerHTML = '';
+    const names = { recruit: 'Gentle', easy: 'Easy', normal: 'Normal' };
+    for (const id of Object.keys(this.QUICK_LEVELS)) {
+      const b = document.createElement('button');
+      b.className = 'opt' + (this.quickLevel === id ? ' sel' : '');
+      b.textContent = names[id];
+      b.onclick = () => {
+        this.quickLevel = id;
+        try { localStorage.setItem('cw2030.quick', id); } catch (e) { /* not remembered */ }
+        this.buildFront();
+      };
+      box.appendChild(b);
+    }
+    const boot = CAMPAIGN.missions.find(m => m.tutorial);
+    document.getElementById('fd-boot-tag').textContent = boot && CampaignProgress.record(boot.id) ? '✓ Completed · play again any time' : 'New to strategy games?';
+  },
+
+  showCustom(on) {
+    document.getElementById('front').hidden = on;
+    document.getElementById('custom').hidden = !on;
+    document.getElementById('menu').scrollTop = 0;
+  },
+
+  // one click into a gentle 1 vs 1: random country, small land map, hints on, a ceasefire to build in peace
+  quickBattle() {
+    const ids = Object.keys(FACTIONS), lvl = this.quickLevel;
+    const faction = ids[Math.floor(Math.random() * ids.length)];
+    this.settings.mode = 'skirmish';
+    this.start(Object.assign({}, this.settings, {
+      mode: 'skirmish', faction, enemy: 'random', theater: 'random', lineup: '1v1', mapSize: 'small', water: 'lakes',
+      difficulty: lvl, ceasefire: this.QUICK_LEVELS[lvl], hints: true, superweapons: false, ultimates: true,
+      speed: 1, seed: Math.floor(Math.random() * 1e6), mission: null, quick: true,
+    }));
+  },
+
+  shareUrl() { return /^https:/.test(location.protocol) ? location.origin + location.pathname : this.SHARE_URL; },
+
+  openInvite() {
+    const url = this.shareUrl(), box = document.getElementById('saves');
+    const text = 'Try Cold War 2: 2030, a free base-building strategy game. It runs in the browser on PC, tablet or phone, nothing to install.';
+    box.innerHTML = `<div class="svbox invitebox"><h2>INVITE A FRIEND</h2>
+      <p>Send them this link. The game runs in any modern browser on a PC, tablet or phone, with nothing to install or sign up for.
+        On their first visit they can press <b>Play now</b> or try <b>Boot Camp</b>.</p>
+      <div class="inv-link"><input id="inv-url" readonly value="${url}"><button id="inv-copy" class="opt">Copy link</button></div>
+      <div class="inv-qr"><img src="assets/ui/qr.svg" alt="QR code for ${url}"><span>Or let them scan this with their phone camera.</span></div>
+      <div class="sv-actions">${navigator.share ? '<button id="inv-share">Share…</button>' : ''}<button id="sv-close">Back</button></div></div>`;
+    box.hidden = false;
+    const input = box.querySelector('#inv-url'), copy = box.querySelector('#inv-copy');
+    input.onfocus = () => input.select();
+    copy.onclick = () => {
+      const done = () => { copy.textContent = '✓ Copied'; setTimeout(() => { copy.textContent = 'Copy link'; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { input.select(); document.execCommand('copy'); done(); });
+      else { input.select(); document.execCommand('copy'); done(); }
+    };
+    const share = box.querySelector('#inv-share');
+    if (share) share.onclick = () => navigator.share({ title: 'Cold War 2: 2030', text, url }).catch(() => {});
+    box.querySelector('#sv-close').onclick = () => this.closeDialog();
+  },
+
+  openInstallTip() {
+    const box = document.getElementById('saves');
+    box.innerHTML = `<div class="svbox invitebox"><h2>INSTALL</h2>
+      <p>To add the game to your home screen on an iPhone or iPad, open this page in <b>Safari</b>, tap the <b>Share</b> button
+        (the square with an arrow pointing up), then choose <b>Add to Home Screen</b>.</p>
+      <p>It then opens full screen from its own icon, like an app.</p>
+      <div class="sv-actions"><button id="sv-close">Got it</button></div></div>`;
+    box.hidden = false;
+    box.querySelector('#sv-close').onclick = () => this.closeDialog();
   },
 
   // hints stay on until the player turns them off on the menu
@@ -427,6 +535,8 @@ const Main = {
     Sfx.stopAmbience();
     Music.play('menu');
     this.buildMenu();
+    this.buildFront();
+    if (this.opts) this.showCustom(!this.opts.quick); // after a mission, land on the campaign list
   },
 
   // "now playing" card, like the radio in the old games
