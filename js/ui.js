@@ -2,7 +2,7 @@
 'use strict';
 
 const PING_LIFE = 6;
-const PING_COLORS = { base: '#f33', unit: '#ff9a3c', info: '#ffd27a' };
+const PING_COLORS = { base: '#f33', unit: '#ff9a3c', harv: '#ffcf3a', info: '#ffd27a' };
 const ZOOM_MAX = 2;
 
 const UI = {
@@ -257,6 +257,9 @@ const UI = {
     if (e.button === 1) { this.pan = { x: e.clientX, y: e.clientY, cx: this.cam.x, cy: this.cam.y }; e.preventDefault(); return; }
     if (e.button === 2) { this.onRight(w, e); return; }
     if (e.button !== 0) return;
+    // an alert arrow at the edge of the view: jump to that fight
+    const arrow = !this.placing && !this.superTargeting && Combat.arrowAt(this.mouse.x, this.mouse.y);
+    if (arrow) { this.centerOn(arrow.wx, arrow.wy); Sfx.play('click'); return; }
     if (this.placing) {
       const pl = this.placing, q = G.playerTeam.queues[pl.qtype];
       if (pl.sticky && !q.ready) return; // the next wall section is still on its way

@@ -255,6 +255,12 @@ const Sfx = {
         s1.start(t); s2.start(t); s1.stop(t + 4.9); s2.stop(t + 4.9);
         break;
       }
+      case 'alert': { // radar alert: two urgent blips, the second lower
+        const o = this.voiceOut(0.32, 0, 0.15);
+        this.osc(o, 'square', 1180, 1160, t, 0.07, 0.09); this.osc(o, 'sine', 1180, 1160, t, 0.1, 0.12);
+        this.osc(o, 'square', 880, 870, t + 0.12, 0.09, 0.09); this.osc(o, 'sine', 880, 870, t + 0.12, 0.14, 0.12);
+        break;
+      }
       case 'error': { const o = this.voiceOut(0.3, 0); this.osc(o, 'square', 180, 170, t, 0.09, 0.12); this.osc(o, 'square', 140, 135, t + 0.1, 0.12, 0.12); break; }
     }
   },

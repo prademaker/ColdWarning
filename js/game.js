@@ -980,13 +980,15 @@ class Game {
     if (target.garrison && target.garrison.length && Math.random() < (GARRISON.clear[warhead] || 0)) this.killOccupant(target, attacker);
     target.hp -= dmg;
     target.hitT = this.time;
+    if (typeof Combat !== 'undefined') Combat.onHit(this, target, target.hp + dmg, mult, warhead, attacker);
     if (attacker && !attacker.dead && this.hostile(attacker.team, target.team)) {
       target.lastAttacker = attacker;
       if (this.mission) this.mission.onDamage(target, attacker);
       if (target.team === this.player || attacker.team === this.player) this.heat += 1; // drives the music
       if (target.team === this.player) {
-        this.eva(target.kind === 'building' ? 'Our base is under attack' : 'Unit under attack', target.team);
-        this.ping(target.x, target.y, target.kind === 'building' ? 'base' : 'unit');
+        const harv = target.kind === 'unit' && target.def.harvester;
+        this.eva(target.kind === 'building' ? 'Our base is under attack' : harv ? 'Harvester under attack' : 'Unit under attack', target.team);
+        this.ping(target.x, target.y, target.kind === 'building' ? 'base' : harv ? 'harv' : 'unit');
       }
       const ai = this.ai[target.team];
       if (ai) ai.onAttacked(target, attacker);
@@ -1021,6 +1023,7 @@ class Game {
         if (r > attacker.rank) {
           attacker.rank = r;
           this.eva(r === 2 ? 'Unit promoted to elite' : 'Unit promoted', attacker.team);
+          if (typeof Combat !== 'undefined' && attacker.team === this.player) Combat.note(attacker, r === 2 ? 'ELITE' : 'PROMOTED', '#ffe36a');
         }
       }
     }
@@ -2527,6 +2530,8 @@ class Game {
     const near = this.pings.find(p => this.time - p.t < 4 && Math.hypot(p.x - x, p.y - y) < TILE * 8);
     if (near) { if (kind === 'base') near.kind = 'base'; return; }
     this.pings.push({ x, y, t: this.time, kind });
+    // a radar blip for a fresh alert (not for every hit in the same fight)
+    if (kind !== 'info' && !(this.time - (this.blipT || -9) < 3)) { this.blipT = this.time; this.sound('alert'); }
     if (this.pings.length > 8) this.pings.shift();
   }
 
