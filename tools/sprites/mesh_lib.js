@@ -32,6 +32,7 @@ const MAT = {
   ore: { c: [222, 176, 70] }, oreDark: { c: [160, 120, 40] }, cyan: { c: [110, 220, 240], glow: 1 },
   hull: { c: [138, 144, 148] }, hullDark: { c: [100, 106, 110] }, deck: { c: [84, 88, 88] }, flightDeck: { c: [66, 70, 72] }, deckRust: { c: [112, 70, 58] }, boot: { c: [130, 48, 42] },
   warm: { c: [170, 162, 144] }, warmDark: { c: [122, 116, 104] }, brick: { c: [134, 78, 58] }, roofGreen: { c: [92, 100, 86] }, sand: { c: [150, 134, 96] },
+  contRed: { c: [128, 58, 44] }, contBlue: { c: [58, 84, 110] }, contGreen: { c: [78, 98, 76] }, contGrey: { c: [150, 150, 144] }, rust: { c: [120, 78, 52] }, tile: { c: [176, 104, 72] }, plaster: { c: [214, 206, 188] }, plasterGrey: { c: [168, 170, 168] },
   jet: { c: [150, 156, 162] }, jetDark: { c: [108, 114, 120] }, jetBlue: { c: [118, 140, 162] }, orange: { c: [214, 112, 44] }, flame: { c: [255, 170, 70], glow: 1 },
 };
 
@@ -50,7 +51,7 @@ const FINISH_OF = {
   track: 'rubber', rubber: 'rubber', grille: 'rubber', asphalt: 'stone',
   glass: 'glass', glassLight: 'glass',
   concrete: 'stone', concreteDark: 'stone', concreteLight: 'stone', brick: 'stone', sand: 'stone', ore: 'stone', oreDark: 'stone', roof: 'stone', roofDark: 'stone', warm: 'stone', warmDark: 'stone',
-  canvas: 'cloth', olive: 'cloth', skin: 'cloth', wood: 'cloth',
+  canvas: 'cloth', olive: 'cloth', skin: 'cloth', wood: 'cloth', rust: 'stone', tile: 'stone', plaster: 'stone', plasterGrey: 'stone',
 };
 for (const [k, v] of Object.entries(MAT)) if (!v.glow) Object.assign(v, FINISH[FINISH_OF[k] || 'painted'], v);
 

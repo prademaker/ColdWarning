@@ -18,11 +18,12 @@ const Main = {
     const params = new URLSearchParams(location.search);
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
-      mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true,
+      mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true, daytime: 'day',
       seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, hints: Main.hintsPref(),
     };
     this.buildMenu();
     this.initFront();
+    for (const th in GROUND_TEX) GroundTex.get(th);   // fetch the ground photographs while the menu is up
     document.getElementById('load-game').onclick = () => { Sfx.resume(); this.openSaves('load'); };
     document.getElementById('p-resume').onclick = () => this.togglePause();
     document.getElementById('p-save').onclick = () => this.openSaves('save');
@@ -44,6 +45,7 @@ const Main = {
         speed: params.has('speed') ? +params.get('speed') : 1,
         superweapons: params.get('superweapons') !== '0',
         ultimates: params.get('ultimates') !== '0',
+        daytime: params.get('daytime') || this.settings.daytime,
         ceasefire: +params.get('ceasefire') || 0,
         hints: params.has('hints') ? params.get('hints') !== '0' : this.settings.hints,
       }));
@@ -200,13 +202,14 @@ const Main = {
     };
     opts('mode', [['skirmish', 'Skirmish'], ['defense', 'Defense'], ['campaign', 'Campaign']], 'mode');
     const camp = s.mode === 'campaign';
-    for (const id of ['faction-box', 'mapsize-box', 'water-box', 'skirmish-row', 'seed-box', 'super-box', 'ult-box']) document.getElementById(id).hidden = camp;
+    for (const id of ['faction-box', 'mapsize-box', 'water-box', 'skirmish-row', 'seed-box', 'super-box', 'ult-box', 'daytime-box']) document.getElementById(id).hidden = camp;
     document.getElementById('campaign').hidden = !camp;
     if (camp) this.buildCampaign();
     opts('lineup', Object.entries(LINEUPS).map(([id, l]) => [id, l.label]), 'lineup');
     opts('mapsize', Object.entries(MAP_SIZES).map(([id, m]) => [id, m.label]), 'mapSize');
     opts('water', Object.entries(MAP_WATER).map(([id, m]) => [id, m.label]), 'water');
     opts('superweapons', [[true, 'On'], [false, 'Off']], 'superweapons');
+    opts('daytime', Object.entries(DAYTIME).map(([id, d]) => [id, d.label]), 'daytime');
     opts('ceasefire', CEASEFIRE_OPTIONS, 'ceasefire');
     opts('hints', [[true, 'On'], [false, 'Off']], 'hints');
     document.getElementById('cease-box').hidden = s.mode !== 'skirmish';

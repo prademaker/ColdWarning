@@ -13,6 +13,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 
 const FACINGS = 32, COLS = 8, ROWS = FACINGS / COLS, RES = 2;
 const loader = new GLTFLoader();
@@ -23,8 +24,55 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.NoToneMapping;
 renderer.toneMappingExposure = 1.0;
-// soft image-based light for the physically based materials (reflections on glass and metal)
-const ENV = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+// Image-based light. With the photographed materials (see PBR below) the models are lit by a real
+// sky (an HDRI panorama) and tone-mapped like a camera would; without them, a soft studio room.
+let ENV = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+let SKY = false;
+// Photographed surfaces: name -> { det (albedo detail, linear mean taken out in the shader), nor }.
+const PBR = {};
+const texLoader = new THREE.TextureLoader();
+async function loadPbr(name) {
+  const tex = async (suffix, srgb) => {
+    const t = await texLoader.loadAsync(`/pbr/${name}_${suffix}.jpg`);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 16;
+    t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    return t;
+  };
+  const det = await tex('diff', true), nor = await tex('nor', false);
+  // mean colour in linear light, so the photo only modulates the model's own paint
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d'); x.drawImage(det.image, 0, 0, 64, 64);
+  const d = x.getImageData(0, 0, 64, 64).data, m = [0, 0, 0];
+  const lin = v => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) m[k] += lin(d[i + k]);
+  PBR[name] = { det, nor, mean: new THREE.Vector3(...m.map(v => v / (d.length / 4))) };
+}
+// material -> [photo, span in model units, albedo strength, normal strength]
+const PHOTO_BUILDING = {
+  metal: ['corrugated_iron_02', 34, 0.9, 1.0], metalLight: ['corrugated_iron_02', 34, 0.9, 1.0], steel: ['corrugated_iron_02', 34, 0.9, 1.0], steelDark: ['corrugated_iron_02', 34, 0.8, 1.0],
+  roof: ['worn_corrugated_iron', 30, 0.75, 1.0], roofDark: ['worn_corrugated_iron', 30, 0.75, 1.0], roofGreen: ['worn_corrugated_iron', 30, 0.75, 1.0],
+  concrete: ['concrete_wall_008', 22, 1.0, 0.8], concreteLight: ['concrete_wall_008', 22, 1.0, 0.8], concreteDark: ['concrete_floor_worn_001', 26, 1.0, 0.9],
+  asphalt: ['asphalt_02', 30, 1.0, 1.0], warm: ['painted_plaster_wall', 26, 1.0, 0.8], warmDark: ['painted_plaster_wall', 26, 1.0, 0.8],
+  brick: ['red_brick_03', 9, 0.9, 1.0], tile: ['clay_roof_tiles_02', 12, 0.9, 1.0], plaster: ['painted_plaster_wall', 26, 1.0, 0.8], plasterGrey: ['concrete_panels', 16, 0.85, 0.9], sand: ['concrete_floor_worn_001', 26, 0.8, 0.6],
+  contRed: ['container_side', 6, 0.9, 1.0], contBlue: ['container_side', 6, 0.9, 1.0], contGreen: ['container_side', 6, 0.9, 1.0], contGrey: ['container_side', 6, 0.9, 1.0], rust: ['rusty_metal_02', 12, 1.0, 0.6], hull: ['green_metal_rust', 30, 0.6, 0.5], hullDark: ['green_metal_rust', 30, 0.6, 0.5],
+};
+const PHOTO_ANY = {
+  camo: ['green_metal_rust', 26, 0.55, 0.45], camoDark: ['green_metal_rust', 26, 0.55, 0.45], camoLight: ['green_metal_rust', 26, 0.55, 0.45],
+  hull: ['green_metal_rust', 40, 0.6, 0.5], hullDark: ['green_metal_rust', 40, 0.6, 0.5], deck: ['asphalt_02', 40, 0.8, 0.6], flightDeck: ['asphalt_02', 40, 0.8, 0.6],
+  jet: ['green_metal_rust', 40, 0.4, 0.3], jetDark: ['green_metal_rust', 40, 0.4, 0.3], olive: ['green_metal_rust', 26, 0.5, 0.4],
+};
+async function loadLook() {
+  try {
+    const names = [...new Set([...Object.values(PHOTO_BUILDING), ...Object.values(PHOTO_ANY)].map(v => v[0]))];
+    await Promise.all(names.map(loadPbr));
+    const hdr = await new RGBELoader().loadAsync('/hdri/kloofendal_48d_partly_cloudy_puresky.hdr');
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    ENV = new THREE.PMREMGenerator(renderer).fromEquirectangular(hdr).texture;
+    SKY = true;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
+  } catch (e) { console.warn('photo materials not found, using the plain look', e); for (const k in PBR) delete PBR[k]; }
+}
 // ambient occlusion: crevices, the ground side of hulls and the gaps between parts darken
 function aoComposer(scene, cam, C) {
   const comp = new EffectComposer(renderer, new THREE.WebGLRenderTarget(C, C, { type: THREE.HalfFloatType, samples: 4 }));
@@ -43,8 +91,8 @@ function aoComposer(scene, cam, C) {
 const VIEW = new THREE.Vector3(Math.cos(Math.PI / 6) / Math.SQRT2, 0.5, Math.cos(Math.PI / 6) / Math.SQRT2);
 
 function lights(scene, shadowR = 0) {
-  scene.add(new THREE.HemisphereLight(0xdfe7f5, 0x4a4636, shadowR ? 0.2 : 0.95));
-  const sun = new THREE.DirectionalLight(0xfff1dc, shadowR ? 2.35 : 1.9);
+  scene.add(new THREE.HemisphereLight(0xdfe7f5, 0x4a4636, SKY && shadowR ? 0.0 : shadowR ? 0.2 : 0.95));
+  const sun = new THREE.DirectionalLight(SKY ? 0xfff0dc : 0xfff1dc, SKY && shadowR ? 2.5 : shadowR ? 2.35 : 1.9);
   sun.position.set(-0.5, 1, 0.65); // same light direction as the game's procedural art
   if (shadowR) {
     // low-poly models cast shadows onto themselves (turret on hull, roofs on walls)
@@ -165,13 +213,26 @@ const ANY_PAT = { track: 5, hull: 6, hullDark: 6 };
 const SURF_FN = `
 float wSeam(float v, float s, float w) { float f = abs(fract(v / s + 0.5) - 0.5) * s; float fw = fwidth(v) * 0.8; return 1.0 - smoothstep(w - fw, w + fw, f); }
 `;
-function weathered(m, def, pat) {
+function weathered(m, def, pat, photo) {
   const amt = def.wear === undefined ? 1 : def.wear;
+  const ph = photo && PBR[photo[0]];
+  if (ph) pat = pat >= 5 ? pat : 0;   // the photograph brings its own seams, ribs and courses
   m.onBeforeCompile = sh => {
     sh.uniforms.uWear = { value: amt };
     sh.uniforms.uPat = { value: pat };
+    sh.uniforms.uDet = { value: ph ? ph.det : null }; sh.uniforms.uNor = { value: ph ? ph.nor : null };
+    sh.uniforms.uDetMean = { value: ph ? ph.mean : new THREE.Vector3(1, 1, 1) };
+    sh.uniforms.uDetK = { value: ph ? new THREE.Vector3(1 / photo[1], photo[2], photo[3]) : new THREE.Vector3(1, 0, 0) };
     sh.vertexShader = 'varying vec3 vObj;\nvarying vec3 vObjN;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvObj = position; vObjN = normal;');
-    sh.fragmentShader = 'varying vec3 vObj;\nvarying vec3 vObjN;\nuniform float uWear;\nuniform int uPat;\n' + WEATHER + SURF_FN + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+    sh.fragmentShader = 'varying vec3 vObj;\nvarying vec3 vObjN;\nuniform float uWear;\nuniform int uPat;\nuniform sampler2D uDet;\nuniform sampler2D uNor;\nuniform vec3 uDetMean;\nuniform vec3 uDetK;\nuniform mat3 normalMatrix;\n' + WEATHER + SURF_FN + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      // photographed surface, projected along the three axes (no UVs on the primitives)
+      vec3 triN = normalize(vObjN);
+      vec3 triW = pow(abs(triN), vec3(8.0)); triW /= (triW.x + triW.y + triW.z);
+      vec2 uvX = vObj.zy * uDetK.x, uvY = vObj.xz * uDetK.x, uvZ = vObj.xy * uDetK.x;
+      if (uDetK.y > 0.0) {
+        vec3 det = texture2D(uDet, uvX).rgb * triW.x + texture2D(uDet, uvY).rgb * triW.y + texture2D(uDet, uvZ).rgb * triW.z;
+        diffuseColor.rgb *= mix(vec3(1.0), det / uDetMean, uDetK.y);
+      }
       float blot = wFbm(vObj * 0.22);
       float grain = wNoise(vObj * 3.1);
       float dust = 1.0 - smoothstep(0.2, 3.2, vObj.y);
@@ -205,9 +266,19 @@ function weathered(m, def, pat) {
       if (wall && uPat > 0) shade -= 0.14 * smoothstep(0.45, 0.8, wFbm(vec3(along * 1.7, vObj.y * 0.08, 1.0))) * uWear;
       diffuseColor.rgb *= shade * mix(1.0, 0.78 + 0.34 * blot + 0.06 * grain, uWear);
       diffuseColor.rgb = mix(diffuseColor.rgb, dustCol * (0.8 + 0.4 * blot), dust * 0.45 * uWear);`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n      roughnessFactor = clamp(roughnessFactor + (blot - 0.5) * 0.3 * uWear, 0.04, 1.0);');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n      roughnessFactor = clamp(roughnessFactor + (blot - 0.5) * 0.3 * uWear, 0.04, 1.0);')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      if (uDetK.z > 0.0) {
+        vec3 tnX = texture2D(uNor, uvX).xyz * 2.0 - 1.0, tnY = texture2D(uNor, uvY).xyz * 2.0 - 1.0, tnZ = texture2D(uNor, uvZ).xyz * 2.0 - 1.0;
+        tnX.xy *= uDetK.z; tnY.xy *= uDetK.z; tnZ.xy *= uDetK.z;
+        tnX = vec3(tnX.xy + triN.zy, abs(tnX.z) * triN.x);
+        tnY = vec3(tnY.xy + triN.xz, abs(tnY.z) * triN.y);
+        tnZ = vec3(tnZ.xy + triN.xy, abs(tnZ.z) * triN.z);
+        vec3 objN = normalize(tnX.zyx * triW.x + tnY.xzy * triW.y + tnZ.xyz * triW.z);
+        normal = normalize(normalMatrix * objN) * (gl_FrontFacing ? 1.0 : -1.0);
+      }`);
   };
-  m.customProgramCacheKey = () => 'wear' + amt + 'p' + pat;
+  m.customProgramCacheKey = () => 'wear' + amt + 'p' + pat + (ph ? photo.join() : '');
   return m;
 }
 function meshMaterial(name, def, surf) {
@@ -215,7 +286,7 @@ function meshMaterial(name, def, surf) {
   if (!MAT_CACHE.has(key)) {
     const color = new THREE.Color().setRGB(def.c[0] / 255, def.c[1] / 255, def.c[2] / 255, THREE.SRGBColorSpace);
     const m = def.glow ? new THREE.MeshBasicMaterial({ color })
-      : weathered(new THREE.MeshStandardMaterial({ color, roughness: def.rough !== undefined ? def.rough : 0.72, metalness: def.metal || 0, envMapIntensity: 0.35 }), def, pat);
+      : weathered(new THREE.MeshStandardMaterial({ color, roughness: def.rough !== undefined ? def.rough : 0.72, metalness: def.metal || 0, envMapIntensity: SKY ? 1 : 0.35 }), def, pat, (surf === 'building' && PHOTO_BUILDING[name]) || PHOTO_ANY[name]);
     MAT_CACHE.set(key, m);
   }
   return MAT_CACHE.get(key);
@@ -374,7 +445,7 @@ async function renderSheet(cfg) {
     let shadowR = 0;
     if (cfg.mesh) { const sph = new THREE.Box3().setFromObject(root).getBoundingSphere(new THREE.Sphere()); shadowR = sph.radius + sph.center.length() + 2; }
     lights(scene, shadowR);
-    if (cfg.mesh && !window.NOENV) { scene.environment = ENV; scene.environmentIntensity = 0.16; }
+    if (cfg.mesh && !window.NOENV) { scene.environment = ENV; scene.environmentIntensity = SKY ? 0.38 : 0.16; }
     const holder = new THREE.Group(); holder.add(obj); scene.add(holder);
     const sheets = {};
     let comp = null;
@@ -433,6 +504,7 @@ async function renderSheet(cfg) {
 }
 
 window.renderSheet = renderSheet;
+if (!new URLSearchParams(location.search).has('plain')) await loadLook();
 window.ready = true;
 </script>
 </body>
