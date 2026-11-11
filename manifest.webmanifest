@@ -1,7 +1,9 @@
 {
   "name": "Cold War 2: 2030",
   "short_name": "Cold War 2",
-  "description": "Base-building real-time strategy set in 2030.",
+  "id": "./",
+  "description": "A free base-building real-time strategy game set in 2030.",
+  "categories": ["games"],
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
