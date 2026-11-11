@@ -34,7 +34,15 @@ function site(W, H, o = {}) {
 function block(m, x0, x1, y0, y1, h, o = {}) {
   m.cb(x0, x1, y0, y1, 0.6, h, o.wall || m.wall);
   m.cb(x0 - 0.3, x1 + 0.3, y0 - 0.3, y1 + 0.3, h, h + 0.6, o.roof || m.roof);
-  if (o.fascia !== false) m.cb(x0 - 0.05, x1 + 0.05, y0 - 0.05, y1 + 0.05, h - 1.2, h - 0.2, 'team');
+  if (o.fascia !== false) m.cb(x0 - 0.05, x1 + 0.05, y0 - 0.05, y1 + 0.05, h - 1.0, h - 0.25, 'team');
+  // what gives a plain box scale: a concrete base course, a flashing along the roof edge,
+  // downpipes on the two walls the camera sees
+  m.cb(x0 - 0.12, x1 + 0.12, y0 - 0.12, y1 + 0.12, 0.6, 1.3, m.ax ? 'warmDark' : 'concreteDark');
+  m.cb(x0 - 0.38, x1 + 0.38, y0 - 0.38, y1 + 0.38, h + 0.28, h + 0.52, m.ax ? 'warmDark' : 'steelDark');
+  if (h > 4) {
+    m.cb(x1, x1 + 0.28, y0 + 0.5, y0 + 0.8, 0.6, h, 'steelDark'); m.cb(x0 + 0.5, x0 + 0.8, y1, y1 + 0.28, 0.6, h, 'steelDark');
+    if (y1 - y0 > 16) m.cb(x1, x1 + 0.28, y1 - 0.9, y1 - 0.6, 0.6, h, 'steelDark');
+  }
   if (o.parapet) m.cb(x0 - 0.3, x1 + 0.3, y0 - 0.3, y1 + 0.3, h + 0.6, h + 1.1, m.ax ? 'warm' : 'concrete');
   if (m.up && o.plant !== false && (x1 - x0) > 8 && (y1 - y0) > 6) {   // refit: roof plant
     m.cb(x0 + 2, x0 + 5, y0 + 2, y0 + 4.5, h + 0.6, h + 2.0, 'steel');
@@ -53,6 +61,26 @@ function door(m, x0, x1, y, h, o = {}) {
   m.cb(x0, x1, y - 0.1, y + 0.25, 0.6, h, 'grille');
   if (o.stripe !== false) for (let x = x0; x < x1 - 0.01; x += 1) m.cb(x, Math.min(x1, x + 1), y + 0.25, y + 0.45, h, h + 0.7, Math.round(x - x0) % 2 ? 'hazard' : 'black');
 }
+// ---- small real-world kit: the things that give a building its scale ----
+function acUnit(m, x, y, z, w = 2.2, d = 1.6) { m.cb(x, x + w, y, y + d, z, z + 1.0, 'metalLight'); m.cb(x + 0.25, x + w - 0.25, y + 0.25, y + d - 0.25, z + 1.0, z + 1.08, 'grille'); }
+function vent(m, x, y, z, h = 1.1) { m.cc(x, y, 0.32, z, z + h, 'steel', { seg: 8 }); m.cc(x, y, 0.52, z + h, z + h + 0.22, 'steelDark', { seg: 8 }); }
+function hut(m, x, y, z, w = 3.4, d = 2.6, h = 2.6) { m.cb(x, x + w, y, y + d, z, z + h, m.ax ? 'warm' : 'concrete'); m.cb(x - 0.15, x + w + 0.15, y - 0.15, y + d + 0.15, z + h, z + h + 0.25, 'roofDark'); m.cb(x + 1, x + 2, y + d, y + d + 0.06, z, z + 1.9, 'grille'); }
+function duct(m, x0, x1, y, z, along = 'x') { along === 'x' ? m.cb(x0, x1, y, y + 0.8, z, z + 0.6, 'metalLight') : m.cb(y, y + 0.8, x0, x1, z, z + 0.6, 'metalLight'); }
+function pipe(m, x0, x1, y, z, along = 'x', mat = 'steel', rad = 0.28) { m.cyl(along === 'x' ? [m.X((x0 + x1) / 2), m.Y(y), z] : [m.X(y), m.Y((x0 + x1) / 2), z], rad, x1 - x0, along, mat, { seg: 8 }); }
+function container(m, x, y, mat, along = 'x', z = 0.6) { const l = 6, w = 2.4; along === 'x' ? m.cb(x, x + l, y, y + w, z, z + 2.6, mat) : m.cb(x, x + w, y, y + l, z, z + 2.6, mat); }
+function barrels(m, x, y, n = 4, mat = 'olive', z = 0.6) { for (let i = 0; i < n; i++) m.cc(x + (i % 2) * 0.95, y + Math.floor(i / 2) * 0.95, 0.42, z, z + 1.2, i === 1 ? 'rust' : mat, { seg: 8 }); }
+function crates(m, x, y, z = 0.6) { m.cb(x, x + 1.4, y, y + 1.4, z, z + 1.1, 'wood'); m.cb(x + 1.6, x + 3, y + 0.1, y + 1.5, z, z + 1.1, 'wood'); m.cb(x + 0.7, x + 2.1, y + 0.2, y + 1.4, z + 1.1, z + 2.0, 'canvas'); }
+function lampPost(m, x, y, h = 7, dx = 1, dy = 0) { m.cc(x, y, 0.13, 0.6, h, 'steelDark', { seg: 5 }); m.cb(Math.min(x, x + dx * 1.1) - 0.1, Math.max(x, x + dx * 1.1) + 0.1, Math.min(y, y + dy * 1.1) - 0.1, Math.max(y, y + dy * 1.1) + 0.1, h - 0.12, h + 0.08, 'steelDark'); m.cb(x + dx * 0.9 - 0.3, x + dx * 0.9 + 0.3, y + dy * 0.9 - 0.3, y + dy * 0.9 + 0.3, h - 0.3, h - 0.12, 'light'); }
+// railing or fence between two corners: posts and two rails
+function rail(m, x0, y0, x1, y1, z, h = 1.0) {
+  const n = Math.max(1, Math.round(Math.hypot(x1 - x0, y1 - y0) / 2.4));
+  for (let i = 0; i <= n; i++) m.cc(x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n, 0.09, z, z + h, 'steelDark', { seg: 4 });
+  for (const k of [0.55, 1]) m.cb(Math.min(x0, x1) - 0.06, Math.max(x0, x1) + 0.06, Math.min(y0, y1) - 0.06, Math.max(y0, y1) + 0.06, z + h * k - 0.07, z + h * k, 'steelDark');
+}
+function ladder(m, x, y, z0, z1, face = 'y') { for (const d of [0, 0.7]) face === 'y' ? m.cb(x + d, x + d + 0.1, y, y + 0.14, z0, z1, 'steelDark') : m.cb(x, x + 0.14, y + d, y + d + 0.1, z0, z1, 'steelDark'); for (let z = z0 + 0.5; z < z1; z += 0.6) face === 'y' ? m.cb(x, x + 0.8, y + 0.02, y + 0.12, z, z + 0.08, 'steelDark') : m.cb(x + 0.02, x + 0.12, y, y + 0.8, z, z + 0.08, 'steelDark'); }
+function dish(m, x, y, z, r = 1.1) { m.cc(x, y, 0.12, z, z + 0.9, 'steelDark', { seg: 5 }); m.group([m.X(x), m.Y(y), z + 1.1], [0, 40, 40], () => m.cyl([0, 0, 0], r, 0.25, 'x', 'white', { r2: r * 0.35, seg: 14 })); }
+// horizontal tank on saddles
+function tankH(m, x, y, len, rad, mat = 'white', along = 'x') { m.cyl(along === 'x' ? [m.X(x + len / 2), m.Y(y), 0.9 + rad] : [m.X(x), m.Y(y + len / 2), 0.9 + rad], rad, len, along, mat, { seg: 14 }); for (const k of [0.2, 0.8]) along === 'x' ? m.cb(x + len * k - 0.3, x + len * k + 0.3, y - rad * 0.8, y + rad * 0.8, 0.6, 0.9 + rad * 0.5, 'concreteDark') : m.cb(x - rad * 0.8, x + rad * 0.8, y + len * k - 0.3, y + len * k + 0.3, 0.6, 0.9 + rad * 0.5, 'concreteDark'); }
 const name = (key, o) => `b_${key}${o.ax ? '_ax' : ''}${o.up ? '_up' : ''}`;
 const gunName = (key, o) => name(key, o) + '_gun';
 
@@ -70,6 +98,15 @@ function cc(o) {
     m.sp(39, 8, 24.6, 2.4, 'metalLight', { s: [1, 1, 0.8], seg: 14 });
     m.cc(32.35, 5.35, 0.25, 24.6, 37, 'steelDark', { seg: 6 });                // mast (beacon drawn live)
     m.cc(7, 20, 0.6, 12.6, 13.2, 'steelDark');                                  // flag socket
+    // roof plant on the hall, kit on the tower
+    hut(m, 23.5, 22, 13.1); acUnit(m, 30, 23, 13.1); acUnit(m, 33.2, 23, 13.1); acUnit(m, 36.4, 23, 13.1); acUnit(m, 30, 26, 13.1, 3, 2);
+    duct(m, 30, 41, 30.5, 13.1); duct(m, 33, 40, 38.2, 13.1, 'y'); vent(m, 26, 40, 13.1); vent(m, 28, 41.5, 13.1); vent(m, 38, 34, 13.1);
+    for (const [x, y] of [[6.2, 21.2], [21.8, 21.2], [6.2, 36.8], [21.8, 36.8]]) m.cb(x - 0.25, x + 0.25, y - 0.25, y + 0.25, 12.75, 13.0, 'light');
+    acUnit(m, 30, 12, 24.6); acUnit(m, 30, 15, 24.6); dish(m, 41, 16, 24.6, 1.3); dish(m, 35, 5, 24.6, 0.9); vent(m, 37, 13, 24.6); hut(m, 38.5, 9.5, 24.6, 3, 2.4, 2.2);
+    rail(m, 28.5, 19.5, 43.5, 19.5, 24.6); rail(m, 43.5, 2.5, 43.5, 19.5, 24.6);
+    m.cb(19, 28, 44.5, 46.2, 7.6, 7.9, 'concreteDark');                         // canopy over the entrance
+    lampPost(m, 3, 46.4, 7, 1, 0); lampPost(m, 45, 46.4, 7, -1, 0); lampPost(m, 46.4, 22, 7, 0, 1);
+    barrels(m, 30.5, 45.4, 2); m.cb(33, 36.4, 45.2, 46.8, 0.6, 1.5, 'concreteLight'); m.cb(38, 41.4, 45.2, 46.8, 0.6, 1.5, 'concreteLight');
   } else {
     // stepped concrete ministry with a central tower; helipad on the left wing, flag on the right
     block(m, 2, 46, 2, 46, 6, { plant: false });
@@ -82,6 +119,10 @@ function cc(o) {
     door(m, 22, 32, 46, 4.8);
     m.cc(28.5, 24.5, 0.3, 30.6, 38.5, 'steelDark', { seg: 6 });
     m.cb(24, 33, 20, 29, 30.6, 32.4, 'warmDark');
+    acUnit(m, 38, 38, 10.2); acUnit(m, 41.5, 38, 10.2); vent(m, 40, 43, 10.2); hut(m, 12, 28, 10.6, 3.2, 2.4, 2.2); vent(m, 4, 44, 10.6); vent(m, 5.5, 44, 10.6);
+    dish(m, 22.5, 31, 30.6, 1.2); dish(m, 35, 18, 30.6, 1.0); acUnit(m, 30, 17, 30.6); rail(m, 20, 33, 37, 33, 30.6); rail(m, 37, 16, 37, 33, 30.6);
+    for (const x of [8, 16, 38, 44]) vent(m, x, 8, 6.6); duct(m, 24, 44, 10, 6.6); acUnit(m, 40, 20, 6.6, 3, 2); acUnit(m, 40, 24, 6.6, 3, 2);
+    lampPost(m, 2, 47, 7, 1, 0); lampPost(m, 46, 47, 7, -1, 0);
   }
   writeModel(name('cc', o), m);
 }
@@ -96,13 +137,21 @@ function power(o) {
     m.cc(12, 11, 7.5, 0.6, 5.5, 'concrete', { seg: 28 });
     m.cc(12, 11, 7.6, 3.9, 5.0, 'team', { seg: 28 });
     m.sp(12, 11, 5.5, 7.4, 'concreteLight', { s: [1, 1, 0.62], seg: 28 });
-    m.cc(12, 11, 1.9, 9.5, 10.4, 'cyan', { seg: 14 });
+    m.cc(12, 11, 1.7, 9.5, 10.3, 'steel', { seg: 14 }); m.cc(12, 11, 2.0, 10.3, 10.55, 'steelDark', { seg: 14 });
     m.cc(25, 7, 2.4, 0.6, 23, 'concrete', { r2: 1.9 });
     for (const z of [17, 20.5]) m.cc(25, 7, 2.15, z, z + 1.5, 'team', { r2: 2.05 });
     m.cc(25, 7, 2.0, 23, 23.4, 'black');
     m.cb(17, 22, 9.6, 11, 2, 3.2, 'steelDark'); m.cb(20.5, 22, 9.6, 11, 0.6, 3.2, 'steelDark');
     m.cb(25, 30, 12, 16, 0.6, 4, 'steel'); for (let y = 12.5; y < 16; y += 1.2) m.cb(30, 30.4, y, y + 0.6, 0.8, 3.6, 'steelDark');
-    if (o.up) { m.cc(4.5, 5, 2.2, 0.6, 8, 'concrete'); m.cc(4.5, 5, 2.25, 6, 7, 'team'); m.cc(4.5, 5, 1.0, 8, 9.4, 'cyan'); }
+    // steam main from the reactor to the turbine hall, stack ladder and platform, transformer bushings
+    pipe(m, 11, 18.5, 14, 5.2, 'y', 'metalLight', 0.55); m.cb(13.2, 14.8, 17.2, 18.4, 0.6, 5.4, 'steelDark');
+    pipe(m, 14, 25, 19.2, 7.6, 'x', 'steel', 0.3); pipe(m, 4, 29, 28.6, 7.4, 'x', 'steelDark', 0.22);
+    ladder(m, 24.6, 9.3, 0.6, 16.5); m.cc(25, 7, 2.9, 16.4, 16.65, 'steelDark', { seg: 16 });
+    for (const y of [12.8, 14, 15.2]) { m.cc(26.3, y, 0.16, 4, 5.2, 'white', { seg: 6 }); m.cc(28.6, y, 0.16, 4, 5.2, 'white', { seg: 6 }); }
+    rail(m, 23.5, 16.8, 31, 16.8, 0.6, 1.8); rail(m, 31, 11.4, 31, 16.8, 0.6, 1.8);
+    acUnit(m, 3.5, 20, 7.1); vent(m, 4.5, 27, 7.1); lampPost(m, 2, 31, 6.5, 1, 0); lampPost(m, 30.8, 31, 6.5, -1, 0);
+    tankH(m, 3, 3.2, 5, 1.1, 'white'); barrels(m, 18.5, 3, 4, 'contBlue');
+    if (o.up) { m.cc(4.5, 5, 2.2, 0.6, 8, 'concrete'); m.cc(4.5, 5, 2.25, 6, 7, 'team'); m.cc(4.5, 5, 1.0, 8, 9.2, 'steelDark'); }
   } else {
     // cooling tower (steam drawn live at 11.5,12.5,20), a brick turbine hall and a tall stack
     m.cc(11.5, 12.5, 9.2, 0.6, 9, 'warm', { r2: 6.6, seg: 28 });
@@ -114,6 +163,9 @@ function power(o) {
     m.cc(26.5, 6.5, 2.0, 0.6, 27.5, 'brick', { r2: 1.6 });
     m.cc(26.5, 6.5, 1.75, 23, 24.4, 'team', { r2: 1.7 });
     m.cb(21, 30, 12, 20, 0.6, 3.4, 'steel');
+    for (const y of [13.5, 16, 18.5]) { m.cc(23, y, 0.18, 3.4, 4.8, 'white', { seg: 6 }); m.cc(27.5, y, 0.18, 3.4, 4.8, 'white', { seg: 6 }); }
+    rail(m, 20.4, 20.6, 30.6, 20.6, 0.6, 1.8); ladder(m, 26.1, 8.5, 0.6, 20); m.cc(26.5, 6.5, 2.4, 19.8, 20.05, 'steelDark', { seg: 14 });
+    pipe(m, 12, 22.5, 20.5, 5.5, 'y', 'steelDark', 0.5); for (const x of [6, 11, 16, 21, 26]) vent(m, x, 26, 7.6); lampPost(m, 2, 31, 6.5, 1, 0); lampPost(m, 30.8, 31, 6.5, -1, 0);
     if (o.up) { m.cc(26.5, 15.5, 2.0, 3.4, 8.4, 'warm'); m.cc(26.5, 15.5, 2.05, 6.4, 7.2, 'team'); }
   }
   writeModel(name('power', o), m);
@@ -143,6 +195,14 @@ function refinery(o) {
   for (const x of [16, 31.6]) m.cb(x, x + 0.8, 37, 37.8, 0.6, 7, 'steel');
   m.cb(15.5, 32.5, 37.7, 38.05, 6.2, 7.0, 'team');
   door(m, 17, 31, 30, 6.2);
+  // roof plant, a pipe bridge to the silos, ladders and a catwalk, ore spill and kit by the bay
+  const rz = (o.ax ? 11 : 12) + 0.6;
+  acUnit(m, 5, 6, rz); acUnit(m, 5, 9, rz); acUnit(m, 5, 12, rz); duct(m, 8, 26, 7, rz); duct(m, 10, 27, 20, rz, 'y'); for (const x of [14, 18, 22]) vent(m, x, 24, rz); hut(m, 22, 5, rz, 3.4, 2.6, 2.4);
+  pipe(m, 30, 34, 26, 6.5, 'x', 'steel', 0.35); pipe(m, 30, 34, 8, 4.5, 'x', 'rust', 0.3); pipe(m, 12, 29, 34.2, 13.5, 'y', 'steelDark', 0.3);
+  if (!o.ax) { ladder(m, 38.6, 34.6, 0.6, 15); ladder(m, 38.6, 17.6, 0.6, 15); m.cb(38, 40, 17.4, 23.6, 15.2, 15.4, 'steelDark'); rail(m, 40, 17.4, 40, 23.6, 15.4, 0.9); }
+  m.cc(11, 42, 2.6, 0.6, 1.5, 'oreDark', { r2: 0.5, seg: 9 }); m.cc(8, 39.5, 1.8, 0.6, 1.2, 'ore', { r2: 0.4, seg: 8 });
+  container(m, 35, 39, 'contRed'); container(m, 35.5, 42, 'contBlue'); container(m, 36, 39.2, 'contGrey', 'x', 3.2); barrels(m, 3.5, 44, 4, 'contBlue');
+  lampPost(m, 14.6, 46.6, 7.5, 1, 0); lampPost(m, 33.4, 46.6, 7.5, -1, 0); lampPost(m, 46.6, 38, 7.5, 0, 1);
   if (o.up) { m.cb(4, 12, 32, 40, 0.6, 3.4, 'steel'); m.cc(8, 36, 1.8, 3.4, 6.4, 'metalLight'); }
   writeModel(name('refinery', o), m);
 }
@@ -158,6 +218,12 @@ function barracks(o) {
   m.ext('front', [[-hw - 0.05, 7.0], [hw + 0.05, 7.0], [hw + 0.05, 7.6], [-hw - 0.05, 7.6]].map(([y, z]) => [y + m.Y(mid), z]), m.X(1.55), m.X(30.45), 'team');
   door(m, 13, 19, y1, 5);
   windowsY(m, 3.5, 11, y1, 3.2, 5); windowsY(m, 20.5, 28.5, y1, 3.2, 5); windowsX(m, y0 + 2, y1 - 2, 30, 3.2, 5);
+  // base course, door canopy, flue and vents on the ridge, yard kit
+  m.cb(1.88, 30.12, y0 - 0.12, y1 + 0.12, 0.6, 1.3, o.ax ? 'warmDark' : 'concreteDark');
+  m.cb(12.4, 19.6, y1, y1 + 1.5, 5.1, 5.35, 'steelDark'); for (const x of [8, 16, 24]) vent(m, x, mid, 12.2, 0.8);
+  m.cb(30, 30.28, y0 + 0.5, y0 + 0.8, 0.6, 7, 'steelDark'); m.cb(2.5, 2.8, y1, y1 + 0.28, 0.6, 7, 'steelDark');
+  crates(m, 3.5, y1 + 0.3); barrels(m, 26.5, y1 + 0.3, 4); lampPost(m, 1.6, 31, 6.5, 1, 0); lampPost(m, 30.6, 31, 6.5, -1, 0);
+  m.cb(30.6, 31.4, 8, 22, 0.6, 1.6, 'sand'); m.cb(22, 29, 28.6, 30.4, 0.6, 0.72, 'concreteLight');
   // sandbag walls either side of the door
   for (const [a, b] of [[3, 11], [21, 29]]) for (let x = a; x < b; x += 1.6) m.cb(x, x + 1.5, y1 + 2, y1 + 3.4, 0.6, 1.5, 'sand');
   if (o.up) { m.cb(3, 29, y1 + 1.6, y1 + 3.6, 1.5, 2.4, 'sand'); m.cb(24, 29, y0 - 3.5, y0 - 0.5, 0.6, 3, 'olive'); }
@@ -191,6 +257,15 @@ function factory(o) {
   else { m.cc(6, 8, 1.6, 14, 26, 'brick', { r2: 1.3 }); m.cc(6, 8, 1.65, 22, 23, 'team'); }
   m.cb(37, 46, 1, 5, 0.6, 8, o.ax ? 'warm' : 'concrete'); m.cb(37, 46, 1, 5, 8, 8.5, 'roofDark'); winY(m, 38, 45, 5, 5, 6.5);
   m.cc(42, 3, 1.3, 14, 20, 'steel'); m.cc(42, 3, 1.4, 19.2, 20, 'black');
+  // base course, downpipes, wall ducting, door track, yard kit by the doors
+  m.cb(1.88, 46.12, 4.88, 44.12, 0.6, 1.4, o.ax ? 'warmDark' : 'concreteDark');
+  for (const y of [6, 24, 42.6]) m.cb(46, 46.3, y, y + 0.32, 0.6, 14, 'steelDark');
+  for (const x of [3, 10.2, 37.6, 45]) m.cb(x, x + 0.32, 44, 44.3, 0.6, 14, 'steelDark');
+  pipe(m, 8, 41, 46.5, 11.6, 'y', 'metalLight', 0.4); m.cb(46, 47.6, 12, 15, 0.6, 2.6, 'steel'); acUnit(m, 46.1, 30, 0.6, 1.4, 3); acUnit(m, 46.1, 34, 0.6, 1.4, 3);
+  m.cb(11.4, 36.6, 44.3, 44.7, 11.4, 12.0, 'steelDark');
+  container(m, 38.4, 45.2, 'contGreen'); crates(m, 3.5, 45); barrels(m, 7.5, 45.2, 4, 'contBlue'); m.cc(10.5, 46.2, 0.9, 0.6, 1.1, 'rubber', { seg: 10 }); m.cc(10.8, 46.4, 0.9, 1.1, 1.6, 'rubber', { seg: 10 });
+  lampPost(m, 11, 47.2, 9, 1, 0); lampPost(m, 37.4, 47.2, 9, -1, 0); lampPost(m, 47.2, 20, 9, 0, 1);
+  if (!o.ax) { for (const x of [12, 24, 36]) vent(m, x, 43, 14.6, 1.4); }
   if (o.up) { m.cb(38, 46, 38, 47.5, 0.6, 5, 'steel'); m.cb(37.8, 46.2, 37.8, 47.7, 5, 5.5, 'roofDark'); m.cb(38.5, 45.5, 47.4, 47.6, 1, 4, 'grille'); }
   writeModel(name('factory', o), m);
 }
@@ -206,6 +281,12 @@ function radar(o) {
   m.cc(16, 16, 1.6, 17.6, 18.6, 'steel');
   m.cc(5, 13, 0.4, 8.6, 9.4, 'steelDark');
   m.cb(22, 27, 3, 9, 0.6, 3.6, o.ax ? 'warm' : 'steel');
+  // tower bracing, cable tray, generator hut kit, roof plant, perimeter fence on the two near sides
+  for (const z of [10, 13, 16]) { m.cb(13.9, 18.1, 13.92, 14.08, z, z + 0.14, 'steelDark'); m.cb(13.9, 18.1, 17.92, 18.08, z, z + 0.14, 'steelDark'); m.cb(13.92, 14.08, 13.9, 18.1, z, z + 0.14, 'steelDark'); m.cb(17.92, 18.08, 13.9, 18.1, z, z + 0.14, 'steelDark'); }
+  ladder(m, 15.6, 18.3, 8.6, 17.6); acUnit(m, 5.5, 22, 8.6); acUnit(m, 5.5, 25, 8.6); vent(m, 23, 25, 8.6); vent(m, 25, 25, 8.6); dish(m, 23.5, 15, 8.6, 1.2); duct(m, 9, 13, 18.6, 8.6);
+  m.cb(21.8, 27.2, 2.8, 9.2, 3.6, 3.85, 'roofDark'); for (let y = 3.6; y < 8.6; y += 1) m.cb(27, 27.12, y, y + 0.6, 1.2, 3, 'grille'); pipe(m, 9, 12, 24.5, 1.2, 'y', 'steelDark', 0.2);
+  tankH(m, 4, 5, 5, 1.2, 'white'); barrels(m, 12, 4, 4);
+  rail(m, 1.2, 30.8, 30.8, 30.8, 0.6, 2.2); rail(m, 30.8, 1.2, 30.8, 30.8, 0.6, 2.2); lampPost(m, 30.4, 30.4, 7, -0.7, -0.7);
   writeModel(name('radar', o), m);
 }
 
@@ -226,6 +307,13 @@ function airfield(o) {
   const arch = []; for (let i = 0; i <= 8; i++) { const a = Math.PI * i / 8; arch.push([-Math.cos(a) * 4.4, 0.6 + Math.sin(a) * 5.4]); }
   m.ext('side', arch.map(([x, z]) => [x + m.X(14), z]), m.Y(1.5), m.Y(8.4), o.ax ? 'warm' : 'metal');
   m.ext('side', arch.map(([x, z]) => [x * 0.8 + m.X(14), z * 0.8]), m.Y(8.4), m.Y(8.6), 'grille');
+  // tyre marks and threshold bars on the runway, apron kit, fuel bowser tanks, windsock mast, tower gallery
+  for (const y of [15.2, 20]) m.cb(8, 30, y, y + 0.7, 0.45, 0.47, 'rubber');
+  for (let y = 11; y <= 23; y += 3) m.cb(43, 45.4, y, y + 1.4, 0.45, 0.5, 'white');
+  rail(m, 36.2, 9.5, 45.8, 9.5, 10.6, 0.9); rail(m, 45.9, 1.2, 45.9, 9.5, 10.6, 0.9); dish(m, 38, 3, 14.4, 0.9); acUnit(m, 41.5, 5.5, 14.4, 1.8, 1.4);
+  tankH(m, 22, 3.4, 6, 1.1, 'white'); tankH(m, 22, 6.4, 6, 1.1, 'white'); container(m, 29.5, 2.4, 'olive'); barrels(m, 30, 6, 4); crates(m, 3, 3);
+  m.cc(2.5, 28.8, 0.1, 0.4, 6, 'steelDark', { seg: 5 }); m.group([m.X(2.5), m.Y(28.8), 5.8], [0, 0, 20], () => m.cyl([1, 0, 0], 0.35, 2, 'x', 'orange', { r2: 0.15, seg: 8 }));
+  for (const x of [6, 16, 26, 36, 46]) m.cb(x - 0.2, x + 0.2, 27.6, 28, 0.4, 0.75, 'steelDark');
   if (o.up) { m.cb(22, 32, 2, 7, 0.4, 2.4, 'olive'); m.cb(22, 32, 2, 7, 2.4, 2.6, 'roofDark'); }
   writeModel(name('airfield', o), m);
 }
@@ -241,6 +329,9 @@ function tech(o) {
     m.sp(16, 17, 13, 5.6, 'metalLight', { s: [1, 1, 0.9], seg: 24 });
     m.cb(14.6, 17.4, 11.2, 22.6, 17.6, 18.4, 'team', { r: [0, 0, 0] });
     m.cc(6.35, 9.35, 0.3, 11.6, 18, 'steelDark', { seg: 6 });
+    acUnit(m, 23, 9, 11.6); acUnit(m, 23, 12, 11.6); acUnit(m, 23, 15, 11.6, 3, 2); duct(m, 6, 12, 24, 11.6); vent(m, 25, 25, 11.6); vent(m, 27, 25, 11.6); dish(m, 6, 14.5, 11.6, 1.2); hut(m, 24, 20, 11.6, 3, 2.4, 2.2);
+    rail(m, 3, 29, 29, 29, 11.6); rail(m, 29, 7, 29, 29, 11.6); m.cb(12, 20, 29, 30.6, 3.4, 3.65, 'steelDark'); m.cb(13.5, 18.5, 28.95, 29.3, 0.6, 3.3, 'glassLight');
+    tankH(m, 30, 10, 6, 0.9, 'white', 'y'); lampPost(m, 2.4, 30.6, 6.5, 1, 0); lampPost(m, 30.4, 30.6, 6.5, -1, 0);
   } else {
     block(m, 3, 29, 4, 29.25, 7.5);
     m.cb(4, 13.5, 29.1, 29.5, 6.6, 8.4, 'black');
@@ -570,6 +661,73 @@ function propaganda() {
   writeModel('b_propaganda', m);
 }
 
+// ---------- civilian buildings (neutral; infantry garrison them) ----------
+// Farmhouse (2x2): rendered walls, clay-tile roof, lean-to shed, yard wall
+function civHouse() {
+  const m = site(32, 32, { pad: false });
+  m.cb(1, 31, 1, 31, 0, 0.25, 'sand', { ground: 1 });
+  m.cb(5, 27, 7, 23, 0.25, 9, 'plaster');
+  m.cb(4.9, 27.1, 6.9, 23.1, 0.25, 1.2, 'concreteDark');
+  m.ext('front', [[-9.2, 9], [9.2, 9], [0, 15.5]].map(([y, z]) => [y + m.Y(15), z]), m.X(4), m.X(28), 'tile');
+  m.ext('front', [[-8, 9], [8, 9], [0, 14.6]].map(([y, z]) => [y + m.Y(15), z]), m.X(4.6), m.X(27.4), 'plaster');   // gable ends
+  m.cb(21, 23, 10.5, 12.5, 12, 18, 'brick'); m.cb(20.8, 23.2, 10.3, 12.7, 18, 18.4, 'concreteDark');
+  m.cb(14.5, 17.5, 23, 23.2, 0.25, 6, 'wood'); m.cb(13.8, 18.2, 23, 24.4, 6.2, 6.5, 'tile');
+  for (const x of [7, 10.5, 20, 23.5]) { m.cb(x, x + 2, 23, 23.14, 3.6, 6.4, 'glass'); m.cb(x - 0.2, x + 2.2, 23, 23.2, 3.3, 3.6, 'concreteLight'); }
+  for (const y of [9, 13, 18]) { m.cb(27, 27.14, y, y + 2, 3.6, 6.4, 'glass'); m.cb(27, 27.2, y - 0.2, y + 2.2, 3.3, 3.6, 'concreteLight'); }
+  m.cb(27, 27.14, 14, 16, 10, 12, 'glass');
+  // lean-to shed, woodpile, water butt, yard wall with a gate gap
+  m.cb(5, 13, 23, 28, 0.25, 5, 'wood'); m.cb(4.6, 13.4, 22.8, 28.6, 5, 5.4, 'rust', { r: [6, 0, 0] });
+  for (let i = 0; i < 4; i++) m.cyl([m.X(21 + i * 0.9), m.Y(26), 0.7 + (i % 2) * 0.7], 0.4, 3, 'y', 'wood', { seg: 6 });
+  m.cc(25.5, 24.6, 0.8, 0.25, 2.2, 'contBlue', { seg: 10 });
+  for (const [a, b] of [[1.5, 12], [18, 30.5]]) m.cb(a, b, 30, 30.6, 0.25, 1.9, 'concrete');
+  m.cb(30, 30.6, 1.5, 30.6, 0.25, 1.9, 'concrete');
+  writeModel('b_civ_house', m);
+}
+// Apartment block (2x2): prefab concrete panels, balconies, roof plant
+function civFlats() {
+  const m = site(32, 32);
+  m.cb(4, 28, 5, 27, 0.6, 27, 'plasterGrey');
+  m.cb(3.8, 28.2, 4.8, 27.2, 0.6, 3.6, 'concreteDark');
+  m.cb(3.6, 28.4, 4.6, 27.4, 27, 27.9, 'concrete'); m.cb(4.4, 27.6, 5.4, 26.6, 27.5, 28.0, 'asphalt');
+  for (let z = 4.4, f = 0; z < 25; z += 4.4, f++) {
+    m.cb(3.9, 28.1, 4.9, 27.1, z - 0.55, z - 0.3, 'concreteDark');                       // floor slab line
+    for (let x = 5.5, i = 0; x < 26; x += 3.7, i++) {
+      const lit = (i * 3 + f * 5) % 7 === 0;
+      m.cb(x, x + 2.2, 27, 27.12, z, z + 2.4, lit ? 'light' : 'glass');
+      if (i % 3 === 1) { m.cb(x - 0.5, x + 2.7, 27, 28.5, z - 0.4, z - 0.15, 'concrete'); m.cb(x - 0.5, x + 2.7, 28.4, 28.52, z - 0.15, z + 1.1, 'concreteDark'); }
+    }
+    for (let y = 6.5, i = 0; y < 25; y += 3.7, i++) {
+      const lit = (i * 5 + f * 3) % 8 === 0;
+      m.cb(28, 28.12, y, y + 2.2, z, z + 2.4, lit ? 'light' : 'glass');
+      if (i % 2 === 0 && f % 2 === 1) acUnit(m, 28.05, y + 2.3, z - 0.3, 0.8, 1.1);
+    }
+  }
+  m.cb(13, 19, 27, 28.6, 3.6, 3.9, 'concreteDark'); m.cb(14, 18, 27, 27.14, 0.6, 3.4, 'glassLight');
+  hut(m, 8, 8, 28); acUnit(m, 18, 9, 28); acUnit(m, 21, 9, 28); vent(m, 22, 20, 28); vent(m, 24, 22, 28); dish(m, 11, 22, 28, 1.1); dish(m, 14, 23.5, 28, 0.8);
+  m.cc(24.5, 12, 0.1, 28, 31.5, 'steelDark', { seg: 4 });
+  lampPost(m, 3, 30.4, 6.5, 1, 0); m.cb(21, 27, 28.8, 30.6, 0.6, 1.5, 'contGreen');
+  writeModel('b_civ_flats', m);
+}
+// Office building (3x2): ribbon glazing between concrete spandrels, plant room on the roof
+function civOffice() {
+  const m = site(48, 32);
+  m.cb(4, 44, 5, 27, 0.6, 25, 'concreteLight');
+  m.cb(3.8, 44.2, 4.8, 27.2, 0.6, 3.2, 'concreteDark');
+  for (let z = 4.2; z < 23; z += 4.2) {
+    m.cb(4.6, 43.4, 27, 27.14, z, z + 2.5, 'glass'); m.cb(44, 44.14, 5.6, 26.4, z, z + 2.5, 'glass');
+    for (let x = 8.5; x < 43; x += 4) m.cb(x, x + 0.25, 27, 27.22, z, z + 2.5, 'steel');
+    for (let y = 9; y < 26; y += 4) m.cb(44, 44.22, y, y + 0.25, z, z + 2.5, 'steel');
+  }
+  m.cb(3.7, 44.3, 4.7, 27.3, 25, 25.8, 'concrete'); m.cb(4.5, 43.5, 5.5, 26.5, 25.4, 25.9, 'asphalt');
+  m.cb(28, 40, 8, 17, 25.9, 29, 'metal'); m.cb(27.8, 40.2, 7.8, 17.2, 29, 29.3, 'roofDark');
+  for (let x = 29; x < 39; x += 2.2) m.cb(x, x + 1.4, 17, 17.1, 26.6, 28.4, 'grille');
+  acUnit(m, 8, 9, 25.9, 3, 2); acUnit(m, 8, 12.5, 25.9, 3, 2); acUnit(m, 12.5, 9, 25.9, 3, 2); duct(m, 12, 27, 20, 25.9); vent(m, 20, 23, 25.9); vent(m, 22, 23, 25.9); dish(m, 36, 22, 25.9, 1.3);
+  m.cc(12, 22, 0.1, 25.9, 30, 'steelDark', { seg: 4 });
+  m.cb(19, 29, 27, 29.4, 3.6, 3.9, 'steelDark'); m.cb(20, 28, 27, 27.14, 0.6, 3.4, 'glassLight'); for (const x of [19.4, 28.4]) m.cc(x, 29, 0.14, 0.6, 3.6, 'steel', { seg: 6 });
+  lampPost(m, 3, 30.4, 7, 1, 0); lampPost(m, 45, 30.4, 7, -1, 0); m.cb(33, 41, 28.6, 30.4, 0.6, 1.3, 'concreteLight');
+  writeModel('b_civ_office', m);
+}
+
 // ---------- write everything ----------
 const LOOKS = [{}, { up: true }, { ax: true }, { ax: true, up: true }];
 for (const o of LOOKS) {
@@ -580,3 +738,4 @@ for (const o of LOOKS) {
 }
 superSilo(false); superSilo(true);
 hub(); gchq(); robotics(); krasukha(); propaganda();
+civHouse(); civFlats(); civOffice();

@@ -58,6 +58,7 @@ const MODELS = {
     cc: [3, 3], power: [2, 2], refinery: [3, 3], barracks: [2, 2], factory: [3, 3], radar: [2, 2], airfield: [3, 2],
     tech: [2, 2], hub: [2, 2], laser: [1, 1], thaad: [2, 2], koksan: [2, 2], gchq: [2, 2], robotics: [2, 2], krasukha: [2, 2], propaganda: [1, 1], super_lance: [3, 3], super_silo: [3, 3], super_silo_open: [3, 3], turret: [1, 1], railturret: [1, 1], sam: [1, 1], shipyard: [3, 3],
     wall: [1, 1], mortar: [1, 1], missilenest: [1, 1], flametower: [1, 1], sensor: [1, 1], drill: [2, 2],
+    civ_house: [2, 2], civ_flats: [2, 2], civ_office: [3, 2],
   }).map(([key, [w, h]]) => {
     const W = w * 16, H = h * 16, span = (W + H) * 2, cell = span + 24;
     return [`b_${key}`, { vox: { hull: `b_${key}.vox` }, pivot: [W / 2, H / 2], k: 2, cell, anchor: (cell - 12 - span / 4) / cell, facings: 1 }];
@@ -163,9 +164,11 @@ for (const [key, cfg] of Object.entries(MODELS)) {
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'assets', 'sprites');
 
+// photographed materials and the sky panorama (CC0, Poly Haven): fetched by fetch_assets.py into ./cache
+const ASSETS = process.env.LOOK_ASSETS || path.join(__dirname, 'cache');
 function serve(modelDir) {
   const types = { '.json': 'application/json', '.vox': 'application/octet-stream', '.html': 'text/html', '.js': 'text/javascript', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg' };
-  const roots = { '/three/': path.join(__dirname, 'node_modules', 'three') + '/', '/models/': modelDir + '/', '/vox/': path.join(ROOT, 'assets', 'voxels') + '/', '/mesh/': path.join(ROOT, 'assets', 'models') + '/', '/': __dirname + '/' };
+  const roots = { '/three/': path.join(__dirname, 'node_modules', 'three') + '/', '/pbr/': path.join(ASSETS, 'pbr') + '/', '/hdri/': path.join(ASSETS, 'hdri') + '/', '/models/': modelDir + '/', '/vox/': path.join(ROOT, 'assets', 'voxels') + '/', '/mesh/': path.join(ROOT, 'assets', 'models') + '/', '/': __dirname + '/' };
   const server = http.createServer((req, res) => {
     const url = decodeURIComponent(req.url.split('?')[0]);
     const prefix = Object.keys(roots).find(p => url.startsWith(p));

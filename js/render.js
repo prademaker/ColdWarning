@@ -45,6 +45,26 @@ const Render = {
     return c;
   },
 
+  // lasting craters: scorch marks that aged out of G.decals are painted into the terrain
+  // texture once, and the iso chunks under them are redrawn on demand
+  bakedCraters: new WeakMap(),
+  bakeCraters() {
+    const cr = G.craters, tc = G.map.terrainCanvas;
+    if (!cr || !tc) return;
+    let n = this.bakedCraters.get(tc) || 0;
+    if (n > cr.length) n = 0;   // the list was trimmed: the old ones are already in the ground
+    if (n === cr.length) return;
+    const x = tc.getContext('2d');
+    for (let k = n; k < cr.length; k++) {
+      const d = cr[k];
+      FX.drawDecal(x, d, true);
+      const sx = d.x - d.y, sy = (d.x + d.y) / 2, r = d.r * 1.6;
+      for (let i = Math.floor((sx - r) / CHUNK); i <= Math.floor((sx + r) / CHUNK); i++)
+        for (let j = Math.floor((sy - r) / CHUNK); j <= Math.floor((sy + r) / CHUNK); j++) this.chunks.delete(i + ',' + j);
+    }
+    this.bakedCraters.set(tc, cr.length);
+  },
+
   updateFogCanvas() {
     if (this.fogVersion === G.fogVersion) return;
     this.fogVersion = G.fogVersion;
@@ -89,6 +109,7 @@ const Render = {
     const ty0 = Math.max(0, Math.floor(wy0 / TILE) - 2), ty1 = Math.min(m.h - 1, Math.ceil((wy1 + 200) / TILE) + 2);
     const onScreen = (sx, sy, pad = 120) => sx > -pad && sx < vw + pad && sy > -pad && sy < vh + pad * 1.6;
 
+    this.bakeCraters();
     // ---- ground pass ----
     for (let j = Math.floor(cy / CHUNK); j * CHUNK < cy + vh; j++) {
       for (let i = Math.floor(cx / CHUNK); i * CHUNK < cx + vw; i++) {
@@ -118,7 +139,18 @@ const Render = {
       const ti = Math.floor(p.y / TILE) * m.w + Math.floor(p.x / TILE);
       if (!G.explored[ti]) continue;
       const [sx, sy] = this.P(p.x, p.y);
-      if (onScreen(sx, sy)) list.push({ d: p.x + p.y, p, sx, sy });
+      if (!onScreen(sx, sy)) continue;
+      if (p.kind === 'tree') {
+        // felled where something was built, and a tile around it
+        const px = Math.floor(p.x / TILE), py = Math.floor(p.y / TILE);
+        let built = false;
+        for (let dy = -1; dy <= 1 && !built; dy++) for (let dx = -1; dx <= 1; dx++) if (m.inside(px + dx, py + dy) && m.bld[m.idx(px + dx, py + dy)] >= 0) { built = true; break; }
+        if (built) continue;
+      }
+      list.push({ d: p.x + p.y, p, sx, sy });
+      // the shadow of scanned scenery lies on the ground, under everything upright
+      const sh = p.name && PropArt.get(p.name, p.sv, true);
+      if (sh) { ctx.globalAlpha = 0.42; Art.blit(ctx, sh, sx, sy); ctx.globalAlpha = 1; }
     }
     for (const e of G.entities) {
       if (e.dead) continue;
@@ -150,8 +182,12 @@ const Render = {
     for (const it of list) {
       if (it.w) FX.wreck(ctx, it.w, it.sx, it.sy);
       else if (it.p) {
-        if (it.p.kind === 'rock') FX.drawRockShadow(ctx, it.sx, it.sy);
-        Art.blit(ctx, it.p.kind === 'rock' ? rockSprite(theme, it.p.v) : treeSprite(theme, it.p.v), it.sx, it.sy);
+        const scan = it.p.name && PropArt.get(it.p.name, it.p.sv);
+        if (scan) Art.blit(ctx, scan, it.sx, it.sy);
+        else {
+          if (it.p.kind === 'rock') FX.drawRockShadow(ctx, it.sx, it.sy);
+          Art.blit(ctx, it.p.kind === 'rock' ? rockSprite(theme, it.p.v) : treeSprite(theme, it.p.v), it.sx, it.sy);
+        }
       }
       else if (it.e.kind === 'building') { if (!it.e.def.bridge) this.drawBuilding(ctx, it.e, G.teamOf(it.e.team), t); }
       else this.drawUnit(ctx, it.e, it.sx, it.sy);
@@ -168,6 +204,7 @@ const Render = {
     for (const e of air) { const [sx, sy] = this.P(e.x, e.y); this.drawUnit(ctx, e, sx, sy); }
     this.drawStrikes(ctx);
     this.drawCharges(ctx);
+    Light.draw(ctx, this);
 
     // ---- fog of war ----
     this.updateFogCanvas();
@@ -206,9 +243,10 @@ const Render = {
         const v = (i * 2654435761 >>> 0) % 4;
         const [sx, sy] = this.P(tx * TILE + TILE / 2, ty * TILE + TILE / 2);
         if (sx < -60 || sy < -60 || sx > ctx.canvas.width + 60 || sy > ctx.canvas.height + 60) continue;
-        Art.blit(ctx, oreSprite(gem, level, v), sx, sy);
+        const scan = oreScan(gem, level, v);
+        Art.blit(ctx, scan || oreSprite(gem, level, v), sx, sy);
         // lithium glints now and then
-        if (gem && ((i * 7 + Math.floor(t * 1.5)) % 23) === 0) {
+        if (!scan && gem && ((i * 7 + Math.floor(t * 1.5)) % 23) === 0) {
           const p = (t * 1.5) % 1, gx = sx + ((i * 13) % 17) - 8, gy = sy - 10 - ((i * 7) % 6);
           ctx.save(); ctx.globalCompositeOperation = 'lighter';
           ctx.strokeStyle = `rgba(230,255,255,${Math.sin(p * Math.PI)})`; ctx.lineWidth = 1;
