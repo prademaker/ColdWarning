@@ -3916,5 +3916,47 @@ const SPRITE_META = {
     "style": "voxel",
     "camo": true,
     "ground": true
+  },
+  "b_civ_house": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true,
+    "ground": true
+  },
+  "b_civ_flats": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true,
+    "ground": true
+  },
+  "b_civ_office": {
+    "cell": 184,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 92,
+    "ay": 132,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true,
+    "ground": true
   }
 };

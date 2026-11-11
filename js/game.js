@@ -393,6 +393,8 @@ class Game {
     this.superweapons = !!md || opts.superweapons !== false;
     // ultimate units likewise; missions leave them out unless they ask for them
     this.ultimates = md ? !!md.ultimates : opts.ultimates !== false;
+    // time of day (light.js): cosmetic; missions bring their own, skirmish and defense choose
+    this.daytime = md ? md.daytime || 'day' : opts.daytime === 'dusk' || opts.daytime === 'night' ? opts.daytime : 'day';
     this.mode = md ? 'campaign' : opts.mode === 'defense' ? 'defense' : 'skirmish';
     // alliance number per team, the human first; defense is the player against the waves
     const lineup = md ? md.teams.map(t => t.ally) : this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
@@ -1091,7 +1093,12 @@ class Game {
 
   decal(x, y, r) {
     this.decals.push({ x, y, r, a: Math.random() * 6 });
-    if (this.decals.length > 160) this.decals.shift();
+    // older scorch marks become lasting craters, baked into the ground by the renderer
+    if (this.decals.length > 160) {
+      if (!this.craters) this.craters = [];
+      this.craters.push(this.decals.shift());
+      if (this.craters.length > 2000) this.craters.splice(0, 500);
+    }
   }
 
   // ---------- spatial queries ----------
