@@ -12,6 +12,21 @@
 <link rel="icon" href="assets/ui/icon-192.png">
 <link rel="apple-touch-icon" href="assets/ui/icon-180.png">
 <title>Cold War 2: 2030</title>
+<meta name="description" content="A free base-building real-time strategy game set in 2030. Build a base, raise an army and take on the computer. Plays in your browser on PC, tablet or phone, nothing to install.">
+<link rel="canonical" href="https://prademaker.github.io/ColdWarning/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Cold War 2: 2030">
+<meta property="og:title" content="Cold War 2: 2030, a free strategy game in your browser">
+<meta property="og:description" content="Build a base, raise an army and take on the computer. Free, no download, plays on PC, tablet or phone.">
+<meta property="og:url" content="https://prademaker.github.io/ColdWarning/">
+<meta property="og:image" content="https://prademaker.github.io/ColdWarning/assets/ui/share.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Tanks and helicopters fighting around a base in Cold War 2: 2030">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Cold War 2: 2030, a free strategy game in your browser">
+<meta name="twitter:description" content="Build a base, raise an army and take on the computer. Free, no download, plays on PC, tablet or phone.">
+<meta name="twitter:image" content="https://prademaker.github.io/ColdWarning/assets/ui/share.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow+Condensed:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
@@ -28,6 +43,45 @@
     <div class="m-map"></div>
   </header>
   <main class="menu-inner">
+    <section id="front">
+      <div class="fd-cards">
+        <div class="fd-card fd-quick">
+          <div class="fd-pic" style="background-image:url(assets/ui/quickbattle.jpg)"></div>
+          <div class="fd-body">
+            <div class="fd-kicker">Jump straight in</div>
+            <h2>Quick battle</h2>
+            <p>One computer opponent on a small map, a random country for you, tips on screen and a few quiet minutes to build before the fighting starts.</p>
+            <div class="fd-diff"><span>Opponent</span><div id="fd-diff" class="opts"></div></div>
+            <button id="fd-quick" class="fd-go">PLAY NOW</button>
+          </div>
+        </div>
+        <div class="fd-side">
+          <button class="fd-card fd-small" id="fd-boot">
+            <div class="fd-kicker" id="fd-boot-tag">New to strategy games?</div>
+            <h2>Boot Camp</h2>
+            <p>A short guided mission that teaches building, harvesting and fighting one step at a time.</p>
+          </button>
+          <button class="fd-card fd-small" id="fd-custom">
+            <div class="fd-kicker">Your rules</div>
+            <h2>Custom battle</h2>
+            <p>Pick your country, the map, up to three opponents and allies, Defense mode or the five-mission campaign.</p>
+          </button>
+        </div>
+      </div>
+      <div class="fd-row">
+        <button id="fd-invite" class="opt fd-invite">✉ Invite a friend</button>
+        <button id="fd-install" class="opt" hidden>⬇ Install</button>
+        <button id="fd-load" class="opt">Load game</button>
+        <button id="fd-keys" class="opt">Controls</button>
+      </div>
+      <ol class="fd-how">
+        <li><b>Deploy</b> your MCV truck into a Command Center.</li>
+        <li><b>Build</b> a Power Plant, then an Ore Refinery to earn credits.</li>
+        <li><b>Train</b> an army at the Barracks and War Factory, then wipe out the enemy base.</li>
+      </ol>
+    </section>
+    <div id="custom" hidden>
+    <button id="fd-back" class="opt fd-back">‹ Back</button>
     <div id="faction-box">
       <h3>Choose your faction</h3>
       <div id="factions"></div>
@@ -88,6 +142,7 @@
         <li><b>Defense mode:</b> no enemy base. Waves march on you from the other corners of the map, with super tanks every fifth wave. Survive them all to win. Clearing a wave pays a bounty, and <i>Send now</i> calls the next wave early for extra credits.</li>
       </ul>
     </details>
+    </div>
   </main>
   <footer class="m-banner"></footer>
 </div>
