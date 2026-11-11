@@ -22,6 +22,7 @@ const Main = {
       seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, hints: Main.hintsPref(),
     };
     this.buildMenu();
+    for (const th in GROUND_TEX) GroundTex.get(th);   // fetch the ground photographs while the menu is up
     document.getElementById('load-game').onclick = () => { Sfx.resume(); this.openSaves('load'); };
     document.getElementById('p-resume').onclick = () => this.togglePause();
     document.getElementById('p-save').onclick = () => this.openSaves('save');

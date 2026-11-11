@@ -218,7 +218,7 @@ const FX = {
       // the vignette: a cool, slightly dark rim, matching the moody look of the style guide
       const v = document.createElement('canvas'); v.width = w; v.height = h;
       const g = v.getContext('2d'), r = g.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.hypot(w, h) * 0.62);
-      r.addColorStop(0, 'rgba(10,25,45,0.06)'); r.addColorStop(1, 'rgba(4,10,20,0.42)');
+      r.addColorStop(0, 'rgba(10,25,45,0)'); r.addColorStop(1, 'rgba(4,10,20,0.22)');
       g.fillStyle = r; g.fillRect(0, 0, w, h);
       a = this.atmo = { vw, vh, c, x: c.getContext('2d'), v, pat: null };
     }
