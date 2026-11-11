@@ -19,7 +19,7 @@ const Main = {
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
       mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true, daytime: 'day',
-      seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, hints: Main.hintsPref(), combatText: Main.combatTextPref(),
+      seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, limit: 60, hints: Main.hintsPref(), combatText: Main.combatTextPref(),
     };
     this.buildMenu();
     this.initFront();
@@ -39,7 +39,7 @@ const Main = {
       const p = k => params.get(k) || this.settings[k];
       this.start(Object.assign({}, this.settings, {
         autoplay: params.has('autoplay'),
-        faction: p('faction'), enemy: p('enemy'), theater: p('theater'),
+        faction: FACTIONS[p('faction')] ? p('faction') : this.settings.faction, enemy: p('enemy'), theater: p('theater'),
         mode: p('mode'), lineup: p('lineup'), mapSize: p('map'), water: p('water'), difficulty: p('difficulty'),
         seed: params.has('seed') ? +params.get('seed') : this.settings.seed,
         speed: params.has('speed') ? +params.get('speed') : 1,
@@ -47,6 +47,7 @@ const Main = {
         ultimates: params.get('ultimates') !== '0',
         daytime: params.get('daytime') || this.settings.daytime,
         ceasefire: +params.get('ceasefire') || 0,
+        limit: params.has('limit') ? +params.get('limit') || 0 : this.settings.limit,
         hints: params.has('hints') ? params.get('hints') !== '0' : this.settings.hints,
       }));
     }
@@ -213,7 +214,9 @@ const Main = {
     opts('daytime', Object.entries(DAYTIME).map(([id, d]) => [id, d.label]), 'daytime');
     opts('ceasefire', CEASEFIRE_OPTIONS, 'ceasefire');
     opts('hints', [[true, 'On'], [false, 'Off']], 'hints');
+    opts('limit', TIME_LIMIT_OPTIONS, 'limit');
     document.getElementById('cease-box').hidden = s.mode !== 'skirmish';
+    document.getElementById('limit-box').hidden = s.mode !== 'skirmish';
     document.getElementById('hints-box').hidden = camp;
     try { localStorage.setItem('cw2030.hints', s.hints ? '1' : '0'); } catch (e) { /* not remembered */ }
     opts('combattext', [[true, 'On'], [false, 'Off']], 'combatText');
@@ -468,6 +471,7 @@ const Main = {
     };
     const M = G.mission;
     const text = M ? G.over.text : W ? (G.over.win ? `All ${W.total} waves repelled. The base holds.` : `The base fell during wave ${W.wave} of ${W.total}.`) :
+      G.over.armistice ? this.armisticeText() :
       G.over.win ? 'The enemy has been eliminated. The region is secure.' : 'Our forces have been wiped out. Command has been lost.';
     const goals = M ? `<ul class="end-goals">${M.objectives.map(o => `<li class="${o.state}${o.optional ? ' bonus' : ''}">${o.text}${o.optional ? ' <i>(bonus)</i>' : ''}</li>`).join('')}</ul>` : '';
     const next = M && G.over.win ? CAMPAIGN.missions[CAMPAIGN.missions.findIndex(m => m.id === M.def.id) + 1] : null;
@@ -475,6 +479,7 @@ const Main = {
       (next ? '<button id="next">Next mission</button>' : '') + `<button id="again">${G.over.win ? 'Play again' : 'Retry'}</button><button id="tomenu">Campaign</button>`;
     el.innerHTML = `<div class="endbox ${G.over.win ? 'win' : 'lose'}">
       <h1>${M ? (G.over.win ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED') : G.over.win ? 'VICTORY' : 'DEFEAT'}</h1>
+      ${G.over.armistice ? '<div class="end-mission">Armistice</div>' : ''}
       ${M ? `<div class="end-mission">${M.def.title}</div>` : ''}
       <p>${text}</p>${M && G.over.win && !next ? '<p class="end-fin">Operation Northwind complete. Thank you for playing the campaign.</p>' : ''}${goals}
       <p class="time">Mission time ${mins}:${String(secs).padStart(2, '0')}</p>
@@ -494,6 +499,16 @@ const Main = {
     document.getElementById('again').onclick = () => this.start(M ? Object.assign({}, this.opts) : Object.assign({}, this.opts, { seed: Math.floor(Math.random() * 1e6) }));
     if (next) document.getElementById('next').onclick = () => { this.settings.mission = next.id; this.toMenu(); };
     document.getElementById('tomenu').onclick = () => this.toMenu();
+  },
+
+  // the time limit ran out: who held what (structures plus army, by cost)
+  armisticeText() {
+    const score = G.over.armistice, mine = G.playerTeam.ally;
+    const others = Object.entries(score).filter(([a]) => +a !== mine).map(([, v]) => v);
+    const k = v => '$' + Math.round(v / 1000) + 'k';
+    const them = others.length ? Math.max(...others) : 0;
+    return (G.over.win ? 'Time ran out and the armistice was signed on our terms. ' : 'Time ran out and the armistice was signed on the enemy\'s terms. ') +
+      `Our side held ${k(score[mine] || 0)} in structures and forces, the strongest enemy ${k(them)}.`;
   },
 
   // line chart of each team's army value over the match (sampled in Game.sampleStats)

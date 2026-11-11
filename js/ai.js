@@ -135,6 +135,9 @@ class AI {
     }
     if (!t.countOf('cc')) {
       if (!t.countOf('mcv') && t.canBuild('mcv') && !t.queues.vehicle.items.includes('mcv')) t.queues.vehicle.add('mcv');
+      // the base fights on without its Command Center: keep the barracks and factories busy
+      // instead of sitting on the credits while the rest of it is knocked down
+      this.produceUnits(units);
       this.manageArmy(units);
       return;
     }
@@ -169,6 +172,8 @@ class AI {
         break;
       }
     }
+    // stalemate offensive: every enemy structure is on the map for everyone
+    if (G.offensive) for (const e of foes) if (e.kind === 'building' && !this.intel.has(e.id)) this.intel.set(e.id, { e, x: e.x, y: e.y, t: G.time });
     for (const [id, r] of this.intel) {
       if (r.e.dead || !G.hostile(r.e.team, me) || (r.e.kind === 'unit' && G.time - r.t > 300)) this.intel.delete(id);
     }
@@ -338,6 +343,8 @@ class AI {
       if (t.countOf(key) >= need[key] || this.noRoom()[key] > G.time) continue;
       // a navy once the first wave is out or money piles up, and the base has reached the water
       if (key === 'shipyard' && ((!this.waves && t.credits < 3000) || !this.shipyardSpot())) continue;
+      // no superweapon in the opening minutes: a strike at minute eight every game is no fun
+      if (BUILDINGS[key] && BUILDINGS[key].superweapon && G.time < (this.d.superAt || 0)) continue;
       if (t.canBuild(key)) return key;
       if (qtype === 'structure') return null; // wait for prerequisites instead of skipping ahead
     }
@@ -561,7 +568,9 @@ class AI {
     if (!peace) { this.manageScout(fighters); this.manageRaid(fighters); }
     this.manageGarrisons(fighters);
 
-    const waveSize = Math.min(24, this.d.waveBase + this.waves * this.d.waveGrow);
+    // in a stalemate offensive smaller waves go out without waiting for good odds
+    const allIn = !!G.offensive;
+    const waveSize = Math.min(allIn ? 10 : 24, this.d.waveBase + this.waves * this.d.waveGrow);
     const pool = fighters.filter(u => !(this.scout && u.id === this.scout.id) && !(this.raid && this.raid.ids.has(u.id)) &&
       !(u.order && u.order.type === 'garrison'));
     // hold the army at home while enemies are known to be near the base
@@ -571,7 +580,7 @@ class AI {
       else if (!this.wave) {
         // only attack with the odds in our favour, unless the army is as big as it gets
         const foe = this.chooseFoe(), mine = pool.reduce((s, u) => s + aiWorth(u), 0);
-        const ratio = this.d.counter ? 1.5 : 0;
+        const ratio = this.d.counter && !allIn ? 1.5 : 0;
         if (foe && (mine >= this.foeStrength(foe) * ratio || pool.length >= 32 || G.time - this.nextAttack > 240)) {
           this.launch(foe, pool, support);
         }
@@ -640,7 +649,7 @@ class AI {
 
     if (w.state === 'assault') {
       // losing badly: fall back and rebuild rather than feed units in one at a time
-      if (this.d.retreat && strength < w.start * this.d.retreat && this.threatNear(cx, cy, 10) > strength * 1.2) {
+      if (this.d.retreat && !G.offensive && strength < w.start * this.d.retreat && this.threatNear(cx, cy, 10) > strength * 1.2) {
         this.retreat(live);
         return;
       }

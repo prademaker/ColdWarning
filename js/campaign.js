@@ -508,6 +508,12 @@ const CAMPAIGN = {
           if (hq) G.commandMove(M.vars.vanguard, hq.tx + 1, hq.ty + 1, true, true);
           M.say('hale', 'Kirov vanguard inbound! Get your anti-air up!');
           M.objective('kirov', 'Shoot down the Kirov vanguard', { optional: true });
+          // Raven loafing about the base would be under the bombs: she heads over to the EU lines
+          const r = M.heroes.find(u => !u.dead && !u.inside && u.team === 0);
+          if (hq && r && !r.order && !r.target && Math.hypot(r.tx - hq.tx, r.ty - hq.ty) < 12) {
+            const [ax, ay] = M.start(1), spot = G.findFreeTile(ax, ay);
+            if (spot) { G.commandMove([r], spot[0], spot[1], false, true); M.say('raven', "I'm not standing under those things. Moving over to the EU lines."); }
+          }
         },
         // the promised SAS team drops in at the map edge nearest the player
         sas(M) {

@@ -24,7 +24,7 @@ Every country adds a unit with a special ability (â—†) and an edge structure (â–
 | United Kingdom | Allies | Infantry +25% armor | SAS Operative: hidden until it fires, C4 on structures | GCHQ Listening Post: shows every enemy unit on the map | Railgun Tank / Orbital Lance |
 | Japan | Allies | Vehicles +15% armor | Raijin EMP Walker: EMP bolts shut down vehicles, helicopters and defenses | Robotics Plant: vehicles and aircraft build 50% faster | Railgun Tank / Orbital Lance |
 | Russia | Axis | Armor +15% firepower | Iskander-M: missile strikes from 16 tiles | Krasukha EW Station: enemies nearby move and fire 35% slower | Titan Tank / Hypersonic Silo |
-| China | Axis | Structures build 25% faster | Cyber Warfare Unit: hacks enemy vehicles over to your side | Support Hub: heals nearby units | Railgun Tank / Orbital Lance |
+| China | Axis | Structures build 25% faster | Cyber Warfare Unit: hacks enemy vehicles over to your side (short range, one uplink pulse a second per target) | Support Hub: heals nearby units | Railgun Tank / Orbital Lance |
 | Soviet Union | Axis | Infantry 25% cheaper | Kirov Airship: armored flying bomber | Propaganda Tower: nearby friendly units fire 30% faster | Titan Tank / Hypersonic Silo |
 | North Korea | Axis | Defenses 25% cheaper | Demolition Truck: drives in and detonates, also blows up when destroyed | Koksan Gun Emplacement: 15-tile artillery, needs no power | Titan Tank / Hypersonic Silo |
 
@@ -110,6 +110,10 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   flies bombers in pairs at the structure with the least air cover, and puts up Sensor Towers once something it couldn't see
   starts shooting at it.
 - Skirmish line-ups for up to four players: 1v1, 1v2, 2v2, 2v1 (with a computer ally) and free-for-all for three or four. Allies share vision.
+- No endless skirmishes: after 20 minutes without a structure falling (or at minute 40 in any case) high command orders an
+  **all-out offensive**: every base shows on everyone's map and the computer players attack with everything they have. With a
+  **Time limit** (Off, 45, 60 or 90 minutes; 60 by default) the match ends in an **armistice**, announced five minutes ahead:
+  whichever side holds the most in standing structures and forces wins on points. Walls don't keep a beaten side alive.
 - Defense mode: no enemy base, just 15 waves marching on you from the other corners of the map, with super tanks every fifth wave. Clearing a wave pays a bounty, and *Send now* calls the next one early for bonus credits.
 - New-player help: **Boot Camp**, a tutorial mission where Sergeant Reyes walks you from deploying the MCV to destroying an outpost
   (always open, and it doesn't lock the real missions); a **Field guide** box in skirmish and defense that shows the next basic step
@@ -174,7 +178,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 
 `index.html?autoplay` runs an AI-vs-AI match, which is handy for testing balance
 (add `&faction=russia&enemy=eu&theater=arctic&seed=42` to pick the setup, `&lineup=2v2` or `ffa4` for more players,
-`&map=small|medium|large`, `&mode=defense`, `&difficulty=recruit|easy|normal|hard`, `&ceasefire=10`, `&hints=0`).
+`&map=small|medium|large`, `&mode=defense`, `&difficulty=recruit|easy|normal|hard`, `&ceasefire=10`, `&limit=0|45|60|90`, `&hints=0`).
 
 ## Art
 
