@@ -139,6 +139,9 @@ Object.assign(UI, {
   // a tap at canvas point (x, y)
   tap(x, y) {
     if (G.over || Main.paused) return;
+    // an alert arrow at the edge of the view: jump to that fight
+    const arrow = !this.placing && Combat.arrowAt(x, y, 30 / Math.max(1, this.zoom));
+    if (arrow) { this.centerOn(arrow.wx, arrow.wy); return; }
     const w = this.toWorld(x, y), tx = Math.floor(w.x / TILE), ty = Math.floor(w.y / TILE);
     // placing: the first tap puts the outline down, a tap on the outline builds it there
     if (this.placing) {

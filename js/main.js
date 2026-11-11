@@ -19,7 +19,7 @@ const Main = {
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
       mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true, daytime: 'day',
-      seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, hints: Main.hintsPref(),
+      seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, hints: Main.hintsPref(), combatText: Main.combatTextPref(),
     };
     this.buildMenu();
     this.initFront();
@@ -160,6 +160,7 @@ const Main = {
   },
 
   // hints stay on until the player turns them off on the menu
+  combatTextPref() { try { return localStorage.getItem('cw2030.ctext') !== '0'; } catch (e) { return true; } },
   hintsPref() { try { return localStorage.getItem('cw2030.hints') !== '0'; } catch (e) { return true; } },
 
   buildMenu() {
@@ -215,6 +216,9 @@ const Main = {
     document.getElementById('cease-box').hidden = s.mode !== 'skirmish';
     document.getElementById('hints-box').hidden = camp;
     try { localStorage.setItem('cw2030.hints', s.hints ? '1' : '0'); } catch (e) { /* not remembered */ }
+    opts('combattext', [[true, 'On'], [false, 'Off']], 'combatText');
+    Combat.showText = s.combatText;
+    try { localStorage.setItem('cw2030.ctext', s.combatText ? '1' : '0'); } catch (e) { /* not remembered */ }
     opts('ultimates', [[true, 'On'], [false, 'Off']], 'ultimates');
     document.getElementById('lineup-box').hidden = s.mode !== 'skirmish';
     document.getElementById('enemy-title').textContent = s.mode === 'defense' ? 'Attacker' : 'Opponent';
