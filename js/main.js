@@ -31,7 +31,8 @@ const Main = {
     document.getElementById('show-keys').onclick = () => this.openKeys();
     document.getElementById('p-keys').onclick = () => this.openKeys();
     document.getElementById('p-quit').onclick = () => { this.paused = false; this.toMenu(); };
-    if (params.has('mission') && missionDef(params.get('mission'))) {
+    if (typeof Bench !== 'undefined' && Bench.on) Bench.start();   // speed test (js/bench.js)
+    else if (params.has('mission') && missionDef(params.get('mission'))) {
       // straight into a campaign mission (handy for testing)
       this.settings.difficulty = DIFFICULTY[params.get('difficulty')] ? params.get('difficulty') : 'normal';
       this.startMission(params.get('mission'));
