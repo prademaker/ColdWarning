@@ -175,9 +175,11 @@ function loadSheet(key) {
     if (m.camo) { camo = new Image(); camo.src = `assets/sprites/${key}_${part}_camo.png`; }
     // structures: a mask of their concrete slab, weathered to the map's soil in game
     if (m.ground && part === 'hull') { ground = new Image(); ground.src = `assets/sprites/${key}_${part}_ground.png`; }
-    for (const img of [base, mask, camo, ground]) if (img) img.onload = () => { Art.version++; };
-    if (ground) ground.onerror = () => { ground.failed = true; Art.version++; };
-    SHEETS[key + '_' + part] = { base, mask, camo, ground };
+    // (the version only moves once the whole sheet is in: every bump redraws the sidebar cameos)
+    const sheet = SHEETS[key + '_' + part] = { base, mask, camo, ground };
+    const done = () => { if (sheetLoaded(sheet)) Art.version++; };
+    for (const img of [base, mask, camo, ground]) if (img) img.onload = done;
+    if (ground) ground.onerror = () => { ground.failed = true; done(); };
   }
 }
 // the upgraded looks (keys with _up, the refit tiers _t2 to _t4 of the ultimate units) and the
@@ -1207,21 +1209,33 @@ const PropArt = {
     if (!s) {
       const im = new Image();
       s = this.img[key] = shadow ? { c: im, ox: m.sox, oy: m.soy, w: m.sw, h: m.sh, ok: false } : { c: im, ox: m.ox, oy: m.oy, w: m.w, h: m.h, ok: false };
-      im.onload = () => { s.ok = true; Art.version++; for (const fn of this.waiting.splice(0)) fn(); };
+      im.onload = () => { s.ok = true; this.arrived(); };
       im.src = `assets/props/${key}.webp`;
     }
     return s.ok ? s : null;
   },
   waiting: [],
-  // every sprite of these props, or null while some still load (then `again` runs when more arrive)
+  // every sprite of these props, or null while some still load (then `again` runs once, when the
+  // last of them is in: not on every image that arrives, since it may repaint the whole map)
   all(names, again) {
-    let ok = typeof PROP_META !== 'undefined' && names.every(n => PROP_META[n]);
-    for (const n of names) for (let v = 0; v < ((typeof PROP_META !== 'undefined' && PROP_META[n]) || []).length; v++) {
-      if (!this.get(n, v)) ok = false;
-      if (!this.get(n, v, true)) ok = false;
-    }
-    if (!ok && again && !this.waiting.includes(again)) this.waiting.push(again);
+    const ok = this.ready(names, true);
+    if (!ok && again) this.waiting.push({ names, again });
     return ok;
+  },
+  ready(names, load) {
+    if (typeof PROP_META === 'undefined' || !names.every(n => PROP_META[n])) return false;
+    let ok = true;
+    for (const n of names) for (let v = 0; v < PROP_META[n].length; v++) {
+      if (load) { if (!this.get(n, v)) ok = false; if (!this.get(n, v, true)) ok = false; }
+      else { const i = v, a = this.img[`${n}_${i}`], b = this.img[`${n}_${i}_s`]; if (!a || !a.ok || !b || !b.ok) return false; }
+    }
+    return ok;
+  },
+  arrived() {
+    const due = this.waiting.filter(w => this.ready(w.names, false));
+    if (!due.length) return;
+    this.waiting = this.waiting.filter(w => !due.includes(w));
+    for (const w of due) w.again();
   },
 };
 

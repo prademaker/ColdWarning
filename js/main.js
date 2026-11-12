@@ -24,6 +24,7 @@ const Main = {
     this.buildMenu();
     this.initFront();
     for (const th in GROUND_TEX) GroundTex.get(th);   // fetch the ground photographs while the menu is up
+    for (const id in THEMES) if (THEMES[id].shrubs) PropArt.all(THEMES[id].shrubs);   // and the shrubs painted into the ground
     document.getElementById('load-game').onclick = () => { Sfx.resume(); this.openSaves('load'); };
     document.getElementById('p-resume').onclick = () => this.togglePause();
     document.getElementById('p-save').onclick = () => this.openSaves('save');

@@ -742,7 +742,8 @@ const UI = {
   setTab(id) { this.tab = id; this.buildGridKey = null; this.updateSidebar(); },
 
   icon(key, team = G.playerTeam) {
-    const k = key + team.faction + team.color + '|' + Art.version + '|' + (team.upgrades ? ULTIMATES.map(u => team.upgrades[UNITS[u].refit] || 0).join('') : '');
+    if (this.iconVer !== Art.version) { this.iconVer = Art.version; this.iconCache = {}; }   // (old cameos would only pile up)
+    const k = key + team.faction + team.color + '|' + (team.upgrades ? ULTIMATES.map(u => team.upgrades[UNITS[u].refit] || 0).join('') : '');
     if (!this.iconCache[k]) this.iconCache[k] = drawIcon(key, team, 92, 81);
     return this.iconCache[k];
   },
