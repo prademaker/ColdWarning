@@ -742,7 +742,7 @@ const UI = {
   setTab(id) { this.tab = id; this.buildGridKey = null; this.updateSidebar(); },
 
   icon(key, team = G.playerTeam) {
-    if (this.iconVer !== Art.version) { this.iconVer = Art.version; this.iconCache = {}; }   // (old cameos would only pile up)
+    if (this.iconVer !== this.artVer) { this.iconVer = this.artVer; this.iconCache = {}; }   // (old cameos would only pile up)
     const k = key + team.faction + team.color + '|' + (team.upgrades ? ULTIMATES.map(u => team.upgrades[UNITS[u].refit] || 0).join('') : '');
     if (!this.iconCache[k]) this.iconCache[k] = drawIcon(key, team, 92, 81);
     return this.iconCache[k];
@@ -876,7 +876,11 @@ const UI = {
       el.classList.toggle('disabled', !t.countOf(prod));
       el.classList.toggle('ready', t.queues[id].ready);
     }
-    const gridKey = this.tab + '|' + t.faction + '|' + Art.version + '|' + ULTIMATES.map(k => t.ultTier(k)).join('');
+    // sprite sheets arrive by the hundred while a match starts: the cameos are redrawn for them
+    // at most twice a second, not once per file (each redraw rebuilds the whole build menu)
+    const now = performance.now();
+    if (this.artVer !== Art.version && (this.artVer === undefined || now - (this.artVerT || 0) > 500)) { this.artVer = Art.version; this.artVerT = now; }
+    const gridKey = this.tab + '|' + t.faction + '|' + this.artVer + '|' + ULTIMATES.map(k => t.ultTier(k)).join('');
     if (this.buildGridKey !== gridKey) { this.buildGridKey = gridKey; this.buildGrid(); }
     const q = t.queues[this.tab];
     for (const key in this.buttons) {

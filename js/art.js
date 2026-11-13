@@ -341,11 +341,39 @@ function teamSheet(key, part, team) {
   });
 }
 
+// One facing of a sheet, cut out into a small canvas of its own the first time it is drawn.
+// Drawing straight from the sheets made the graphics card hold every whole sheet in view (5 to
+// 18 MB each, per team) as a texture; past its budget it re-uploads them frame after frame and
+// the game drops to a few frames per second. Cells are a few hundred KB, and only the facings
+// actually seen exist. The least recently drawn ones are dropped past CELL_BUDGET.
+const CELL_BUDGET = 160e6;
+const Cells = {
+  map: new Map(), bytes: 0,
+  get(sheet, id, sx, sy, C) {
+    if (sheet.width === C && sheet.height === C) return sheet;   // a one-picture sheet is its own cell
+    let c = this.map.get(id);
+    if (c) {
+      if (c.sheet === sheet) { this.map.delete(id); this.map.set(id, c); return c.c; }   // keep LRU order
+      this.bytes -= C * C * 4; this.map.delete(id);   // the sheet was rebuilt (another map's light)
+    }
+    const cv = document.createElement('canvas'); cv.width = cv.height = C;
+    cv.getContext('2d').drawImage(sheet, sx, sy, C, C, 0, 0, C, C);
+    this.map.set(id, { c: cv, sheet, size: C * C * 4 });
+    this.bytes += C * C * 4;
+    while (this.bytes > CELL_BUDGET && this.map.size > 1) {
+      const [k, old] = this.map.entries().next().value;
+      this.map.delete(k); this.bytes -= old.size;
+    }
+    return cv;
+  },
+};
+
 function modelSprite(key, part, team, ang) {
   const m = SPRITE_META[key], c = teamSheet(key, part, team);
   if (!c) return null;
   const f = (m.facings || FACINGS) === 1 ? 0 : facingIndex(ang), C = m.cell * m.res;
-  return { c, sx: (f % m.cols) * C, sy: Math.floor(f / m.cols) * C, sw: C, sh: C, ox: m.ax, oy: m.ay, w: m.cell, h: m.cell };
+  const cell = Cells.get(c, `${key}|${part}|${team.faction}|${team.color}|${f}`, (f % m.cols) * C, Math.floor(f / m.cols) * C, C);
+  return { c: cell, ox: m.ax, oy: m.ay, w: m.cell, h: m.cell };
 }
 
 // ---------- unit models ----------
@@ -618,7 +646,7 @@ function drawUnitShadow(ctx, u, team, sx, sy) {
   ctx.save();
   ctx.globalAlpha = 0.4;
   ctx.transform(1, 0, -0.75, 0.42, sx, sy);
-  ctx.drawImage(c, (f % m.cols) * C, Math.floor(f / m.cols) * C, C, C, -m.ax, -m.ay, m.cell, m.cell);
+  ctx.drawImage(Cells.get(c, `SH|${sk}|${f}`, (f % m.cols) * C, Math.floor(f / m.cols) * C, C), -m.ax, -m.ay, m.cell, m.cell);
   ctx.restore();
   return true;
 }
@@ -1209,7 +1237,13 @@ const PropArt = {
     if (!s) {
       const im = new Image();
       s = this.img[key] = shadow ? { c: im, ox: m.sox, oy: m.soy, w: m.sw, h: m.sh, ok: false } : { c: im, ox: m.ox, oy: m.oy, w: m.w, h: m.h, ok: false };
-      im.onload = () => { s.ok = true; this.arrived(); };
+      im.onload = () => {
+        // drawn every frame: keep the decoded picture in a canvas of our own, so the browser never
+        // has to decode the file again mid-battle when its image cache is under pressure
+        const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+        c.getContext('2d').drawImage(im, 0, 0);
+        s.c = c; s.ok = true; Art.version++; this.arrived();
+      };
       im.src = `assets/props/${key}.webp`;
     }
     return s.ok ? s : null;
@@ -1296,7 +1330,8 @@ function voxCameo(key, team, sk = factionSprite(SPRITE_FOR[key], team)) {
   let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
   for (const [p, dx, dy] of parts) { x0 = Math.min(x0, dx - p.ox); y0 = Math.min(y0, dy - p.oy); x1 = Math.max(x1, dx - p.ox + p.w); y1 = Math.max(y1, dy - p.oy + p.h); }
   const c = document.createElement('canvas'); c.width = (x1 - x0) * 2; c.height = (y1 - y0) * 2;
-  const x = c.getContext('2d'); x.scale(2, 2);
+  // (read back below: kept off the graphics card, where reading pixels stalls the whole page)
+  const x = c.getContext('2d', { willReadFrequently: true }); x.scale(2, 2);
   for (const [p, dx, dy] of parts) x.drawImage(p.c, dx - p.ox - x0, dy - p.oy - y0, p.w, p.h);
   // trim the empty margin of the sheet cells so the model fills the cameo (not possible when the
   // page runs from file://, where the sheets taint the canvas)
