@@ -707,11 +707,24 @@ class GameMap {
   // ---------- rendering of static terrain ----------
   // Colour is computed on a low-resolution grid (8 px per tile) with smooth tile blending,
   // hill shading and water depth, upscaled, then detailed with grain and scenery at full size.
+  // the ground photographs or shrub sprites came in after the map was painted: paint it again,
+  // once, however many of them arrive together (a repaint of the whole map is costly)
+  repaintSoon() {
+    if (this.repaintT) return;
+    this.repaintT = setTimeout(() => {
+      this.repaintT = 0;
+      if (typeof G === 'undefined' || !G || G.map !== this) return;
+      this.renderTerrain();
+      if (typeof Render !== 'undefined' && Render.chunks) Render.chunks.clear();
+    }, 60);
+  }
+
   renderTerrain() {
+    if (this.repaintT) { clearTimeout(this.repaintT); this.repaintT = 0; }
     const N = this.w, th = this.theme;
     const rng = makeRng(this.seed ^ 0x5bd1e995);
     // ground photographs; until they are in, the painted textures stand in and the map is redone after
-    const photo = GroundTex.get(this.theater, () => { if (typeof G !== 'undefined' && G && G.map === this) { this.renderTerrain(); if (typeof Render !== 'undefined' && Render.chunks) Render.chunks.clear(); } });
+    const photo = GroundTex.get(this.theater, () => this.repaintSoon());
     const pal = { [T_GRASS]: th.grass, [T_DIRT]: th.dirt, [T_SAND]: th.sand, [T_WATER]: th.water, [T_ROCK]: th.rock, [T_CLIFF]: th.rock.map(v => v * 0.7) };
     // distance from land for water depth
     const depth = new Float32Array(N * N).fill(99);
@@ -905,7 +918,7 @@ class GameMap {
     this.props = [];
     const srng = makeRng(this.seed ^ 0x2545f491), pick = l => l[(srng() * l.length) | 0];
     const scan = typeof PropArt !== 'undefined' && th.trees ? th : null;
-    const shrubsIn = scan && PropArt.all(th.shrubs, () => { if (typeof G !== 'undefined' && G && G.map === this && this.terrainCanvas === cv) { this.renderTerrain(); if (typeof Render !== 'undefined' && Render.chunks) Render.chunks.clear(); } });
+    const shrubsIn = scan && PropArt.all(th.shrubs, () => { if (this.terrainCanvas === cv) this.repaintSoon(); });
     // a sprite drawn upright on the flat ground texture (the inverse of the iso projection)
     const stamp = (s, wx, wy, alpha = 1) => { ctx.save(); ctx.setTransform(0.5, -0.5, 1, 1, wx, wy); ctx.globalAlpha = alpha; ctx.drawImage(s.c, -s.ox, -s.oy, s.w, s.h); ctx.restore(); };
     for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {

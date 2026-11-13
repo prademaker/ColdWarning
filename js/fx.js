@@ -222,17 +222,15 @@ const FX = {
       g.fillStyle = r; g.fillRect(0, 0, w, h);
       a = this.atmo = { vw, vh, c, x: c.getContext('2d'), v, pat: null };
     }
-    const x = a.x, cl = this.cloudSheet();
-    if (!a.pat) a.pat = x.createPattern(cl.c, 'repeat');
-    x.clearRect(0, 0, w, h);
-    if (G.daytime === 'night') { x.drawImage(a.v, 0, 0); ctx.imageSmoothingEnabled = true; ctx.drawImage(a.c, 0, 0, w, h, 0, 0, w * Q, h * Q); return; }   // no cloud shadows without the sun
-    // world-anchored: offset by the camera, then drift slowly to the lower right
-    const t = G.time, ox = (-R.cx + t * 9) / Q, oy = (-R.cy + t * 3) / Q;
-    a.pat.setTransform(new DOMMatrix([1 / Q, 0, 0, 1 / Q, ox, oy]));
-    x.fillStyle = a.pat; x.fillRect(0, 0, w, h);
-    x.drawImage(a.v, 0, 0);
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(a.c, 0, 0, w, h, 0, 0, w * Q, h * Q);
+    if (G.daytime !== 'night') {   // no cloud shadows without the sun
+      // world-anchored: offset by the camera, then drift slowly to the lower right. The sheet is
+      // laid as a few plain tiles (a transformed repeating pattern costs many times more to fill)
+      const cl = this.cloudSheet(), CW = cl.c.width, CH = cl.c.height, t = G.time;
+      const ox = (((-R.cx + t * 9) % CW) + CW) % CW - CW, oy = (((-R.cy + t * 3) % CH) + CH) % CH - CH;
+      for (let y = oy; y < vh; y += CH) for (let x = ox; x < vw; x += CW) ctx.drawImage(cl.c, Math.round(x), Math.round(y));
+    }
+    ctx.drawImage(a.v, 0, 0, w, h, 0, 0, w * Q, h * Q);
   },
 
   // ---------- the earth under the map ----------
