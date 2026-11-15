@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#07060f">
+<meta name="theme-color" content="#0c0b09">
 <title>Last Lantern</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
@@ -18,8 +18,11 @@
     <div id="hudrow">
       <span id="lvl">LV 1</span>
       <span id="timer">00:00</span>
-      <span id="kills">0 KO</span>
+      <span id="kills">0</span>
     </div>
+    <div id="subrow"><div id="slots"></div><span id="coins">0</span></div>
+    <div id="bossbar" hidden><span id="bossname"></span><div id="bosstrack"><div id="bossfill"></div></div></div>
+    <div id="banner" hidden></div>
     <button id="pauseBtn" type="button" aria-label="Pause">II</button>
   </div>
 
@@ -29,29 +32,44 @@
     <h1>Last Lantern</h1>
     <p class="tag">Keep the light alive. They come from every side.</p>
     <button id="playBtn" class="big" type="button">Play</button>
+    <button id="shopBtn" class="ghost" type="button">Upgrades</button>
     <p id="best" class="dim"></p>
-    <div class="styles">
-      <p class="dim">Art style (temporary switch while you choose)</p>
-      <div id="skinRow"></div>
-    </div>
-    <p class="dim small">Drag anywhere to move. Weapons fire on their own.</p>
+    <button id="soundBtn" class="link" type="button">Sound: on</button>
+    <p class="dim small">Drag anywhere to move. Weapons fire on their own.<br>Survive ten minutes and defeat what comes last.</p>
+  </section>
+
+  <section id="shop" class="screen" hidden>
+    <h2>Upgrades</h2>
+    <p class="dim">Permanent. Paid for with coins you find in play.</p>
+    <p id="purse" class="purse"></p>
+    <div id="shopList" class="list"></div>
+    <button id="shopBack" class="ghost" type="button">Back</button>
   </section>
 
   <section id="levelup" class="screen" hidden>
     <h2>Level up</h2>
     <p class="dim">Choose one</p>
-    <div id="cards"></div>
+    <div id="cards" class="list"></div>
+    <button id="rerollBtn" class="ghost" type="button">Reroll</button>
+  </section>
+
+  <section id="chest" class="screen" hidden>
+    <h2>Treasure</h2>
+    <p class="dim">The chest held</p>
+    <div id="loot" class="list"></div>
+    <button id="chestBtn" class="big" type="button">Take it</button>
   </section>
 
   <section id="pause" class="screen" hidden>
     <h2>Paused</h2>
     <div id="loadout"></div>
     <button id="resumeBtn" class="big" type="button">Resume</button>
+    <button id="soundBtn2" class="link" type="button">Sound: on</button>
     <button id="quitBtn" class="ghost" type="button">End run</button>
   </section>
 
   <section id="over" class="screen" hidden>
-    <h2>The light went out</h2>
+    <h2 id="overTitle">The light went out</h2>
     <p id="summary"></p>
     <button id="againBtn" class="big" type="button">Play again</button>
     <button id="menuBtn" class="ghost" type="button">Menu</button>
@@ -60,6 +78,8 @@
 <script src="js/skins.js"></script>
 <script src="js/data.js"></script>
 <script src="js/game.js"></script>
+<script src="js/icons.js"></script>
+<script src="js/audio.js"></script>
 <script src="js/render.js"></script>
 <script src="js/main.js"></script>
 </body>

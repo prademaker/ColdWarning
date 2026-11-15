@@ -544,22 +544,22 @@
     g.putImageData(im, 0, 0);
     function wrap(px, py, fn) { for (var oy = -N; oy <= N; oy += N) for (var ox = -N; ox <= N; ox += N) { g.save(); g.translate(px + ox, py + oy); fn(); g.restore(); } }
     g.lineCap = 'round';
-    for (i = 0; i < 300; i++) (function () {
+    for (i = 0; i < 150; i++) (function () {
       var len = 10 + rnd() * 14, a = rnd() * TAU, bend = (rnd() - 0.5) * 10, col = 'hsl(' + (78 + rnd() * 30) + ',' + (26 + rnd() * 14) + '%,' + (17 + rnd() * 14) + '%)', lw = 1.2 + rnd() * 1.3;
       wrap(rnd() * N, rnd() * N, function () { g.rotate(a); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = lw + 1; g.beginPath(); g.moveTo(1.5, 1.5); g.quadraticCurveTo(len / 2 + 1.5, bend + 1.5, len + 1.5, 1.5); g.stroke();
         g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(len / 2, bend, len, 0); g.stroke(); });
     })();
-    for (i = 0; i < 26; i++) (function () {
+    for (i = 0; i < 10; i++) (function () {
       var len = 22 + rnd() * 30, a = rnd() * TAU;
       wrap(rnd() * N, rnd() * N, function () { g.rotate(a); g.strokeStyle = 'rgba(0,0,0,.45)'; g.lineWidth = 4; g.beginPath(); g.moveTo(2, 3); g.lineTo(len + 2, 3); g.stroke();
         g.strokeStyle = '#3d2e1d'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, 0); g.lineTo(len, 0); g.stroke(); g.strokeStyle = 'rgba(190,160,110,.35)'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, -0.8); g.lineTo(len, -0.8); g.stroke(); });
     })();
-    for (i = 0; i < 80; i++) (function () {
+    for (i = 0; i < 40; i++) (function () {
       var a = rnd() * TAU, s = 5 + rnd() * 5, col = 'hsl(' + (18 + rnd() * 28) + ',' + (38 + rnd() * 20) + '%,' + (20 + rnd() * 14) + '%)';
       wrap(rnd() * N, rnd() * N, function () { g.rotate(a); g.fillStyle = 'rgba(0,0,0,.4)'; ell(g, 1.5, 2, s, s * 0.45); g.fill(); g.fillStyle = col; ell(g, 0, 0, s, s * 0.45); g.fill();
         g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 0.8; g.beginPath(); g.moveTo(-s, 0); g.lineTo(s, 0); g.stroke(); });
     })();
-    for (i = 0; i < 60; i++) (function () {
+    for (i = 0; i < 26; i++) (function () {
       var rx = 3 + rnd() * 8, ry = rx * (0.6 + rnd() * 0.35), a = rnd() * TAU, tone = 70 + rnd() * 50;
       wrap(rnd() * N, rnd() * N, function () { g.fillStyle = 'rgba(0,0,0,.45)'; ell(g, 2, 2.5, rx * 1.08, ry * 1.08, a); g.fill();
         var gr = g.createRadialGradient(-rx * 0.35, -ry * 0.35, 0.5, 0, 0, rx * 1.1); gr.addColorStop(0, 'rgb(' + (tone + 45) + ',' + (tone + 40) + ',' + (tone + 28) + ')'); gr.addColorStop(1, 'rgb(' + (tone * 0.42 | 0) + ',' + (tone * 0.4 | 0) + ',' + (tone * 0.38 | 0) + ')');
@@ -607,12 +607,12 @@
     /* called after the creatures are drawn: warm lantern pool, darkness beyond it, and eyes glinting out there */
     light: function (ctx, v, p, t, en) {
       var a = p.ang == null ? (p.face < 0 ? Math.PI : 0) : p.ang, lx = p.x + Math.cos(a) * p.r - Math.sin(a) * p.r * 0.5, ly = p.y + Math.sin(a) * p.r + Math.cos(a) * p.r * 0.5;
-      var R = 330 * (1 + 0.025 * Math.sin(t * 13) + 0.02 * Math.sin(t * 7.3)), gr, i;
+      var R = 340 * (p.lightMul || 1) * (1 + 0.025 * Math.sin(t * 13) + 0.02 * Math.sin(t * 7.3)), gr, i;
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       gr = ctx.createRadialGradient(lx, ly, 0, lx, ly, R * 0.75); gr.addColorStop(0, 'rgba(255,165,70,.3)'); gr.addColorStop(1, 'rgba(255,140,40,0)');
       ctx.fillStyle = gr; ctx.fillRect(v.x, v.y, v.w, v.h);
       ctx.globalCompositeOperation = 'source-over';
-      gr = ctx.createRadialGradient(lx, ly, R * 0.15, lx, ly, R); gr.addColorStop(0, 'rgba(3,5,10,0)'); gr.addColorStop(0.55, 'rgba(3,5,10,.55)'); gr.addColorStop(1, 'rgba(3,5,10,.9)');
+      gr = ctx.createRadialGradient(lx, ly, R * 0.15, lx, ly, R); gr.addColorStop(0, 'rgba(3,5,10,0)'); gr.addColorStop(0.55, 'rgba(3,5,10,.5)'); gr.addColorStop(1, 'rgba(3,5,10,.86)');
       ctx.fillStyle = gr; ctx.fillRect(v.x, v.y, v.w, v.h);
       ctx.globalCompositeOperation = 'lighter';
       for (i = 0; i < en.length; i++) {
