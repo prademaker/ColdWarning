@@ -4,7 +4,7 @@
   var LL = window.LL, D = LL.DATA, A = LL.Audio, $ = function (id) { return document.getElementById(id); };
 
   /* ---- save data: lives on the device only, nothing is sent anywhere */
-  var save = { coins: 0, up: {}, best: 0, wins: 0, sound: true, cls: 'rifleman' };
+  var save = { coins: 0, up: {}, best: 0, wins: 0, sound: true, gore: true, cls: 'rifleman' };
   try { var raw = JSON.parse(localStorage.getItem('ll.save') || '{}'); for (var k in raw) save[k] = raw[k]; } catch (e) {}
   function persist() { try { localStorage.setItem('ll.save', JSON.stringify(save)); } catch (e) {} }
 
@@ -23,6 +23,10 @@
   function setSound(on) { save.sound = A.on = on; persist(); $('soundBtn').textContent = $('soundBtn2').textContent = 'Sound: ' + (on ? 'on' : 'off'); }
   [$('soundBtn'), $('soundBtn2')].forEach(function (b) { b.addEventListener('click', function () { A.unlock(); setSound(!save.sound); A.play('click'); }); });
   setSound(save.sound !== false);
+  /* blood can be switched off; wrecks and explosions stay */
+  function setGore(on) { save.gore = game.gore = on; persist(); $('goreBtn').textContent = $('goreBtn2').textContent = 'Blood and gore: ' + (on ? 'on' : 'off'); }
+  [$('goreBtn'), $('goreBtn2')].forEach(function (b) { b.addEventListener('click', function () { A.unlock(); setGore(!save.gore); A.play('click'); }); });
+  setGore(save.gore !== false);
   document.addEventListener('pointerdown', A.unlock, { passive: true });
 
   /* ---- screens */

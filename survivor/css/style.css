@@ -68,3 +68,4 @@ div.card { cursor: default; }
 .chip { display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; font-size: 13px; font-weight: 700; background: var(--track); border: 2px solid var(--edge); border-radius: 999px; }
 .chip img { width: 24px; height: 24px; } .chip.evo { border-color: var(--accent); }
 #summary { font-size: 17px; line-height: 1.6; }
+.row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 6px; flex-shrink: 0; }

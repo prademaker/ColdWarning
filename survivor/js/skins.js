@@ -234,6 +234,36 @@
     ctx.globalAlpha = a; ctx.lineWidth = Math.max(1.2, w * 0.6); ctx.stroke(); ctx.restore();
   }
 
+  /* ---------------------------------------------------------------- what is left on the ground */
+  var splats = null, scorchTex = null;
+  function makeSplats() {
+    var seed = 5, n, i, a, d, r, g, c;
+    function rnd() { seed = (Math.imul(seed, 1664525) + 1013904223) | 0; return (seed >>> 0) / 4294967296; }
+    splats = [];
+    for (n = 0; n < 6; n++) {
+      c = mk(96, 96); g = c.getContext('2d'); g.translate(48, 48);
+      for (i = 0; i < 18; i++) { a = rnd() * TAU; d = rnd() * rnd() * 32; r = 3 + rnd() * 11 * (1 - d / 40); g.fillStyle = i % 3 ? '#4d0808' : '#6e0e0e'; ell(g, Math.cos(a) * d, Math.sin(a) * d, r, r * (0.6 + rnd() * 0.4), a); g.fill(); }
+      for (i = 0; i < 16; i++) { a = rnd() * TAU; d = 24 + rnd() * 22; g.fillStyle = '#4d0808'; ell(g, Math.cos(a) * d, Math.sin(a) * d, 1 + rnd() * 2.6, 0.8 + rnd() * 1.4, a); g.fill(); }
+      g.fillStyle = 'rgba(190,40,40,.3)'; ell(g, -5, -5, 7, 3.5, 0.5); g.fill();
+      splats.push(c);
+    }
+    scorchTex = mk(96, 96); g = scorchTex.getContext('2d');
+    var gr = g.createRadialGradient(48, 48, 4, 48, 48, 46); gr.addColorStop(0, 'rgba(6,5,4,.85)'); gr.addColorStop(0.5, 'rgba(10,8,6,.55)'); gr.addColorStop(1, 'rgba(10,8,6,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 96, 96); g.strokeStyle = 'rgba(8,6,5,.5)'; g.lineCap = 'round';
+    for (i = 0; i < 22; i++) { a = rnd() * TAU; d = 20 + rnd() * 26; g.lineWidth = 1 + rnd() * 2.5; g.beginPath(); g.moveTo(48 + Math.cos(a) * 12, 48 + Math.sin(a) * 12); g.lineTo(48 + Math.cos(a) * d, 48 + Math.sin(a) * d); g.stroke(); }
+  }
+  /* the same body as in life, drained of colour: bloodied for the dead, burnt out for wrecks */
+  function remains(body, tint, r, opt, key, wreck) {
+    key = body + key + r + (wreck ? 'w' : 'c');
+    var c = cache[key]; if (c) return c;
+    var size = Math.ceil(r * 2.6 * 2 * RS); c = mk(size, size);
+    var g = c.getContext('2d'); g.translate(size / 2, size / 2); g.scale(r * RS, r * RS); g.lineJoin = 'round';
+    BODY[body](g, tint, 0, opt);
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = wreck ? 'rgba(9,8,7,.74)' : 'rgba(46,6,6,.5)'; g.fillRect(-3, -3, 6, 6);
+    if (!wreck) { g.fillStyle = 'rgba(110,12,12,.75)'; ell(g, -0.05, 0.1, 0.3, 0.42, 0.4); g.fill(); ell(g, 0.2, -0.3, 0.16, 0.2); g.fill(); }
+    return (cache[key] = c);
+  }
+
   var skin = {
     id: 'real', name: 'Night Battlefield', pixel: 1, bg: '#0b0b08', gemsGlow: true,
     ui: { font: '"American Typewriter", "Courier New", Courier, monospace', text: '#efe8d6', dim: '#a39d86',
@@ -246,7 +276,7 @@
       tiles(v, TILE, function (i, j, x, y) { ctx.drawImage(groundTex, x, y, TILE + 0.6, TILE + 0.6); });
     },
     player: function (ctx, p, t) {
-      var a = p.ang == null ? 0 : p.ang, cls = HERO[p.cls] ? p.cls : 'rifleman', o = HERO[cls];
+      var a = p.look == null ? (p.ang || 0) : p.look, cls = HERO[p.cls] ? p.cls : 'rifleman', o = HERO[cls];
       shadow(ctx, p.x + 2, p.y + 3, p.r, a);
       blit(ctx, sprite('soldier', o.tint, p.r, p.moving && Math.sin(t * 14) > 0 ? 1 : 0, p.hurt, o, cls), p.x, p.y, a);
     },
@@ -255,6 +285,17 @@
       var f = Math.sin(t * rate + e.seed) > 0 ? 1 : 0;
       shadow(ctx, e.x, e.y, e.r * (body === 'tank' || body === 'truck' ? 1.25 : 1), e.ang);
       blit(ctx, sprite(body, this.tints[e.tint], e.r, f, e.hit > 0, LOOK[e.tint], 't' + e.tint), e.x, e.y, e.ang);
+    },
+    decal: function (ctx, d) {
+      if (!splats) makeSplats();
+      var a = Math.min(1, d.life / 6), s;
+      if (d.k === 'scorch') { s = d.r * 2.5; ctx.globalAlpha = 0.85 * a; ctx.drawImage(scorchTex, d.x - s / 2, d.y - s / 2, s, s); ctx.globalAlpha = 1; return; }
+      if (d.k === 'blood' || d.pool) {   /* pools under the dead spread for a moment */
+        s = (d.k === 'blood' ? d.r * 2.6 : d.r * 4.6 * Math.min(1, 0.35 + d.age * 0.5));
+        ctx.globalAlpha = 0.9 * a; ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot + d.v); ctx.drawImage(splats[d.v], -s / 2, -s / 2, s, s); ctx.restore();
+      }
+      if (d.k !== 'blood') { ctx.globalAlpha = a; blit(ctx, remains(BODY[d.arch] ? d.arch : 'soldier', this.tints[d.tint], d.r, LOOK[d.tint], 't' + d.tint, d.k === 'wreck'), d.x, d.y, d.rot); }
+      ctx.globalAlpha = 1;
     },
     /* friendly things that move around the player */
     orbiter: function (ctx, x, y, ang, size) { shadow(ctx, x + 6, y + 10, size * 0.9, ang); blit(ctx, sprite('plane', '#5d6b3a', Math.round(size * 1.5), 0, false), x, y, ang); },
