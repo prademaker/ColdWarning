@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#07060f">
+<title>Last Lantern</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="stage"></canvas>
+
+  <div id="hud" hidden>
+    <div id="xpbar"><div id="xpfill"></div></div>
+    <div id="hudrow">
+      <span id="lvl">LV 1</span>
+      <span id="timer">00:00</span>
+      <span id="kills">0 KO</span>
+    </div>
+    <button id="pauseBtn" type="button" aria-label="Pause">II</button>
+  </div>
+
+  <div id="stick" hidden><div id="knob"></div></div>
+
+  <section id="menu" class="screen">
+    <h1>Last Lantern</h1>
+    <p class="tag">Keep the light alive. They come from every side.</p>
+    <button id="playBtn" class="big" type="button">Play</button>
+    <p id="best" class="dim"></p>
+    <div class="styles">
+      <p class="dim">Art style (temporary switch while you choose)</p>
+      <div id="skinRow"></div>
+    </div>
+    <p class="dim small">Drag anywhere to move. Weapons fire on their own.</p>
+  </section>
+
+  <section id="levelup" class="screen" hidden>
+    <h2>Level up</h2>
+    <p class="dim">Choose one</p>
+    <div id="cards"></div>
+  </section>
+
+  <section id="pause" class="screen" hidden>
+    <h2>Paused</h2>
+    <div id="loadout"></div>
+    <button id="resumeBtn" class="big" type="button">Resume</button>
+    <button id="quitBtn" class="ghost" type="button">End run</button>
+  </section>
+
+  <section id="over" class="screen" hidden>
+    <h2>The light went out</h2>
+    <p id="summary"></p>
+    <button id="againBtn" class="big" type="button">Play again</button>
+    <button id="menuBtn" class="ghost" type="button">Menu</button>
+  </section>
+</div>
+<script src="js/skins.js"></script>
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
