@@ -44,13 +44,16 @@
       var w = game.weapons[i];
       if (w.def.kind === 'aura') skin.ring(g, p.x, p.y, w.s.radius * game.stats.area * (1 + 0.03 * Math.sin(t * 5)), col(skin, w.def.col), 3, 0.55);
     }
-    for (i = 0; i < game.gems.length; i++) if (on(game.gems[i])) skin.gem(g, game.gems[i], t);
+    if (!skin.gemsGlow) for (i = 0; i < game.gems.length; i++) if (on(game.gems[i])) skin.gem(g, game.gems[i], t);
 
     var list = this.list; list.length = 0;
     for (i = 0; i < game.en.length; i++) { var e = game.en[i]; if (on(e) && !e.def.flies) list.push(e); }
     list.push(p); list.sort(function (a, b) { return a.y - b.y; });
     for (i = 0; i < list.length; i++) { if (list[i] === p) skin.player(g, p, t); else skin.enemy(g, list[i], t); }
     for (i = 0; i < game.en.length; i++) { e = game.en[i]; if (e.def.flies && on(e)) skin.enemy(g, e, t); }
+
+    if (skin.light) skin.light(g, { x: camx, y: camy, w: VW, h: VH }, p, t, game.en);
+    if (skin.gemsGlow) for (i = 0; i < game.gems.length; i++) if (on(game.gems[i])) skin.gem(g, game.gems[i], t);
 
     for (i = 0; i < game.weapons.length; i++) {
       w = game.weapons[i];

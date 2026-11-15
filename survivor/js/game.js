@@ -8,7 +8,7 @@
 
   G.reset = function () {
     this.t = 0;
-    this.p = { x: 0, y: 0, r: 14, face: 1, moving: false, hurt: false, hurtT: 0, hp: 100, inv: 0 };
+    this.p = { x: 0, y: 0, r: 14, face: 1, ang: -Math.PI / 2, moving: false, hurt: false, hurtT: 0, hp: 100, inv: 0 };
     this.en = []; this.shots = []; this.gems = []; this.fx = []; this.zones = [];
     this.weapons = []; this.passives = [];
     this.xp = 0; this.lvl = 1; this.next = 6; this.kills = 0; this.pending = 0; this.over = false;
@@ -277,6 +277,7 @@
       var k = Math.min(1, mag) / mag * 150 * st.speed * dt;
       p.x += input.x * k; p.y += input.y * k;
       if (Math.abs(input.x) > 0.1) p.face = input.x > 0 ? 1 : -1;
+      p.ang = Math.atan2(input.y, input.x);
     }
     p.inv -= dt; p.hurtT -= dt; p.hurt = p.hurtT > 0;
     p.hp = Math.min(st.maxHp, p.hp + st.regen * dt);
