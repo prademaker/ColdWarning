@@ -1,4 +1,4 @@
-/* Last Lantern: the simulation. No drawing and no DOM in here, so it can be tested headless. */
+/* Last Foxhole: the simulation. No drawing and no DOM in here, so it can be tested headless. */
 (function (root) {
   'use strict';
   var LL = root.LL, D = LL.DATA, TAU = Math.PI * 2, CELL = 64;
@@ -6,21 +6,24 @@
   function Game() { this.reset({}); }
   var G = Game.prototype;
 
-  /* meta = levels of the permanent shop upgrades, e.g. { might: 2, revive: 1 } */
-  G.reset = function (meta) {
+  /* meta = levels of the permanent shop upgrades, e.g. { might: 2, revive: 1 }; cls = a key of DATA.classes */
+  G.reset = function (meta, cls) {
     this.meta = meta || {};
+    this.clsId = D.classes[cls] ? cls : 'rifleman'; this.cls = D.classes[this.clsId];
+    var mods = this.cls.mods;
     this.t = 0;
-    this.p = { x: 0, y: 0, r: 14, face: 1, ang: -Math.PI / 2, moving: false, hurt: false, hurtT: 0, hp: 100, inv: 0, lightMul: 1 };
+    this.p = { x: 0, y: 0, r: 14, face: 1, ang: -Math.PI / 2, moving: false, hurt: false, hurtT: 0, hp: 100, inv: 0, lightMul: 1, cls: this.clsId };
     this.en = []; this.shots = []; this.gems = []; this.fx = []; this.zones = []; this.mines = []; this.strikes = []; this.eshots = []; this.picks = [];
     this.weapons = []; this.passives = [];
     this.xp = 0; this.lvl = 1; this.next = 6; this.kills = 0; this.coins = 0;
     this.pending = 0; this.chests = 0; this.over = false; this.won = false;
-    this.rerolls = 1 + (this.meta.reroll || 0); this.revives = this.meta.revive || 0;
+    this.rerolls = 1 + (this.meta.reroll || 0) + (mods.reroll || 0); this.revives = (this.meta.revive || 0) + (mods.revive || 0);
     this.spawnAcc = 0; this.ringT = 40; this.eliteT = 75; this.bossIdx = 0; this.boss = null;
     this.view = { w: 420, h: 800 };
     this.grid = new Map();
     this.stats = {}; this.ev = {};
-    this.take({ type: 'w', id: 'spark' });
+    this.take({ type: 'w', id: this.cls.start });
+    if (this.cls.also) this.take({ type: 'w', id: this.cls.also });
     this.p.hp = this.stats.maxHp;
   };
 
@@ -35,7 +38,7 @@
     return s;
   }
   var LABEL = { count: ['+', ' projectile'], dmg: ['+', ' damage'], pierce: ['+', ' pierce'], jumps: ['+', ' jumps'], radius: ['+', ' reach'], range: ['+', ' range'],
-    len: ['+', ' range'], dur: ['+', 's burn time'], max: ['+', ' traps'], bounces: ['+', ' bounces'], slow: ['+', 's slow'] };
+    len: ['+', ' range'], dur: ['+', 's burn time'], max: ['+', ' mines'], bounces: ['+', ' bounces'], slow: ['+', 's slow'], blast: ['+', ' blast'] };
   function describe(patch) {
     var out = [], k;
     for (k in patch) {
@@ -44,13 +47,15 @@
       else if (k === 'tick') out.push('hits more often');
       else if (k === 'speed') out.push('spins faster');
       else if (k === 'size' || k === 'width') out.push('bigger');
+      else if (k === 'arc') out.push('wider cone');
     }
     return out.join(', ');
   }
   G.recalc = function () {
     var m = this.meta, i;
     var s = this.stats = { dmg: 1 + 0.05 * (m.might || 0), cd: 1, speed: 1 + 0.03 * (m.swift || 0), maxHp: 100 + 10 * (m.vigor || 0), magnet: 1, area: 1,
-      regen: 0.1 * (m.recover || 0), armor: 0, luck: 1, xp: 1, coin: 1 + 0.1 * (m.greed || 0) };
+      regen: 0.1 * (m.recover || 0), armor: 0, luck: 1, xp: 1, coin: 1 + 0.1 * (m.greed || 0), crit: 0, healMul: 1 };
+    for (var k in this.cls.mods) if (k in s) s[k] += this.cls.mods[k];
     for (i = 0; i < this.passives.length; i++) { var q = this.passives[i]; s[q.def.stat] += q.def.add * q.lvl; }
     s.cd = Math.max(0.4, s.cd);
     for (i = 0; i < this.weapons.length; i++) this.weapons[i].s = weaponStats(this.weapons[i]);
@@ -65,7 +70,7 @@
       def = D.weapons[id]; own = find(this.weapons, id);
       if (own) {
         if (own.lvl < D.maxLevel) pool.push({ type: 'w', id: id, name: def.name, lvl: own.lvl + 1, text: describe(def.ups[own.lvl - 1]), col: def.col });
-        else if (!own.evo && find(this.passives, def.evo.needs)) pool.push({ type: 'e', id: id, name: def.evo.name, lvl: 0, text: 'Evolves ' + def.name + ': ' + describe(def.evo.patch), col: def.col, isEvo: true });
+        else if (!own.evo && find(this.passives, def.evo.needs)) pool.push({ type: 'e', id: id, name: def.evo.name, lvl: 0, text: 'Upgrades ' + def.name + ': ' + (def.evo.text || describe(def.evo.patch)), col: def.col, isEvo: true });
       } else if (this.weapons.length < D.maxWeaponSlots) pool.push({ type: 'w', id: id, name: def.name, lvl: 1, text: def.desc, col: def.col, isNew: true });
     }
     for (id in D.passives) {
@@ -77,7 +82,7 @@
     pool.sort(function (a, b) { return (b.isEvo ? 1 : 0) - (a.isEvo ? 1 : 0); });   /* an evolution is always offered */
     return pool;
   };
-  var HEAL = { type: 'heal', id: 'heal', name: 'Warm Meal', lvl: 0, text: 'Restore 40 health', col: 'hp' };
+  var HEAL = { type: 'heal', id: 'heal', name: 'Hot Meal', lvl: 0, text: 'Restore 40 health', col: 'hp' };
   G.choices = function () { var pool = this.pool(); return pool.length ? pool.slice(0, 3) : [HEAL]; };
   G.take = function (c) {
     if (c.type === 'heal') { this.p.hp = Math.min(this.stats.maxHp, this.p.hp + 40); return; }
@@ -97,7 +102,7 @@
       if (!pool.length) break;
       this.take(pool[0]); got.push(pool[0]);
     }
-    if (!got.length) { this.coins += 25; got.push({ type: 'coin', id: 'coin', name: '25 coins', lvl: 0, text: 'Everything you carry is already at its best.', col: 'accent' }); }
+    if (!got.length) { this.coins += 25; got.push({ type: 'coin', id: 'coin', name: '25 scrap', lvl: 0, text: 'Everything you carry is already at its best.', col: 'accent' }); }
     return got;
   };
 
@@ -133,13 +138,14 @@
   G.addFx = function (f) { if (this.fx.length < 280) this.fx.push(f); };
   G.hit = function (e, dmg, fromX, fromY, knock) {
     if (e.dead) return;
-    dmg = Math.max(1, Math.round(dmg * this.stats.dmg));
+    var crit = this.stats.crit > 0 && Math.random() < this.stats.crit;
+    dmg = Math.max(1, Math.round(dmg * this.stats.dmg * (crit ? 2 : 1)));
     e.hp -= dmg; e.hit = 0.1; this.ev.hit = true;
     if (knock && !e.def.boss) {
       var dx = e.x - fromX, dy = e.y - fromY, l = Math.hypot(dx, dy) || 1, kk = e.elite ? knock * 0.4 : knock;
       e.kx += dx / l * kk; e.ky += dy / l * kk;
     }
-    this.addFx({ k: 'n', x: e.x, y: e.y - e.r, txt: dmg, life: 0.5, max: 0.5 });
+    this.addFx({ k: 'n', x: e.x, y: e.y - e.r, txt: crit ? dmg + '!' : dmg, life: 0.5, max: 0.5 });
     if (e.hp <= 0) this.kill(e);
   };
   G.kill = function (e) {
@@ -150,7 +156,7 @@
       for (i = 0; i < 16; i++) this.dropGem(e.x + (Math.random() - 0.5) * 110, e.y + (Math.random() - 0.5) * 110, 2);
       this.picks.push({ kind: 'chest', x: e.x, y: e.y }, { kind: 'coin', x: e.x + 30, y: e.y + 10, v: 40 });
       if (this.boss === e) this.boss = null;
-      this.ev.banner = def.name + ' is slain'; this.ev.bossDown = true;
+      this.ev.banner = def.name + ' is destroyed'; this.ev.bossDown = true;
       if (def.final) { this.won = true; this.over = true; }
     } else if (e.elite) {
       for (i = 0; i < 3; i++) this.dropGem(e.x + (Math.random() - 0.5) * 40, e.y + (Math.random() - 0.5) * 40, 2);
@@ -174,7 +180,7 @@
     p.hp -= Math.max(1, dmg - this.stats.armor); p.inv = 0.45; p.hurtT = 0.15; this.ev.hurt = true;
     if (p.hp > 0) return;
     if (this.revives > 0) {
-      this.revives--; p.hp = this.stats.maxHp * 0.5; p.inv = 2.5; this.blast(300, 60); this.ev.banner = 'The wick catches again'; this.ev.revive = true;
+      this.revives--; p.hp = this.stats.maxHp * 0.5; p.inv = 2.5; this.blast(300, 60); this.ev.banner = 'Back on your feet'; this.ev.revive = true;
     } else { p.hp = 0; this.over = true; }
   };
   /* a burst of light around the player: bombs and revives */
@@ -209,7 +215,7 @@
     for (id in wave.mix) total += wave.mix[id];
     var r = Math.random() * total;
     for (id in wave.mix) { r -= wave.mix[id]; if (r <= 0) return id; }
-    return 'mote';
+    return 'infantry';
   };
   G.spawner = function (dt) {
     var cap = Math.min(320, 30 + this.t * 0.7), pt, i, id;
@@ -253,7 +259,8 @@
       return true;
     },
     fan: function (g, w, s) {
-      for (var i = 0; i < s.count; i++) shot(g, w, 'knife', g.p.ang + (i - (s.count - 1) / 2) * 0.13, s, { life: 0.8 });
+      var p = g.p, t = g.nearest(p.x, p.y, 300), a = t ? Math.atan2(t.y - p.y, t.x - p.x) : p.ang;
+      for (var i = 0; i < s.count; i++) shot(g, w, 'knife', a + (i - (s.count - 1) / 2) * 0.13, s, { life: 0.55 });
       return true;
     },
     burst: function (g, w, s) {
@@ -262,7 +269,7 @@
       return true;
     },
     seeker: function (g, w, s) {
-      for (var i = 0; i < s.count; i++) shot(g, w, 'wisp', Math.random() * TAU, s, { life: 3.2, r: 6 });
+      for (var i = 0; i < s.count; i++) shot(g, w, 'rocket', g.p.ang + (Math.random() - 0.5) * 1.6, s, { life: 3.2, r: 6, blast: s.blast * g.stats.area });
       return true;
     },
     bounce: function (g, w, s) {
@@ -333,16 +340,15 @@
       }
       return any;
     },
-    sweep: function (g, w, s) {
-      var p = g.p, R = s.range * g.stats.area;
-      w.flip = !w.flip;
+    sweep: function (g, w, s) {   /* count 1 = in front, count 2 = in front and behind */
+      var p = g.p, R = s.range * g.stats.area, t = g.nearest(p.x, p.y, R * 1.6), aim = t ? Math.atan2(t.y - p.y, t.x - p.x) : p.ang;
       for (var i = 0; i < s.count; i++) (function (dir) {
         g.query(p.x, p.y, R, function (e) {
           var d = Math.atan2(e.y - p.y, e.x - p.x) - dir; d = Math.atan2(Math.sin(d), Math.cos(d));
-          if (Math.abs(d) < s.arc / 2 + 0.2) g.hit(e, s.dmg, p.x, p.y, 110);
+          if (Math.abs(d) < s.arc / 2 + 0.2) g.hit(e, s.dmg, p.x, p.y, 25);
         });
-        g.addFx({ k: 's', x: p.x, y: p.y, a: dir, R: R, arc: s.arc, life: 0.22, max: 0.22, col: w.def.col });
-      })(p.ang + ((i + (s.count === 1 && w.flip ? 1 : 0)) % 2) * Math.PI);
+        g.addFx({ k: 's', x: p.x, y: p.y, a: dir, R: R, arc: s.arc, life: 0.3, max: 0.3, col: w.def.col });
+      })(aim + i * Math.PI);
       return true;
     }
   };
@@ -362,7 +368,10 @@
         if (w.timer <= 0) { w.timer = s.tick; this.query(p.x, p.y, s.radius * this.stats.area, function (e) { g.hit(e, s.dmg, p.x, p.y, 0); }); }
       } else {
         w.timer -= dt;
-        if (w.timer <= 0) w.timer = FIRE[kind](this, w, s) ? s.cd * this.stats.cd : 0.15;
+        if (w.timer <= 0) {
+          if (FIRE[kind](this, w, s)) { w.timer = s.cd * this.stats.cd; if (kind === 'bolt' || kind === 'fan' || kind === 'chain' || kind === 'beam' || kind === 'bounce') this.ev.shot = true; }
+          else w.timer = 0.15;
+        }
       }
     }
   };
@@ -383,7 +392,7 @@
           s.vx = dx / d * s.sp * 1.2; s.vy = dy / d * s.sp * 1.2;
           if (d < 18) { s.life = 0; continue; }
         }
-      } else if (s.k === 'wisp') {
+      } else if (s.k === 'rocket') {
         t = this.nearest(s.x, s.y, 320, s.seen);
         if (t) { dx = t.x - s.x; dy = t.y - s.y; d = Math.hypot(dx, dy) || 1; s.vx += (dx / d * s.sp - s.vx) * Math.min(1, dt * 6); s.vy += (dy / d * s.sp - s.vy) * Math.min(1, dt * 6); }
       }
@@ -391,6 +400,10 @@
       this.query(s.x, s.y, s.r, function (e) {
         if (s.pierce <= 0 || s.seen.indexOf(e) >= 0) return;
         s.seen.push(e); s.pierce--; g.hit(e, s.dmg, s.x - s.vx, s.y - s.vy, 50);
+        if (s.blast) {
+          g.query(s.x, s.y, s.blast, function (o) { if (o !== e) g.hit(o, s.dmg * 0.7, s.x, s.y, 120); });
+          g.addFx({ k: 'r', x: s.x, y: s.y, R: s.blast, life: 0.3, max: 0.3, col: s.col }); g.ev.boom = true;
+        }
         if (s.pierce <= 0) { s.life = 0; return; }
         if (s.k === 'orb') {
           var n = g.nearest(s.x, s.y, 260, s.seen);
@@ -476,7 +489,7 @@
       if (e.st !== 'dash') { e.ang = Math.atan2(dy, dx); e.face = dx >= 0 ? 1 : -1; }
       if (d < e.r + p.r - 2) { this.hurt(e.dmg); if (this.over) return; }
     }
-    /* monsters shoulder each other apart so the horde spreads into a ring instead of stacking */
+    /* enemies shoulder each other apart so the horde spreads into a ring instead of stacking */
     for (i = 0; i < this.en.length; i++) {
       e = this.en[i]; if (e.dead || e.def.flies) continue;
       this.query(e.x, e.y, e.r, function (o) {
@@ -504,7 +517,7 @@
       if (d > 24) continue;
       c.dead = true; this.ev.pick = c.kind;
       if (c.kind === 'coin') this.coins += c.v * st.coin;
-      else if (c.kind === 'heal') p.hp = Math.min(st.maxHp, p.hp + 30);
+      else if (c.kind === 'heal') p.hp = Math.min(st.maxHp, p.hp + 30 * st.healMul);
       else if (c.kind === 'magnet') { for (k = 0; k < this.gems.length; k++) this.gems[k].pull = true; for (k = 0; k < this.picks.length; k++) this.picks[k].pull = true; }
       else if (c.kind === 'bomb') this.blast(460, 150);
       else if (c.kind === 'chest') this.chests++;

@@ -1,18 +1,17 @@
-/* Last Lantern: input, screens, save data and the frame loop. */
+/* Last Foxhole: input, screens, save data and the frame loop. */
 (function () {
   'use strict';
   var LL = window.LL, D = LL.DATA, A = LL.Audio, $ = function (id) { return document.getElementById(id); };
 
   /* ---- save data: lives on the device only, nothing is sent anywhere */
-  var save = { coins: 0, up: {}, best: 0, wins: 0, sound: true };
+  var save = { coins: 0, up: {}, best: 0, wins: 0, sound: true, cls: 'rifleman' };
   try { var raw = JSON.parse(localStorage.getItem('ll.save') || '{}'); for (var k in raw) save[k] = raw[k]; } catch (e) {}
   function persist() { try { localStorage.setItem('ll.save', JSON.stringify(save)); } catch (e) {} }
 
   var game = new LL.Game(), view = new LL.Renderer($('stage')), skin, state = 'menu';
   var input = { x: 0, y: 0 }, keys = {}, touch = null, buildKey = '';
 
-  var q = /[?&]skin=(\w+)/.exec(location.search);
-  skin = LL.SKINS[(q && q[1]) || 'real'] || LL.SKINS.real;
+  skin = LL.SKINS.real;
   (function () {
     var s = document.documentElement.style, u = skin.ui;
     ['text', 'dim', 'panel', 'accent', 'hp', 'xp', 'track', 'edge', 'font'].forEach(function (n) { s.setProperty('--' + n, u[n]); });
@@ -27,23 +26,23 @@
   document.addEventListener('pointerdown', A.unlock, { passive: true });
 
   /* ---- screens */
-  var SCREENS = ['menu', 'shop', 'levelup', 'chest', 'pause', 'over'];
+  var SCREENS = ['menu', 'classes', 'shop', 'levelup', 'chest', 'pause', 'over'];
   function show(next) {
     state = next;
     SCREENS.forEach(function (id) { $(id).hidden = id !== next; });
-    $('hud').hidden = next === 'menu' || next === 'shop';
+    $('hud').hidden = next === 'menu' || next === 'shop' || next === 'classes';
     if (next !== 'play') endTouch();
   }
   function clock(t) { t = Math.floor(t); return ('0' + Math.floor(t / 60)).slice(-2) + ':' + ('0' + t % 60).slice(-2); }
-  function start() { A.unlock(); A.play('click'); game.reset(save.up); buildKey = ''; $('bossbar').hidden = true; $('banner').hidden = true; show('play'); }
+  function start(cls) { A.unlock(); A.play('click'); if (D.classes[cls]) { save.cls = cls; persist(); } game.reset(save.up, save.cls); buildKey = ''; $('bossbar').hidden = true; $('banner').hidden = true; show('play'); }
   function resume() { if (game.over) return finish(); if (game.pending > 0) return levelUp(); if (game.chests > 0) return openChest(); show('play'); }
 
   function card(c, tag) {
     var b = document.createElement(tag || 'button'); if (!tag) b.type = 'button';
     b.className = 'card' + (c.isEvo ? ' evo' : '');
     b.innerHTML = '<img alt=""><span class="nm"></span><span class="lv"></span><span class="tx"></span>';
-    b.children[0].src = icon(c.icon || c.id, c.col);
-    b.children[1].textContent = c.name; b.children[2].textContent = c.tagText || (c.isEvo ? 'EVOLUTION' : c.isNew ? 'NEW' : c.lvl ? 'LV ' + c.lvl : ''); b.children[3].textContent = c.text;
+    b.children[0].src = c.img || icon(c.icon || c.id, c.col);
+    b.children[1].textContent = c.name; b.children[2].textContent = c.tagText || (c.isEvo ? 'FINAL FORM' : c.isNew ? 'NEW' : c.lvl ? 'LV ' + c.lvl : ''); b.children[3].textContent = c.text;
     return b;
   }
   function levelUp() {
@@ -74,20 +73,20 @@
     if (rec) save.best = Math.floor(game.t);
     if (game.won) save.wins++;
     persist();
-    $('overTitle').textContent = game.won ? 'Dawn breaks' : 'The light went out';
-    $('summary').innerHTML = (game.won ? 'You outlasted the night in <b>' : 'Survived <b>') + clock(game.t) + '</b>' + (rec && !game.won ? ' (new best)' : '') +
-      '<br>Level ' + game.lvl + ' · ' + game.kills + ' monsters slain<br>' + c + ' coins banked';
+    $('overTitle').textContent = game.won ? 'Relief arrives at dawn' : 'Position overrun';
+    $('summary').innerHTML = (game.won ? 'You held the line for <b>' : 'Held out for <b>') + clock(game.t) + '</b>' + (rec && !game.won ? ' (new best)' : '') +
+      '<br>Level ' + game.lvl + ' · ' + game.kills + ' enemies down<br>' + game.cls.name + ' · ' + c + ' scrap banked';
     A.play(game.won ? 'win' : 'lose'); show('over');
   }
   function menu() {
-    $('best').textContent = (save.best ? 'Best run ' + clock(save.best) : '') + (save.wins ? ' · ' + save.wins + (save.wins === 1 ? ' dawn seen' : ' dawns seen') : '');
-    $('shopBtn').textContent = 'Upgrades (' + save.coins + ' coins)'; show('menu');
+    $('best').textContent = (save.best ? 'Best run ' + clock(save.best) : '') + (save.wins ? ' · ' + save.wins + (save.wins === 1 ? ' night held' : ' nights held') : '');
+    $('shopBtn').textContent = 'Quartermaster (' + save.coins + ' scrap)'; show('menu');
   }
   function shop() {
-    var box = $('shopList'); box.textContent = ''; $('purse').textContent = save.coins + ' coins';
+    var box = $('shopList'); box.textContent = ''; $('purse').textContent = save.coins + ' scrap';
     Object.keys(D.shop).forEach(function (id) {
       var it = D.shop[id], lv = save.up[id] || 0, maxed = lv >= it.max, cost = it.cost * (lv + 1);
-      var b = card({ id: id, icon: D.shopIcon[id], col: 'accent', name: it.name, text: it.per, tagText: maxed ? 'MAX' : lv + '/' + it.max + ' · ' + cost + ' coins' });
+      var b = card({ id: id, icon: D.shopIcon[id], col: 'accent', name: it.name, text: it.per, tagText: maxed ? 'MAX' : lv + '/' + it.max + ' · ' + cost + ' scrap' });
       b.disabled = maxed || save.coins < cost;
       b.addEventListener('click', function () { if (save.coins < cost) return; save.coins -= cost; save.up[id] = lv + 1; persist(); A.play('pick'); shop(); });
       box.appendChild(b);
@@ -95,7 +94,19 @@
     show('shop');
   }
 
-  $('playBtn').addEventListener('click', start); $('againBtn').addEventListener('click', start);
+  function classes() {
+    var box = $('classList'); box.textContent = '';
+    Object.keys(D.classes).forEach(function (id) {
+      var c = D.classes[id], w = D.weapons[c.start];
+      var b = card({ id: id, img: LL.heroSprite(id, 96).toDataURL(), name: c.name, text: c.desc + ' Starts with ' + w.name + (c.also ? ' and ' + D.weapons[c.also].name : '') + '.', tagText: c.role.toUpperCase() });
+      if (id === save.cls) b.className += ' evo';
+      b.addEventListener('click', function () { start(id); });
+      box.appendChild(b);
+    });
+    show('classes');
+  }
+  $('playBtn').addEventListener('click', function () { A.unlock(); A.play('click'); classes(); }); $('againBtn').addEventListener('click', function () { start(); });
+  $('classBack').addEventListener('click', menu);
   $('shopBtn').addEventListener('click', function () { A.play('click'); shop(); }); $('shopBack').addEventListener('click', menu);
   $('pauseBtn').addEventListener('click', pause); $('resumeBtn').addEventListener('click', function () { A.unlock(); show('play'); });
   $('quitBtn').addEventListener('click', function () { bank(); persist(); menu(); }); $('menuBtn').addEventListener('click', menu);
@@ -143,6 +154,7 @@
     }
   }
   function sounds(ev) {
+    if (ev.shot) A.play('shot');
     if (ev.hurt) A.play('hurt'); if (ev.kill) A.play('kill'); else if (ev.hit) A.play('hit');
     if (ev.gem) A.play('gem'); if (ev.pick && ev.pick !== 'bomb') A.play('pick'); if (ev.bomb) A.play('bomb'); if (ev.boom) A.play('boom');
     if (ev.boss) A.play('boss'); if (ev.bossDown) A.play('chest'); if (ev.banner) banner(ev.banner);

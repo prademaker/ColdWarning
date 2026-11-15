@@ -1,4 +1,4 @@
-/* Last Lantern: draws a Game through the active skin. Weapon effects are built from the skin's
+/* Last Foxhole: draws a Game through the active skin. Weapon effects are built from the skin's
    primitives (disc, line, ring) and are drawn after the lighting pass, so they glow in the dark. */
 (function (root) {
   'use strict';
@@ -6,6 +6,7 @@
 
   LL.col = function (skin, k) {
     var u = skin.ui;
+    if (k[0] === '#') return k;
     if (k === 'accent') return u.accent; if (k === 'xp') return u.xp; if (k === 'hp') return u.hp;
     return k[0] === 't' ? skin.tints[+k[1]] : skin.gemTints[+k[1]];
   };
@@ -84,15 +85,20 @@
       if (w.def.kind === 'aura') skin.ring(g, p.x, p.y, w.s.radius * game.stats.area * (1 + 0.03 * Math.sin(t * 5)), c, 3, 0.55);
       if (w.def.kind !== 'orbit') continue;
       var R = w.s.radius * game.stats.area;
-      for (j = 0; j < w.s.count; j++) { a = w.ang + j * TAU / w.s.count; skin.disc(g, p.x + Math.cos(a) * R, p.y + Math.sin(a) * R, w.s.size, c); }
+      for (j = 0; j < w.s.count; j++) {
+        a = w.ang + j * TAU / w.s.count;
+        if (skin.orbiter) { skin.orbiter(g, p.x + Math.cos(a) * R, p.y + Math.sin(a) * R, a + Math.PI / 2, w.s.size); if (Math.sin(t * 30 + j) > 0.2) skin.line(g, p.x + Math.cos(a) * R, p.y + Math.sin(a) * R, p.x + Math.cos(a + 0.22) * R, p.y + Math.sin(a + 0.22) * R, c, 2, 0.7); }
+        else skin.disc(g, p.x + Math.cos(a) * R, p.y + Math.sin(a) * R, w.s.size, c);
+      }
     }
     for (i = 0; i < game.shots.length; i++) {
       var s = game.shots[i]; c = col(skin, s.col);
       if (s.k === 'bolt') skin.line(g, s.x - s.vx * 0.035, s.y - s.vy * 0.035, s.x, s.y, c, s.r);
       else if (s.k === 'needle' || s.k === 'knife') skin.line(g, s.x - s.vx * 0.022, s.y - s.vy * 0.022, s.x, s.y, c, 3);
+      else if (s.k === 'glaive' && skin.runner) skin.runner(g, s, t);
       else if (s.k === 'glaive') { a = t * 14; skin.line(g, s.x - Math.cos(a) * s.r, s.y - Math.sin(a) * s.r, s.x + Math.cos(a) * s.r, s.y + Math.sin(a) * s.r, c, 4); skin.ring(g, s.x, s.y, s.r, c, 3); }
       else if (s.k === 'flask') skin.disc(g, s.x, s.y - Math.sin(Math.min(1, s.u) * Math.PI) * 70, s.r, c);
-      else if (s.k === 'wisp') { skin.line(g, s.x - s.vx * 0.06, s.y - s.vy * 0.06, s.x, s.y, c, 3, 0.6); skin.disc(g, s.x, s.y, 5.5, c); }
+      else if (s.k === 'rocket') { skin.line(g, s.x - s.vx * 0.09, s.y - s.vy * 0.09, s.x, s.y, c, 4, 0.6); skin.disc(g, s.x, s.y, 4, '#fff3c4'); }
       else if (s.k === 'orb') { skin.disc(g, s.x, s.y, s.r, c); skin.ring(g, s.x, s.y, s.r + 3 + Math.sin(t * 20) * 1.5, c, 1.5, 0.7); }
     }
     for (i = 0; i < game.eshots.length; i++) { var q = game.eshots[i]; skin.disc(g, q.x, q.y, q.r + Math.sin(t * 18 + q.x) * 0.8, skin.ui.hp); }
@@ -102,7 +108,7 @@
       else if (f.k === 'r') skin.ring(g, f.x, f.y, f.R * (1 - k * 0.8), col(skin, f.col), 6, k);
       else if (f.k === 'z') skin.line(g, f.x, f.y, f.x2, f.y2, col(skin, f.col), 4, k);
       else if (f.k === 'b') skin.line(g, f.x, f.y, f.x2, f.y2, col(skin, f.col), f.w * (0.4 + 0.6 * k), k);
-      else if (f.k === 's') arc(g, f.x, f.y, f.R * (0.55 + 0.4 * (1 - k)), f.a - f.arc / 2, f.a + f.arc / 2, col(skin, f.col), f.R * 0.22 * k + 2, k);
+      else if (f.k === 's') { c = col(skin, f.col); arc(g, f.x, f.y, f.R * (0.9 - 0.25 * k), f.a - f.arc / 2, f.a + f.arc / 2, c, f.R * 0.2, k * 0.8); arc(g, f.x, f.y, f.R * (0.6 - 0.2 * k), f.a - f.arc * 0.4, f.a + f.arc * 0.4, '#ffd9a0', f.R * 0.22, k * 0.7); arc(g, f.x, f.y, f.R * 0.3, f.a - f.arc * 0.3, f.a + f.arc * 0.3, '#fff3c4', f.R * 0.16, k * 0.6); }
     }
 
     if (ps > 1) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false; ctx.drawImage(this.buf, 0, 0, bw, bh, 0, 0, bw * ps * z, bh * ps * z); }

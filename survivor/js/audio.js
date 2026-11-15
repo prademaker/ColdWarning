@@ -1,4 +1,4 @@
-/* Last Lantern: sound effects synthesised with Web Audio, so the app ships no audio files. */
+/* Last Foxhole: sound effects synthesised with Web Audio, so the app ships no audio files. */
 (function (root) {
   'use strict';
   var LL = root.LL, ac = null, master = null, last = {}, noiseBuf = null;
@@ -31,6 +31,7 @@
   function arp(notes, step, type, vol) { for (var i = 0; i < notes.length; i++) tone(notes[i], notes[i], step * 1.6, type, vol, i * step); }
   var SFX = {
     hit: [0.06, function () { noise(0.04, 0.05, 2400); }],
+    shot: [0.07, function () { noise(0.06, 0.07, 5200); tone(190, 70, 0.05, 'square', 0.03); }],
     kill: [0.05, function () { tone(230, 90, 0.09, 'triangle', 0.07); }],
     gem: [0.04, function () { tone(900 + Math.random() * 500, 1500, 0.06, 'sine', 0.045); }],
     pick: [0.05, function () { tone(520, 1040, 0.14, 'triangle', 0.1); }],

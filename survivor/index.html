@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0c0b09">
-<title>Last Lantern</title>
+<meta name="theme-color" content="#0b0b08">
+<title>Last Foxhole</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -29,33 +29,40 @@
   <div id="stick" hidden><div id="knob"></div></div>
 
   <section id="menu" class="screen">
-    <h1>Last Lantern</h1>
-    <p class="tag">Keep the light alive. They come from every side.</p>
+    <h1>Last Foxhole</h1>
+    <p class="tag">Hold the line until dawn. They come from every side.</p>
     <button id="playBtn" class="big" type="button">Play</button>
-    <button id="shopBtn" class="ghost" type="button">Upgrades</button>
+    <button id="shopBtn" class="ghost" type="button">Quartermaster</button>
     <p id="best" class="dim"></p>
     <button id="soundBtn" class="link" type="button">Sound: on</button>
-    <p class="dim small">Drag anywhere to move. Weapons fire on their own.<br>Survive ten minutes and defeat what comes last.</p>
+    <p class="dim small">Drag anywhere to move. Weapons fire on their own.<br>Hold out for ten minutes and stop what comes last.</p>
+  </section>
+
+  <section id="classes" class="screen" hidden>
+    <h2>Choose your soldier</h2>
+    <p class="dim">Each one starts with a different weapon and fights differently.</p>
+    <div id="classList" class="list"></div>
+    <button id="classBack" class="ghost" type="button">Back</button>
   </section>
 
   <section id="shop" class="screen" hidden>
-    <h2>Upgrades</h2>
-    <p class="dim">Permanent. Paid for with coins you find in play.</p>
+    <h2>Quartermaster</h2>
+    <p class="dim">Permanent upgrades, paid for with scrap you find in the field.</p>
     <p id="purse" class="purse"></p>
     <div id="shopList" class="list"></div>
     <button id="shopBack" class="ghost" type="button">Back</button>
   </section>
 
   <section id="levelup" class="screen" hidden>
-    <h2>Level up</h2>
+    <h2>Field promotion</h2>
     <p class="dim">Choose one</p>
     <div id="cards" class="list"></div>
     <button id="rerollBtn" class="ghost" type="button">Reroll</button>
   </section>
 
   <section id="chest" class="screen" hidden>
-    <h2>Treasure</h2>
-    <p class="dim">The chest held</p>
+    <h2>Supply drop</h2>
+    <p class="dim">The crate held</p>
     <div id="loot" class="list"></div>
     <button id="chestBtn" class="big" type="button">Take it</button>
   </section>
