@@ -135,8 +135,14 @@
       recover: { name: 'Bandages', per: '+0.1 health per second', max: 5, cost: 50 },
       greed: { name: 'Deep Pockets', per: '+10% scrap', max: 5, cost: 60 },
       reroll: { name: 'Second Thoughts', per: '+1 reroll each run', max: 3, cost: 100 },
-      revive: { name: 'Stubborn', per: 'Get back up once per run', max: 1, cost: 400 }
+      magnet: { name: 'Long Arms', per: '+8% pickup range', max: 5, cost: 30 },
+      xp: { name: 'Drill Practice', per: '+4% experience in a run', max: 5, cost: 60 },
+      luck: { name: 'Sharp Eyes', per: '+5% drops from enemies', max: 5, cost: 50, rank: 3 },
+      head: { name: 'Head Start', per: 'Begin each run with a free promotion', max: 3, cost: 200, rank: 4 },
+      armor: { name: 'Flak Vest', per: 'Take 1 less damage per hit', max: 2, cost: 250, rank: 5 },
+      choice: { name: 'Friends in Supply', per: 'A fourth option on every promotion', max: 1, cost: 600, rank: 6 },
+      revive: { name: 'Stubborn', per: 'Get back up once per run', max: 1, cost: 400, rank: 2 }
     },
-    shopIcon: { might: 'might', vigor: 'vital', swift: 'swift', recover: 'regen', greed: 'coin', reroll: 'luck', revive: 'armor' }
+    shopIcon: { might: 'might', vigor: 'vital', swift: 'swift', recover: 'regen', greed: 'coin', reroll: 'luck', revive: 'armor', magnet: 'magnet', xp: 'growth', luck: 'luck', head: 'haste', armor: 'armor', choice: 'reach' }
   };
 })(typeof window !== 'undefined' ? window : this);

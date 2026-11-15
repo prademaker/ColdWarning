@@ -7,24 +7,30 @@
   var G = Game.prototype;
 
   /* meta = levels of the permanent shop upgrades, e.g. { might: 2, revive: 1 }; cls = a key of DATA.classes */
-  G.reset = function (meta, cls) {
+  /* opt: { night, bonus: {dmg, maxHp, startLvl, reroll, passive}, allow: {weapons, passives} } from the progression layer */
+  G.reset = function (meta, cls, opt) {
     this.meta = meta || {};
     this.clsId = D.classes[cls] ? cls : 'rifleman'; this.cls = D.classes[this.clsId];
     var mods = this.cls.mods;
+    opt = opt || {}; this.night = opt.night || 1; this.threat = this.night - 1; this.bonus = opt.bonus || {}; this.allow = opt.allow || null;
+    this.bossKills = 0; this.evos = 0; this.chestsOpened = 0; this.eliteKills = 0; this.hitT = -1; this.screen = [];
     this.t = 0;
-    this.p = { x: 0, y: 0, r: 14, face: 1, ang: -Math.PI / 2, look: -Math.PI / 2, moving: false, hurt: false, hurtT: 0, hp: 100, inv: 0, lightMul: 1, cls: this.clsId };
+    this.p = { x: 0, y: 0, r: 14, face: 1, ang: -Math.PI / 2, look: -Math.PI / 2, chk: 0, bloody: 0, stepT: 0, foot: 1, moving: false, hurt: false, hurtT: 0, hp: 100, inv: 0, lightMul: 1, cls: this.clsId };
     this.en = []; this.shots = []; this.gems = []; this.fx = []; this.zones = []; this.mines = []; this.strikes = []; this.eshots = []; this.picks = [];
     this.parts = []; this.decals = []; this.cause = null; this.gore = this.gore !== false;
     this.weapons = []; this.passives = [];
     this.xp = 0; this.lvl = 1; this.next = 6; this.kills = 0; this.coins = 0;
     this.pending = 0; this.chests = 0; this.over = false; this.won = false;
-    this.rerolls = 1 + (this.meta.reroll || 0) + (mods.reroll || 0); this.revives = (this.meta.revive || 0) + (mods.revive || 0);
+    this.rerolls = 1 + (this.meta.reroll || 0) + (mods.reroll || 0) + (this.bonus.reroll || 0); this.revives = (this.meta.revive || 0) + (mods.revive || 0);
     this.spawnAcc = 0; this.ringT = 40; this.eliteT = 75; this.bossIdx = 0; this.boss = null;
     this.view = { w: 420, h: 800 };
     this.grid = new Map();
     this.stats = {}; this.ev = {};
     this.take({ type: 'w', id: this.cls.start });
     if (this.cls.also) this.take({ type: 'w', id: this.cls.also });
+    if (this.bonus.startLvl > 1) this.take({ type: 'w', id: this.cls.start });
+    if (this.bonus.passive) this.take({ type: 'p', id: this.bonus.passive });
+    this.pending = this.meta.head || 0;
     this.p.hp = this.stats.maxHp;
   };
 
@@ -54,8 +60,9 @@
   }
   G.recalc = function () {
     var m = this.meta, i;
-    var s = this.stats = { dmg: 1 + 0.05 * (m.might || 0), cd: 1, speed: 1 + 0.03 * (m.swift || 0), maxHp: 100 + 10 * (m.vigor || 0), magnet: 1, area: 1,
-      regen: 0.1 * (m.recover || 0), armor: 0, luck: 1, xp: 1, coin: 1 + 0.1 * (m.greed || 0), crit: 0, healMul: 1 };
+    var s = this.stats = { dmg: 1 + 0.05 * (m.might || 0) + (this.bonus.dmg || 0), cd: 1, speed: 1 + 0.03 * (m.swift || 0), maxHp: 100 + 10 * (m.vigor || 0) + (this.bonus.maxHp || 0),
+      magnet: 1 + 0.08 * (m.magnet || 0), area: 1, regen: 0.1 * (m.recover || 0), armor: m.armor || 0, luck: 1 + 0.05 * (m.luck || 0), xp: 1 + 0.04 * (m.xp || 0),
+      coin: (1 + 0.1 * (m.greed || 0)) * (1 + 0.25 * this.threat), crit: 0, healMul: 1 };
     for (var k in this.cls.mods) if (k in s) s[k] += this.cls.mods[k];
     for (i = 0; i < this.passives.length; i++) { var q = this.passives[i]; s[q.def.stat] += q.def.add * q.lvl; }
     s.cd = Math.max(0.4, s.cd);
@@ -72,23 +79,23 @@
       if (own) {
         if (own.lvl < D.maxLevel) pool.push({ type: 'w', id: id, name: def.name, lvl: own.lvl + 1, text: describe(def.ups[own.lvl - 1]), col: def.col });
         else if (!own.evo && find(this.passives, def.evo.needs)) pool.push({ type: 'e', id: id, name: def.evo.name, lvl: 0, text: 'Upgrades ' + def.name + ': ' + (def.evo.text || describe(def.evo.patch)), col: def.col, isEvo: true });
-      } else if (this.weapons.length < D.maxWeaponSlots) pool.push({ type: 'w', id: id, name: def.name, lvl: 1, text: def.desc, col: def.col, isNew: true });
+      } else if (this.weapons.length < D.maxWeaponSlots && (!this.allow || this.allow.weapons[id])) pool.push({ type: 'w', id: id, name: def.name, lvl: 1, text: def.desc, col: def.col, isNew: true });
     }
     for (id in D.passives) {
       def = D.passives[id]; own = find(this.passives, id);
       if (own) { if (own.lvl < D.maxLevel) pool.push({ type: 'p', id: id, name: def.name, lvl: own.lvl + 1, text: def.per, col: def.col }); }
-      else if (this.passives.length < D.maxPassiveSlots) pool.push({ type: 'p', id: id, name: def.name, lvl: 1, text: def.per, col: def.col, isNew: true });
+      else if (this.passives.length < D.maxPassiveSlots && (!this.allow || this.allow.passives[id])) pool.push({ type: 'p', id: id, name: def.name, lvl: 1, text: def.per, col: def.col, isNew: true });
     }
     for (var i = pool.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0, tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
     pool.sort(function (a, b) { return (b.isEvo ? 1 : 0) - (a.isEvo ? 1 : 0); });   /* an evolution is always offered */
     return pool;
   };
   var HEAL = { type: 'heal', id: 'heal', name: 'Hot Meal', lvl: 0, text: 'Restore 40 health', col: 'hp' };
-  G.choices = function () { var pool = this.pool(); return pool.length ? pool.slice(0, 3) : [HEAL]; };
+  G.choices = function () { var pool = this.pool(); return pool.length ? pool.slice(0, 3 + (this.meta.choice || 0)) : [HEAL]; };
   G.take = function (c) {
     if (c.type === 'heal') { this.p.hp = Math.min(this.stats.maxHp, this.p.hp + 40); return; }
     var list = c.type === 'p' ? this.passives : this.weapons, table = c.type === 'p' ? D.passives : D.weapons, own = find(list, c.id);
-    if (c.type === 'e') own.evo = true;
+    if (c.type === 'e') { own.evo = true; this.evos++; }
     else if (own) own.lvl++;
     else list.push({ id: c.id, def: table[c.id], lvl: 1, evo: false, timer: 0.3, ang: 0, s: null });
     var before = this.stats.maxHp || 0;
@@ -98,6 +105,7 @@
   /* a chest upgrades things you already carry: 1, 3 or 5 of them, evolutions first */
   G.openChest = function () {
     var r = Math.random(), n = r < 0.06 ? 5 : r < 0.3 ? 3 : 1, got = [];
+    this.chestsOpened++;
     for (var i = 0; i < n; i++) {
       var pool = this.pool().filter(function (c) { return !c.isNew; });
       if (!pool.length) break;
@@ -142,7 +150,7 @@
     var crit = this.stats.crit > 0 && Math.random() < this.stats.crit;
     dmg = Math.max(1, Math.round(dmg * this.stats.dmg * (crit ? 2 : 1)));
     e.hp -= dmg; e.hit = 0.1; this.ev.hit = true;
-    if (e.arch === 'soldier' || e.arch === 'dog') { if (this.gore) this.blood(e.x, e.y, e.x - fromX, e.y - fromY, 2, 0.22); }
+    if (e.arch === 'soldier' || e.arch === 'dog') { if (this.gore) this.blood(e.x, e.y, e.x - fromX, e.y - fromY, 4, 0.32); }
     else this.sparks(e.x, e.y, 2);
     if (knock && !e.def.boss) {
       var dx = e.x - fromX, dy = e.y - fromY, l = Math.hypot(dx, dy) || 1, kk = e.elite ? knock * 0.4 : knock;
@@ -159,9 +167,11 @@
       for (i = 0; i < 16; i++) this.dropGem(e.x + (Math.random() - 0.5) * 110, e.y + (Math.random() - 0.5) * 110, 2);
       this.picks.push({ kind: 'chest', x: e.x, y: e.y }, { kind: 'coin', x: e.x + 30, y: e.y + 10, v: 40 });
       if (this.boss === e) this.boss = null;
+      this.bossKills++;
       this.ev.banner = def.name + ' is destroyed'; this.ev.bossDown = true;
       if (def.final) { this.won = true; this.over = true; }
     } else if (e.elite) {
+      this.eliteKills++;
       for (i = 0; i < 3; i++) this.dropGem(e.x + (Math.random() - 0.5) * 40, e.y + (Math.random() - 0.5) * 40, 2);
       this.picks.push({ kind: 'chest', x: e.x, y: e.y }, { kind: 'coin', x: e.x + 24, y: e.y, v: 10 });
     } else {
@@ -175,8 +185,8 @@
   };
   /* ---------------------------------------------------------------- the mess: particles in the air and stains on the ground */
   function rnd(a, b) { return a + Math.random() * (b - a); }
-  G.part = function (o) { if (this.parts.length < 560) { o.max = o.life; if (o.drag == null) o.drag = 0.9; this.parts.push(o); } };
-  G.decal = function (o) { o.age = 0; if (!o.life) o.life = 80; o.v = (Math.random() * 6) | 0; if (this.decals.length > 460) this.decals.shift(); this.decals.push(o); };
+  G.part = function (o) { if (this.parts.length < 700) { o.max = o.life; if (o.drag == null) o.drag = 0.9; this.parts.push(o); } };
+  G.decal = function (o) { o.age = 0; if (!o.life) o.life = 120; o.v = (Math.random() * 6) | 0; if (this.decals.length > 760) this.decals.shift(); this.decals.push(o); };
   G.blood = function (x, y, dx, dy, n, stain) {
     var l = Math.hypot(dx, dy) || 1, base = Math.atan2(dy, dx), i, a, sp;
     for (i = 0; i < n; i++) { a = base + rnd(-0.8, 0.8); sp = rnd(60, 250); this.part({ k: 'blood', x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rnd(0.18, 0.42), r: rnd(1.5, 3.6), stain: Math.random() < 0.45 }); }
@@ -202,19 +212,35 @@
     this.part({ k: 'muzzle', x: p.x + Math.cos(a) * 19 - Math.sin(a) * 2, y: p.y + Math.sin(a) * 19 + Math.cos(a) * 2, vx: 0, vy: 0, a: a, life: 0.05 });
     this.part({ k: 'case', x: p.x, y: p.y, vx: -Math.sin(a) * rnd(60, 110) - Math.cos(a) * 30, vy: Math.cos(a) * rnd(60, 110) - Math.sin(a) * 30, life: 0.4 });
   };
+  /* how something dies depends on what killed it: this.cause is 'blast', 'fire', 'heavy' or null */
   G.death = function (e) {
-    var arch = e.arch, i, a, sp;
+    var arch = e.arch, i, a, sp, c = this.cause, g = this;
+    function chunk(k, n, r0, r1, fast) {
+      for (i = 0; i < n; i++) { a = rnd(0, TAU); sp = rnd(120, fast || 380); g.part({ k: k, x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rnd(0.3, 0.65), r: rnd(r0, r1) * e.r / 12, rot: a, vr: rnd(-14, 14), stain: k === 'gib', tint: e.tint }); }
+    }
     if (arch === 'soldier' || arch === 'dog') {
       if (!this.gore) { for (i = 0; i < 4; i++) { a = rnd(0, TAU); this.part({ k: 'dirt', x: e.x, y: e.y, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, life: 0.3, r: 2 }); } return; }
-      this.blood(e.x, e.y, e.kx || rnd(-1, 1), e.ky || rnd(-1, 1), 10, 0);
-      if (this.cause === 'blast') {
-        for (i = 0; i < 6; i++) { a = rnd(0, TAU); sp = rnd(130, 380); this.part({ k: 'gib', x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: rnd(0.3, 0.6), r: rnd(1.8, 4) * e.r / 12, rot: a, vr: rnd(-14, 14), stain: true }); }
-        this.decal({ k: 'blood', x: e.x, y: e.y, r: e.r * 1.6, rot: rnd(0, TAU) });
-      } else this.decal({ k: 'corpse', arch: arch, tint: e.tint, x: e.x, y: e.y, r: e.r, rot: e.ang + rnd(-0.7, 0.7), pool: true });
+      var kx = e.kx || rnd(-1, 1), ky = e.ky || rnd(-1, 1), rot = e.ang + rnd(-0.7, 0.7);
+      if (c === 'fire') {   /* burnt where it stood */
+        this.decal({ k: 'wreck', arch: arch, tint: e.tint, x: e.x, y: e.y, r: e.r, rot: rot, burn: 2.4 });
+        this.decal({ k: 'scorch', x: e.x, y: e.y, r: e.r * 1.3, rot: 0 }); return;
+      }
+      this.part({ k: 'mist', x: e.x, y: e.y, vx: kx * 0.15, vy: ky * 0.15, r: e.r * 1.7, life: 0.5 });
+      this.blood(e.x, e.y, kx, ky, 16, 0);
+      if (c === 'blast') {   /* blown apart */
+        chunk('gib', 9, 1.8, 4.2); chunk('limb', 3, 3.2, 4.6); if (arch === 'soldier') chunk('helm', 1, 4.6, 4.6, 260);
+        this.decal({ k: 'blood', x: e.x, y: e.y, r: e.r * 2.2, rot: rnd(0, TAU) }); return;
+      }
+      if (c === 'heavy') {   /* torn open: a long smear behind the body */
+        chunk('gib', 5, 1.8, 3.6); if (Math.random() < 0.4) chunk('limb', 1, 3.2, 4.4);
+        this.decal({ k: 'streak', x: e.x + Math.cos(Math.atan2(ky, kx)) * e.r * 2, y: e.y + Math.sin(Math.atan2(ky, kx)) * e.r * 2, r: e.r * 2.4, rot: Math.atan2(ky, kx) });
+      }
+      this.decal({ k: 'corpse', arch: arch, tint: e.tint, x: e.x, y: e.y, r: e.r, rot: rot, pool: c === 'heavy' ? 1.35 : 1, spurt: Math.random() < 0.35 ? 1.4 : 0 });
     } else {
       this.boom(e.x, e.y, e.r * (arch === 'bike' ? 1.5 : 2));
       this.sparks(e.x, e.y, 6);
-      this.decal({ k: 'wreck', arch: arch, tint: e.tint, x: e.x, y: e.y, r: e.r, rot: e.ang, burn: arch === 'bike' ? 2.5 : 6, pool: arch === 'bike' && this.gore });
+      if (arch === 'bike' && this.gore) { this.blood(e.x, e.y, rnd(-1, 1), rnd(-1, 1), 12, 1); chunk('gib', 4, 1.8, 3.6); chunk('helm', 1, 4.2, 4.2, 260); }
+      this.decal({ k: 'wreck', arch: arch, tint: e.tint, x: e.x, y: e.y, r: e.r, rot: e.ang, burn: arch === 'bike' ? 2.5 : 6, pool: arch === 'bike' && this.gore ? 1 : 0 });
     }
   };
 
@@ -226,6 +252,11 @@
     var p = this.p;
     if (p.inv > 0 || this.over) return;
     p.hp -= Math.max(1, dmg - this.stats.armor); p.inv = 0.45; p.hurtT = 0.15; this.ev.hurt = true;
+    if (this.hitT < 0) this.hitT = this.t;
+    if (this.gore) {
+      this.blood(p.x, p.y, rnd(-1, 1), rnd(-1, 1), 7, 0.6);
+      for (var n = 0; n < 2 && this.screen.length < 9; n++) this.screen.push({ x: Math.random(), y: Math.random(), r: rnd(0.18, 0.42), rot: rnd(0, TAU), v: (Math.random() * 6) | 0, life: 3.2, max: 3.2 });
+    }
     if (p.hp > 0) return;
     if (this.revives > 0) {
       this.revives--; p.hp = this.stats.maxHp * 0.5; p.inv = 2.5; this.blast(300, 60); this.ev.banner = 'Back on your feet'; this.ev.revive = true;
@@ -252,9 +283,9 @@
     return { x: this.p.x + x, y: this.p.y + y };
   };
   G.spawn = function (id, x, y, elite) {
-    var def = D.enemies[id], scale = 1 + this.t / 110 + Math.pow(this.t / 400, 2), hp = def.boss ? def.hp : def.hp * scale * (elite ? 9 : 1);
+    var def = D.enemies[id], scale = 1 + this.t / 110 + Math.pow(this.t / 400, 2), hp = (def.boss ? def.hp : def.hp * scale * (elite ? 9 : 1)) * (1 + 0.35 * this.threat);
     var e = { def: def, arch: def.arch, tint: def.tint, x: x, y: y, r: Math.round(def.r * (elite ? 1.55 : 1)), sp: def.sp * (0.9 + Math.random() * 0.2) * (elite ? 0.85 : 1),
-      hp: hp, maxHp: hp, dmg: def.dmg * (elite ? 1.5 : 1) * (1 + this.t / 400), seed: Math.random() * 1000, hit: 0, oc: 0, kx: 0, ky: 0, face: 1, ang: 0, dead: false,
+      hp: hp, maxHp: hp, dmg: def.dmg * (elite ? 1.5 : 1) * (1 + this.t / 400) * (1 + 0.15 * this.threat), seed: Math.random() * 1000, hit: 0, oc: 0, kx: 0, ky: 0, face: 1, ang: 0, dead: false,
       slow: 0, elite: !!elite, t1: 1 + Math.random() * 2, t2: 2, t3: 3, st: 'walk', cx: 0, cy: 0, rot: 0 };
     this.en.push(e); return e;
   };
@@ -268,7 +299,7 @@
   };
   G.spawner = function (dt) {
     var cap = Math.min(320, 30 + this.t * 0.7), pt, i, id;
-    this.spawnAcc += dt * (0.8 + this.t / 34);
+    this.spawnAcc += dt * (0.8 + this.t / 34) * (1 + 0.1 * this.threat);
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
       if (this.en.length < cap) { pt = this.edgePoint(40); this.spawn(this.pickEnemy(), pt.x, pt.y); }
@@ -367,7 +398,7 @@
         for (var j = 0; j < g.en.length; j++) {
           var e = g.en[j]; if (e.dead) continue;
           var dx = e.x - p.x, dy = e.y - p.y, along = dx * ex + dy * ey;
-          if (along > -e.r && along < len + e.r && Math.abs(dx * ey - dy * ex) < s.width / 2 + e.r) g.hit(e, s.dmg, p.x, p.y, 40);
+          if (along > -e.r && along < len + e.r && Math.abs(dx * ey - dy * ex) < s.width / 2 + e.r) { g.cause = 'heavy'; g.hit(e, s.dmg, p.x, p.y, 40); g.cause = null; }
         }
         g.addFx({ k: 'b', x: p.x, y: p.y, x2: p.x + ex * len, y2: p.y + ey * len, w: s.width, life: 0.25, max: 0.25, col: w.def.col });
       }
@@ -393,10 +424,12 @@
     sweep: function (g, w, s) {   /* count 1 = in front, count 2 = in front and behind */
       var p = g.p, R = s.range * g.stats.area, t = g.nearest(p.x, p.y, R * 1.6), aim = t ? Math.atan2(t.y - p.y, t.x - p.x) : p.ang;
       for (var i = 0; i < s.count; i++) (function (dir) {
+        g.cause = 'fire';
         g.query(p.x, p.y, R, function (e) {
           var d = Math.atan2(e.y - p.y, e.x - p.x) - dir; d = Math.atan2(Math.sin(d), Math.cos(d));
           if (Math.abs(d) < s.arc / 2 + 0.2) g.hit(e, s.dmg, p.x, p.y, 25);
         });
+        g.cause = null;
         for (var q = 0; q < 11; q++) { var fa = dir + rnd(-0.5, 0.5) * s.arc, sp = R * rnd(2.6, 4.6); g.part({ k: 'flame', x: p.x + Math.cos(dir) * 17, y: p.y + Math.sin(dir) * 17, vx: Math.cos(fa) * sp, vy: Math.sin(fa) * sp, r: rnd(4, 9), life: rnd(0.32, 0.55), drag: 0.93 }); }
         p.look = dir;
       })(aim + i * Math.PI);
@@ -451,7 +484,7 @@
       s.x += s.vx * dt; s.y += s.vy * dt;
       this.query(s.x, s.y, s.r, function (e) {
         if (s.pierce <= 0 || s.seen.indexOf(e) >= 0) return;
-        s.seen.push(e); s.pierce--; g.hit(e, s.dmg, s.x - s.vx, s.y - s.vy, 50);
+        s.seen.push(e); s.pierce--; g.cause = s.k === 'knife' ? 'heavy' : null; g.hit(e, s.dmg, s.x - s.vx, s.y - s.vy, 50); g.cause = null;
         if (s.blast) g.explode(s.x, s.y, s.blast, s.dmg * 0.7, 120, e);
         if (s.pierce <= 0) { s.life = 0; return; }
         if (s.k === 'orb') {
@@ -464,7 +497,7 @@
     }
     for (i = 0; i < this.zones.length; i++) {
       var z = this.zones[i]; z.life -= dt; z.timer -= dt;
-      if (z.timer <= 0) { z.timer = z.tick; this.query(z.x, z.y, z.r, function (e) { g.hit(e, z.dmg, z.x, z.y, 0); }); }
+      if (z.timer <= 0) { z.timer = z.tick; this.cause = 'fire'; this.query(z.x, z.y, z.r, function (e) { g.hit(e, z.dmg, z.x, z.y, 0); }); this.cause = null; }
     }
     for (i = 0; i < this.mines.length; i++) (function (m) {
       m.life -= dt; m.arm -= dt;
@@ -536,6 +569,7 @@
       }
       e.x += (mx * spd + e.kx) * dt; e.y += (my * spd + e.ky) * dt;
       e.kx *= 0.86; e.ky *= 0.86; e.hit -= dt; e.oc -= dt;
+      if (this.gore && e.hp < e.maxHp * 0.55 && (e.arch === 'soldier' || e.arch === 'dog') && Math.random() < dt * 2.6) this.decal({ k: 'blood', x: e.x, y: e.y, r: rnd(2, 4.6), rot: rnd(0, TAU), life: 40 });
       if (e.st !== 'dash') { e.ang = Math.atan2(dy, dx); e.face = dx >= 0 ? 1 : -1; }
       if (d < e.r + p.r - 2) { this.hurt(e.dmg); if (this.over) return; }
     }
@@ -577,12 +611,27 @@
     for (i = 0; i < this.fx.length; i++) { var f = this.fx[i]; f.life -= dt; if (f.k === 'p') { f.x += f.vx * dt; f.y += f.vy * dt; } else if (f.k === 'n') f.y -= 40 * dt; }
     for (i = 0; i < this.parts.length; i++) {
       var q = this.parts[i], dr = Math.pow(q.drag, dt * 60); q.life -= dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= dr; q.vy *= dr;
-      if (q.life <= 0 && q.stain) this.decal({ k: 'blood', x: q.x, y: q.y, r: q.k === 'gib' ? rnd(6, 11) : rnd(2.5, 6), rot: rnd(0, TAU), life: 45 });
+      if (q.life <= 0 && (q.k === 'helm' || q.k === 'limb')) this.decal({ k: q.k, x: q.x, y: q.y, r: q.r, rot: q.rot + q.vr, tint: q.tint, pool: q.k === 'limb' ? 1 : 0, life: 100 });
+      else if (q.life <= 0 && q.stain) this.decal({ k: 'blood', x: q.x, y: q.y, r: q.k === 'gib' ? rnd(6, 11) : rnd(2.5, 6), rot: rnd(0, TAU), life: 45 });
     }
     for (i = 0; i < this.decals.length; i++) {
       var dc = this.decals[i]; dc.age += dt; dc.life -= dt;
+      if (dc.spurt > 0) { dc.spurt -= dt; if (Math.random() < dt * 34) { var sa = dc.rot + rnd(-0.35, 0.35), ss = rnd(90, 210); this.part({ k: 'blood', x: dc.x, y: dc.y, vx: Math.cos(sa) * ss, vy: Math.sin(sa) * ss, life: rnd(0.2, 0.4), r: rnd(1.4, 3), stain: Math.random() < 0.6 }); } }
       if (dc.burn > 0) { dc.burn -= dt; if (Math.random() < dt * 9) this.part({ k: 'smoke', x: dc.x + rnd(-0.4, 0.4) * dc.r, y: dc.y + rnd(-0.4, 0.4) * dc.r, vx: rnd(-10, 10), vy: rnd(-45, -20), r: dc.r * rnd(0.3, 0.55), life: rnd(0.7, 1.3), drag: 0.98, fire: Math.random() < 0.5 }); }
     }
+    for (i = 0; i < this.screen.length; i++) this.screen[i].life -= dt;
+    this.screen = this.screen.filter(living);
+    if (this.gore && p.moving) {
+      if ((p.chk -= dt) <= 0) {
+        p.chk = 0.15;
+        for (i = this.decals.length - 1; i >= 0; i--) { dc = this.decals[i]; if ((dc.pool || (dc.k === 'blood' && dc.r > 9)) && dc.age < 45 && Math.abs(dc.x - p.x) < 15 && Math.abs(dc.y - p.y) < 15) { p.bloody = 3.5; break; } }
+      }
+      if (p.bloody > 0 && (p.stepT -= dt) <= 0) {
+        p.stepT = 0.15; p.foot = -p.foot;
+        this.decal({ k: 'foot', x: p.x - Math.sin(p.ang) * 4.5 * p.foot, y: p.y + Math.cos(p.ang) * 4.5 * p.foot, r: 4, rot: p.ang, a: p.bloody / 3.5, life: 45 });
+      }
+    }
+    p.bloody -= dt;
     this.parts = this.parts.filter(living); this.decals = this.decals.filter(living);
     this.en = this.en.filter(alive); this.gems = this.gems.filter(alive); this.picks = this.picks.filter(alive);
     this.shots = this.shots.filter(living); this.zones = this.zones.filter(living); this.fx = this.fx.filter(living);

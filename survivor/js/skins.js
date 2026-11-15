@@ -288,14 +288,31 @@
     },
     decal: function (ctx, d) {
       if (!splats) makeSplats();
-      var a = Math.min(1, d.life / 6), s;
+      var a = Math.min(1, d.life / 6), s, t;
       if (d.k === 'scorch') { s = d.r * 2.5; ctx.globalAlpha = 0.85 * a; ctx.drawImage(scorchTex, d.x - s / 2, d.y - s / 2, s, s); ctx.globalAlpha = 1; return; }
+      if (d.k === 'foot') { ctx.globalAlpha = 0.8 * a * d.a; ctx.fillStyle = '#560909'; ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot); ell(ctx, 0, 0, 4.2, 2); ctx.fill(); ell(ctx, -4.6, 0, 1.6, 1.7); ctx.fill(); ctx.restore(); ctx.globalAlpha = 1; return; }
+      if (d.k === 'streak') { s = d.r * 2.6; ctx.globalAlpha = 0.9 * a; ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot); ctx.scale(2.3, 0.6); ctx.drawImage(splats[d.v], -s / 2, -s / 2, s, s); ctx.restore(); ctx.globalAlpha = 1; return; }
       if (d.k === 'blood' || d.pool) {   /* pools under the dead spread for a moment */
-        s = (d.k === 'blood' ? d.r * 2.6 : d.r * 4.6 * Math.min(1, 0.35 + d.age * 0.5));
-        ctx.globalAlpha = 0.9 * a; ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot + d.v); ctx.drawImage(splats[d.v], -s / 2, -s / 2, s, s); ctx.restore();
+        s = d.k === 'blood' ? d.r * 2.6 : d.r * 4.8 * d.pool * Math.min(1, 0.35 + d.age * 0.5);
+        ctx.globalAlpha = 0.92 * a; ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot + d.v); ctx.drawImage(splats[d.v], -s / 2, -s / 2, s, s); ctx.restore();
       }
-      if (d.k !== 'blood') { ctx.globalAlpha = a; blit(ctx, remains(BODY[d.arch] ? d.arch : 'soldier', this.tints[d.tint], d.r, LOOK[d.tint], 't' + d.tint, d.k === 'wreck'), d.x, d.y, d.rot); }
+      ctx.globalAlpha = a;
+      if (d.k === 'helm') {
+        t = shade(this.tints[d.tint], 0.72); ctx.fillStyle = 'rgba(0,0,0,.4)'; ell(ctx, d.x + 1, d.y + 1.5, d.r, d.r); ctx.fill();
+        ctx.fillStyle = t; ell(ctx, d.x, d.y, d.r, d.r); ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 0.8; ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,.2)'; ell(ctx, d.x - d.r * 0.3, d.y - d.r * 0.3, d.r * 0.3, d.r * 0.18, -0.6); ctx.fill();
+      } else if (d.k === 'limb') {
+        ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+        ctx.fillStyle = shade(this.tints[d.tint], 0.7); ctx.fillRect(-d.r, -d.r * 0.32, d.r * 1.7, d.r * 0.64);
+        ctx.fillStyle = '#191712'; ctx.fillRect(d.r * 0.5, -d.r * 0.36, d.r * 0.5, d.r * 0.72);
+        ctx.fillStyle = '#8a1111'; ell(ctx, -d.r, 0, d.r * 0.3, d.r * 0.36); ctx.fill(); ctx.restore();
+      } else if (d.k !== 'blood') blit(ctx, remains(BODY[d.arch] ? d.arch : 'soldier', this.tints[d.tint], d.r, LOOK[d.tint], 't' + d.tint, d.k === 'wreck'), d.x, d.y, d.rot);
       ctx.globalAlpha = 1;
+    },
+    /* blood on the lens when the player is hit; x, y and size are in screen pixels */
+    splat: function (ctx, v, x, y, size, rot, alpha) {
+      if (!splats) makeSplats();
+      ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y); ctx.rotate(rot); ctx.drawImage(splats[v], -size / 2, -size / 2, size, size); ctx.restore();
     },
     /* friendly things that move around the player */
     orbiter: function (ctx, x, y, ang, size) { shadow(ctx, x + 6, y + 10, size * 0.9, ang); blit(ctx, sprite('plane', '#5d6b3a', Math.round(size * 1.5), 0, false), x, y, ang); },

@@ -1,25 +1,26 @@
 /* Last Foxhole: input, screens, save data and the frame loop. */
 (function () {
   'use strict';
-  var LL = window.LL, D = LL.DATA, A = LL.Audio, $ = function (id) { return document.getElementById(id); };
+  var LL = window.LL, D = LL.DATA, A = LL.Audio, P = LL.Progress, $ = function (id) { return document.getElementById(id); };
 
   /* ---- save data: lives on the device only, nothing is sent anywhere */
   var save = { coins: 0, up: {}, best: 0, wins: 0, sound: true, gore: true, cls: 'rifleman' };
   try { var raw = JSON.parse(localStorage.getItem('ll.save') || '{}'); for (var k in raw) save[k] = raw[k]; } catch (e) {}
+  P.defaults(save);
   function persist() { try { localStorage.setItem('ll.save', JSON.stringify(save)); } catch (e) {} }
 
-  var game = new LL.Game(), view = new LL.Renderer($('stage')), skin, state = 'menu';
+  var game = new LL.Game(), view = new LL.Renderer($('stage')), skin = LL.SKINS.real, state = 'menu';
   var input = { x: 0, y: 0 }, keys = {}, touch = null, buildKey = '';
-
-  skin = LL.SKINS.real;
   (function () {
     var s = document.documentElement.style, u = skin.ui;
     ['text', 'dim', 'panel', 'accent', 'hp', 'xp', 'track', 'edge', 'font'].forEach(function (n) { s.setProperty('--' + n, u[n]); });
     s.setProperty('--bg', skin.bg);
   })();
   function icon(id, colKey) { return LL.iconURL(id, LL.col(skin, colKey)); }
+  var portraits = {};
+  function portrait(cls) { return portraits[cls] || (portraits[cls] = LL.heroSprite(cls, 96).toDataURL()); }
 
-  /* ---- sound */
+  /* ---- settings */
   function setSound(on) { save.sound = A.on = on; persist(); $('soundBtn').textContent = $('soundBtn2').textContent = 'Sound: ' + (on ? 'on' : 'off'); }
   [$('soundBtn'), $('soundBtn2')].forEach(function (b) { b.addEventListener('click', function () { A.unlock(); setSound(!save.sound); A.play('click'); }); });
   setSound(save.sound !== false);
@@ -30,25 +31,44 @@
   document.addEventListener('pointerdown', A.unlock, { passive: true });
 
   /* ---- screens */
-  var SCREENS = ['menu', 'classes', 'shop', 'levelup', 'chest', 'pause', 'over'];
+  var SCREENS = ['menu', 'classes', 'shop', 'record', 'levelup', 'chest', 'pause', 'over'];
   function show(next) {
     state = next;
     SCREENS.forEach(function (id) { $(id).hidden = id !== next; });
-    $('hud').hidden = next === 'menu' || next === 'shop' || next === 'classes';
+    $('hud').hidden = next === 'menu' || next === 'shop' || next === 'classes' || next === 'record';
     if (next !== 'play') endTouch();
+    if (next !== 'play' && next !== 'pause') $(next).scrollTop = 0;
   }
   function clock(t) { t = Math.floor(t); return ('0' + Math.floor(t / 60)).slice(-2) + ':' + ('0' + t % 60).slice(-2); }
-  function start(cls) { A.unlock(); A.play('click'); if (D.classes[cls]) { save.cls = cls; persist(); } game.reset(save.up, save.cls); buildKey = ''; $('bossbar').hidden = true; $('banner').hidden = true; show('play'); }
+  function num(n) { return String(Math.floor(n)).replace(/\B(?=(\d{3})+$)/g, ','); }
+  function start(cls) {
+    A.unlock(); A.play('click');
+    if (D.classes[cls] && P.unlocked(save, 'classes', cls)) save.cls = cls;
+    if (!P.unlocked(save, 'classes', save.cls)) save.cls = 'rifleman';
+    persist();
+    game.reset(save.up, save.cls, P.runOptions(save, save.cls)); buildKey = ''; $('bossbar').hidden = true; $('banner').hidden = true;
+    if (game.night > 1) banner('Night ' + game.night);
+    show('play');
+  }
   function resume() { if (game.over) return finish(); if (game.pending > 0) return levelUp(); if (game.chests > 0) return openChest(); show('play'); }
 
   function card(c, tag) {
     var b = document.createElement(tag || 'button'); if (!tag) b.type = 'button';
-    b.className = 'card' + (c.isEvo ? ' evo' : '');
+    b.className = 'card' + (c.isEvo ? ' evo' : '') + (c.cls ? ' ' + c.cls : '');
     b.innerHTML = '<img alt=""><span class="nm"></span><span class="lv"></span><span class="tx"></span>';
     b.children[0].src = c.img || icon(c.icon || c.id, c.col);
     b.children[1].textContent = c.name; b.children[2].textContent = c.tagText || (c.isEvo ? 'FINAL FORM' : c.isNew ? 'NEW' : c.lvl ? 'LV ' + c.lvl : ''); b.children[3].textContent = c.text;
+    if (c.bar != null) { var m = document.createElement('span'); m.className = 'mbar'; m.innerHTML = '<i style="width:' + Math.round(c.bar * 100) + '%"></i>'; b.appendChild(m); }
     return b;
   }
+  function line(html) { var d = document.createElement('div'); d.className = 'line'; d.innerHTML = html; return d; }
+  function rankBar(nameEl, fillEl, noteEl) {
+    var r = P.rank(save);
+    $(nameEl).textContent = r.name; $(fillEl).style.width = (r.need ? r.into / r.need * 100 : 100) + '%';
+    $(noteEl).textContent = r.need ? num(r.into) + ' / ' + num(r.need) + ' service XP' : 'Highest rank';
+    return r;
+  }
+
   function levelUp() {
     var box = $('cards'); box.textContent = '';
     game.choices().forEach(function (c) {
@@ -71,49 +91,88 @@
 
   function chip(o) { return '<span class="chip' + (o.evo ? ' evo' : '') + '"><img alt="" src="' + icon(o.id, o.def.col) + '">' + (o.evo ? o.def.evo.name : o.def.name + ' ' + o.lvl) + '</span>'; }
   function pause() { if (state !== 'play') return; $('loadout').innerHTML = game.weapons.concat(game.passives).map(chip).join(''); show('pause'); }
-  function bank() { var c = Math.floor(game.coins); game.coins = 0; save.coins += c; return c; }
-  function finish() {
-    var rec = game.t > save.best, c = bank();
-    if (rec) save.best = Math.floor(game.t);
+
+  /* ---- end of a run: bank scrap and service XP, then the debrief */
+  function finish(quit) {
+    var c = Math.floor(game.coins); game.coins = 0; save.coins += c;
+    var rec = game.t > save.best; if (rec) save.best = Math.floor(game.t);
     if (game.won) save.wins++;
+    var out = P.finish(save, game, c);
     persist();
-    $('overTitle').textContent = game.won ? 'Relief arrives at dawn' : 'Position overrun';
+    $('overTitle').textContent = game.won ? 'Relief arrives at dawn' : quit ? 'Withdrawn' : 'Position overrun';
     $('summary').innerHTML = (game.won ? 'You held the line for <b>' : 'Held out for <b>') + clock(game.t) + '</b>' + (rec && !game.won ? ' (new best)' : '') +
-      '<br>Level ' + game.lvl + ' · ' + game.kills + ' enemies down<br>' + game.cls.name + ' · ' + c + ' scrap banked';
-    A.play(game.won ? 'win' : 'lose'); show('over');
+      '<br>' + game.cls.name + (game.night > 1 ? ' · Night ' + game.night : '') + ' · level ' + game.lvl + '<br>' + num(game.kills) + ' enemies down · ' + c + ' scrap · +' + num(out.xp) + ' service XP';
+    rankBar('overRank', 'overFill', 'overNote');
+    var box = $('debrief'); box.textContent = '';
+    out.ranks.forEach(function (n) { box.appendChild(line('<b>Promoted</b> to ' + n)); });
+    out.unlocks.forEach(function (u) { box.appendChild(line('<b>Unlocked</b> ' + u)); });
+    if (out.night) box.appendChild(line('<b>Unlocked</b> Night ' + out.night + ': a harder fight with better pay'));
+    if (out.mastery) box.appendChild(line('<b>' + game.cls.name + ' mastery ' + out.mastery + '</b> ' + out.perks.join(', ')));
+    out.medals.forEach(function (m) { box.appendChild(line('<b>Medal: ' + m.name + '</b> ' + m.desc + ' +' + m.scrap + ' scrap')); });
+    A.play(game.won ? 'win' : out.ranks.length || out.medals.length ? 'chest' : 'lose'); show('over');
   }
   function menu() {
-    $('best').textContent = (save.best ? 'Best run ' + clock(save.best) : '') + (save.wins ? ' · ' + save.wins + (save.wins === 1 ? ' night held' : ' nights held') : '');
-    $('shopBtn').textContent = 'Quartermaster (' + save.coins + ' scrap)'; show('menu');
+    var r = rankBar('rankName', 'rankFill', 'rankNote'), nxt = r.idx < P.RANKS.length - 1 ? P.unlocksAt(r.idx + 1) : [];
+    if (nxt.length) $('rankNote').textContent += ' · next: ' + nxt[0].replace(/^\w+: /, '');
+    $('shopBtn').textContent = 'Quartermaster (' + num(save.coins) + ' scrap)';
+    var got = Object.keys(save.medals).length;
+    $('recordBtn').textContent = 'Service record (' + got + '/' + P.MEDALS.length + ' medals)';
+    show('menu');
   }
   function shop() {
-    var box = $('shopList'); box.textContent = ''; $('purse').textContent = save.coins + ' scrap';
+    var box = $('shopList'), rank = P.rank(save).idx; box.textContent = ''; $('purse').textContent = num(save.coins) + ' scrap';
     Object.keys(D.shop).forEach(function (id) {
-      var it = D.shop[id], lv = save.up[id] || 0, maxed = lv >= it.max, cost = it.cost * (lv + 1);
-      var b = card({ id: id, icon: D.shopIcon[id], col: 'accent', name: it.name, text: it.per, tagText: maxed ? 'MAX' : lv + '/' + it.max + ' · ' + cost + ' scrap' });
-      b.disabled = maxed || save.coins < cost;
+      var it = D.shop[id], lv = save.up[id] || 0, maxed = lv >= it.max, cost = it.cost * (lv + 1), locked = (it.rank || 0) > rank;
+      var b = card({ id: id, icon: D.shopIcon[id], col: 'accent', name: it.name, text: it.per, cls: locked ? 'locked' : '', tagText: locked ? P.RANKS[it.rank].toUpperCase() : maxed ? 'MAX' : lv + '/' + it.max + ' · ' + cost + ' scrap' });
+      b.disabled = locked || maxed || save.coins < cost;
       b.addEventListener('click', function () { if (save.coins < cost) return; save.coins -= cost; save.up[id] = lv + 1; persist(); A.play('pick'); shop(); });
       box.appendChild(b);
     });
     show('shop');
   }
-
   function classes() {
     var box = $('classList'); box.textContent = '';
+    $('nightName').textContent = 'Night ' + save.nightSel; $('nightText').textContent = P.nightText(save.nightSel) + (save.night < P.MAX_NIGHT && save.nightSel === save.night ? ' Win to unlock Night ' + (save.night + 1) + '.' : '');
+    $('nightDown').disabled = save.nightSel <= 1; $('nightUp').disabled = save.nightSel >= save.night;
     Object.keys(D.classes).forEach(function (id) {
-      var c = D.classes[id], w = D.weapons[c.start];
-      var b = card({ id: id, img: LL.heroSprite(id, 96).toDataURL(), name: c.name, text: c.desc + ' Starts with ' + w.name + (c.also ? ' and ' + D.weapons[c.also].name : '') + '.', tagText: c.role.toUpperCase() });
-      if (id === save.cls) b.className += ' evo';
+      var c = D.classes[id], w = D.weapons[c.start], open = P.unlocked(save, 'classes', id), m = P.mastery(save, id);
+      var b = card({ id: id, img: portrait(id), name: c.name, cls: open ? (id === save.cls ? 'got' : '') : 'locked', bar: open ? (m.need ? m.into / m.need : 1) : null,
+        text: open ? c.desc + ' Starts with ' + w.name + (c.also ? ' and ' + D.weapons[c.also].name : '') + '.' : 'Reach the rank of ' + P.RANKS[P.reqRank('classes', id)] + ' to enlist this soldier.',
+        tagText: open ? c.role.toUpperCase() + ' · M' + m.lvl : 'LOCKED' });
+      b.disabled = !open;
       b.addEventListener('click', function () { start(id); });
       box.appendChild(b);
     });
     show('classes');
   }
+  $('nightDown').addEventListener('click', function () { if (save.nightSel > 1) { save.nightSel--; A.play('click'); classes(); } });
+  $('nightUp').addEventListener('click', function () { if (save.nightSel < save.night) { save.nightSel++; A.play('click'); classes(); } });
+  function record() {
+    var r = rankBar('recRank', 'recFill', 'recNote'), st = save.stats, box, nxt = [], i;
+    for (i = r.idx + 1; i < P.RANKS.length && nxt.length < 3; i++) P.unlocksAt(i).forEach(function (u) { if (nxt.length < 3) nxt.push(u + ' (' + P.RANKS[i] + ')'); });
+    $('recNext').textContent = nxt.length ? 'Coming up: ' + nxt.join(' · ') : 'Everything is unlocked.';
+    $('recStats').innerHTML = num(st.kills) + ' enemies down · ' + st.runs + ' runs · ' + st.wins + ' won<br>' + st.bosses + ' bosses destroyed · ' + clock(st.time) + ' in the field · highest night ' + save.night;
+    box = $('recMast'); box.textContent = '';
+    Object.keys(D.classes).forEach(function (id) {
+      var m = P.mastery(save, id), open = P.unlocked(save, 'classes', id);
+      box.appendChild(card({ id: id, img: portrait(id), name: D.classes[id].name, cls: open ? '' : 'locked', bar: m.need ? m.into / m.need : 1, tagText: 'MASTERY ' + m.lvl,
+        text: !open ? 'Locked until ' + P.RANKS[P.reqRank('classes', id)] + '.' : m.lvl >= P.MAX_MASTERY ? 'Fully mastered.' : 'Next: ' + P.PERKS[m.lvl + 1] + '.' }, 'div'));
+    });
+    box = $('recMedals'); box.textContent = '';
+    $('recMedalHead').textContent = 'Medals ' + Object.keys(save.medals).length + '/' + P.MEDALS.length;
+    P.MEDALS.forEach(function (m) {
+      var got = !!save.medals[m.id];
+      box.appendChild(card({ id: m.id, icon: 'spark', col: got ? 'accent' : '#5a5a4a', name: m.name, text: m.desc, cls: got ? 'got' : 'locked', tagText: got ? 'EARNED' : '+' + m.scrap + ' SCRAP' }, 'div'));
+    });
+    show('record');
+  }
+
   $('playBtn').addEventListener('click', function () { A.unlock(); A.play('click'); classes(); }); $('againBtn').addEventListener('click', function () { start(); });
-  $('classBack').addEventListener('click', menu);
+  $('classBack').addEventListener('click', menu); $('recordBack').addEventListener('click', menu);
   $('shopBtn').addEventListener('click', function () { A.play('click'); shop(); }); $('shopBack').addEventListener('click', menu);
+  $('recordBtn').addEventListener('click', function () { A.play('click'); record(); });
   $('pauseBtn').addEventListener('click', pause); $('resumeBtn').addEventListener('click', function () { A.unlock(); show('play'); });
-  $('quitBtn').addEventListener('click', function () { bank(); persist(); menu(); }); $('menuBtn').addEventListener('click', menu);
+  $('quitBtn').addEventListener('click', function () { finish(true); }); $('menuBtn').addEventListener('click', menu);
   /* an app must pause itself and go quiet when it leaves the foreground (call, notification, app switcher) */
   document.addEventListener('visibilitychange', function () { if (document.hidden) { pause(); A.suspend(); } });
   window.addEventListener('blur', pause);
@@ -180,5 +239,5 @@
   }
   menu();
   requestAnimationFrame(frame);
-  LL.debug = { game: game, show: show, resume: resume, save: save, state: function () { return state; } };
+  LL.debug = { game: game, show: show, resume: resume, save: save, menu: menu, state: function () { return state; } };
 })();

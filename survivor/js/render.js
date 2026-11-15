@@ -32,6 +32,7 @@
     tex = {
       fire: puff([0, '#fff7d0', 0.22, '#ffc24a', 0.55, 'rgba(255,96,24,.6)', 1, 'rgba(120,20,0,0)']),
       smoke: puff([0, 'rgba(78,74,68,.6)', 0.6, 'rgba(60,58,54,.32)', 1, 'rgba(50,48,46,0)']),
+      mist: puff([0, 'rgba(150,14,14,.6)', 0.6, 'rgba(120,10,10,.3)', 1, 'rgba(100,8,8,0)']),
       gas: puff([0, 'rgba(168,182,104,.5)', 0.6, 'rgba(140,158,90,.26)', 1, 'rgba(120,140,80,0)'])
     };
   }
@@ -86,6 +87,9 @@
       q = game.parts[i]; k = q.life / q.max;
       if (q.k === 'blood') { g.fillStyle = '#860d0d'; g.beginPath(); g.arc(q.x, q.y, q.r * (0.6 + 0.4 * k), 0, TAU); g.fill(); }
       else if (q.k === 'gib') { g.save(); g.translate(q.x, q.y); g.rotate(q.rot + t * q.vr); g.fillStyle = '#5c0a0a'; g.fillRect(-q.r, -q.r * 0.6, q.r * 2, q.r * 1.2); g.fillStyle = '#8f1b1b'; g.fillRect(-q.r * 0.5, -q.r * 0.3, q.r, q.r * 0.6); g.restore(); }
+      else if (q.k === 'mist') stamp(g, tex.mist, q.x, q.y, q.r * 2 * (0.7 + (1 - k) * 1.1), k * 0.9);
+      else if (q.k === 'limb') { g.save(); g.translate(q.x, q.y); g.rotate(q.rot + t * q.vr); g.fillStyle = skin.tints[q.tint]; g.fillRect(-q.r, -q.r * 0.32, q.r * 1.7, q.r * 0.64); g.fillStyle = '#8a1111'; g.fillRect(-q.r * 1.2, -q.r * 0.32, q.r * 0.4, q.r * 0.64); g.restore(); }
+      else if (q.k === 'helm') { g.fillStyle = skin.tints[q.tint]; g.beginPath(); g.arc(q.x, q.y, q.r, 0, TAU); g.fill(); g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 0.8; g.stroke(); }
       else if (q.k === 'dirt') { g.fillStyle = '#241c13'; g.beginPath(); g.arc(q.x, q.y, q.r, 0, TAU); g.fill(); }
       else if (q.k === 'case') { g.save(); g.translate(q.x, q.y); g.rotate(q.x * 0.3); g.fillStyle = '#d0a94e'; g.fillRect(-1.6, -0.8, 3.2, 1.6); g.restore(); }
       else if (q.k === 'smoke') stamp(g, tex.smoke, q.x, q.y, q.r * 2 * (1 + (1 - k) * 1.3), k * 0.75);
@@ -202,6 +206,15 @@
       g.beginPath(); g.moveTo(12, 0); g.lineTo(-8, -9); g.lineTo(-3, 0); g.lineTo(-8, 9); g.closePath(); g.fill(); g.stroke(); g.restore();
     }
     if (game.boss && !game.boss.dead) arrow(game.boss, u.hp);
+    /* blood on the lens, and the edges closing in when badly hurt */
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    for (i = 0; i < game.screen.length; i++) { q = game.screen[i]; skin.splat(g, q.v, q.x * W, q.y * H, q.r * Math.min(W, H) * 2.2, q.rot, Math.min(1, q.life / q.max * 1.6) * 0.8); }
+    var low = 1 - p.hp / game.stats.maxHp;
+    if (game.gore && low > 0.6 && !game.over) {
+      var vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.72);
+      vg.addColorStop(0, 'rgba(120,0,0,0)'); vg.addColorStop(1, 'rgba(120,0,0,' + ((low - 0.6) * 1.6 * (0.8 + 0.2 * Math.sin(t * 6))) + ')');
+      g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    }
     for (i = 0; i < game.picks.length; i++) if (game.picks[i].kind === 'chest') arrow(game.picks[i], u.accent);
   };
   LL.Renderer = Renderer;

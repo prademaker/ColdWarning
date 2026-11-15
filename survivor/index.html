@@ -31,16 +31,18 @@
   <section id="menu" class="screen">
     <h1>Last Foxhole</h1>
     <p class="tag">Hold the line until dawn. They come from every side.</p>
+    <div id="rankBox" class="rank"><span id="rankName"></span><div class="bar"><div id="rankFill"></div></div><span id="rankNote" class="dim small"></span></div>
     <button id="playBtn" class="big" type="button">Play</button>
     <button id="shopBtn" class="ghost" type="button">Quartermaster</button>
-    <p id="best" class="dim"></p>
+    <button id="recordBtn" class="ghost" type="button">Service record</button>
     <div class="row"><button id="soundBtn" class="link" type="button">Sound: on</button><button id="goreBtn" class="link" type="button">Blood and gore: on</button></div>
     <p class="dim small">Drag anywhere to move. Weapons fire on their own.<br>Hold out for ten minutes and stop what comes last.</p>
   </section>
 
   <section id="classes" class="screen" hidden>
     <h2>Choose your soldier</h2>
-    <p class="dim">Each one starts with a different weapon and fights differently.</p>
+    <div class="night"><button id="nightDown" class="ghost sq" type="button" aria-label="Easier night">&lt;</button><b id="nightName">Night 1</b><button id="nightUp" class="ghost sq" type="button" aria-label="Harder night">&gt;</button></div>
+    <p id="nightText" class="dim small"></p>
     <div id="classList" class="list"></div>
     <button id="classBack" class="ghost" type="button">Back</button>
   </section>
@@ -51,6 +53,18 @@
     <p id="purse" class="purse"></p>
     <div id="shopList" class="list"></div>
     <button id="shopBack" class="ghost" type="button">Back</button>
+  </section>
+
+  <section id="record" class="screen" hidden>
+    <h2>Service record</h2>
+    <div class="rank"><span id="recRank"></span><div class="bar"><div id="recFill"></div></div><span id="recNote" class="dim small"></span></div>
+    <p id="recNext" class="dim small"></p>
+    <p id="recStats" class="small"></p>
+    <h3>Class mastery</h3>
+    <div id="recMast" class="list"></div>
+    <h3 id="recMedalHead">Medals</h3>
+    <div id="recMedals" class="list"></div>
+    <button id="recordBack" class="ghost" type="button">Back</button>
   </section>
 
   <section id="levelup" class="screen" hidden>
@@ -76,8 +90,10 @@
   </section>
 
   <section id="over" class="screen" hidden>
-    <h2 id="overTitle">The light went out</h2>
+    <h2 id="overTitle">Position overrun</h2>
     <p id="summary"></p>
+    <div class="rank"><span id="overRank"></span><div class="bar"><div id="overFill"></div></div><span id="overNote" class="dim small"></span></div>
+    <div id="debrief" class="list"></div>
     <button id="againBtn" class="big" type="button">Play again</button>
     <button id="menuBtn" class="ghost" type="button">Menu</button>
   </section>
@@ -85,6 +101,7 @@
 <script src="js/skins.js"></script>
 <script src="js/data.js"></script>
 <script src="js/game.js"></script>
+<script src="js/progress.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/render.js"></script>

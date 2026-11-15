@@ -69,3 +69,17 @@ div.card { cursor: default; }
 .chip img { width: 24px; height: 24px; } .chip.evo { border-color: var(--accent); }
 #summary { font-size: 17px; line-height: 1.6; }
 .row { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 6px; flex-shrink: 0; }
+h3 { font-size: 16px; margin: 8px 0 0; color: var(--accent); text-transform: uppercase; letter-spacing: .08em; }
+.rank { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; max-width: 300px; flex-shrink: 0; }
+.rank > span:first-child { font-size: 17px; font-weight: 700; letter-spacing: .04em; }
+.bar { width: 100%; height: 9px; background: var(--track); border: 2px solid var(--edge); border-radius: 3px; overflow: hidden; }
+.bar > div { height: 100%; width: 0; background: var(--xp); }
+.night { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.night b { min-width: 96px; font-size: 19px; color: var(--text); }
+.sq { min-width: 44px; width: 44px; min-height: 44px; padding: 0; }
+.card.locked { opacity: .5; border-style: dashed; }
+.card.got { border-color: var(--accent); }
+.card .mbar { grid-column: 2 / 4; height: 5px; background: rgba(0,0,0,.5); border-radius: 2px; overflow: hidden; }
+.card .mbar i { display: block; height: 100%; background: var(--xp); }
+.line { width: 100%; max-width: 390px; padding: 9px 12px; text-align: left; font-size: 14px; background: var(--track); border-left: 4px solid var(--accent); flex-shrink: 0; }
+.line b { color: var(--accent); }
