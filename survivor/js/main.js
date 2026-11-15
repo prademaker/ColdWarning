@@ -31,11 +31,11 @@
   document.addEventListener('pointerdown', A.unlock, { passive: true });
 
   /* ---- screens */
-  var SCREENS = ['menu', 'classes', 'shop', 'record', 'levelup', 'chest', 'pause', 'over'];
+  var SCREENS = ['menu', 'classes', 'shop', 'armoury', 'talents', 'record', 'levelup', 'chest', 'pause', 'over'];
   function show(next) {
     state = next;
     SCREENS.forEach(function (id) { $(id).hidden = id !== next; });
-    $('hud').hidden = next === 'menu' || next === 'shop' || next === 'classes' || next === 'record';
+    $('hud').hidden = ['menu', 'shop', 'classes', 'record', 'armoury', 'talents'].indexOf(next) >= 0;
     if (next !== 'play') endTouch();
     if (next !== 'play' && next !== 'pause') $(next).scrollTop = 0;
   }
@@ -46,7 +46,7 @@
     if (D.classes[cls] && P.unlocked(save, 'classes', cls)) save.cls = cls;
     if (!P.unlocked(save, 'classes', save.cls)) save.cls = 'rifleman';
     persist();
-    game.reset(save.up, save.cls, P.runOptions(save, save.cls)); buildKey = ''; $('bossbar').hidden = true; $('banner').hidden = true;
+    game.reset(save.up, save.cls, P.runOptions(save, save.cls)); P.useSupply(save); persist(); buildKey = ''; $('bossbar').hidden = true; $('banner').hidden = true;
     if (game.night > 1) banner('Night ' + game.night);
     show('play');
   }
@@ -109,14 +109,19 @@
     if (out.night) box.appendChild(line('<b>Unlocked</b> Night ' + out.night + ': a harder fight with better pay'));
     if (out.mastery) box.appendChild(line('<b>' + game.cls.name + ' mastery ' + out.mastery + '</b> ' + out.perks.join(', ')));
     out.medals.forEach(function (m) { box.appendChild(line('<b>Medal: ' + m.name + '</b> ' + m.desc + ' +' + m.scrap + ' scrap')); });
+    out.items.forEach(function (o) { var d = line('<b>' + P.RARITY[o.it.rar].name + ' ' + o.it.name + '</b> ' + P.itemText(o.it) + (o.paid ? ' (pack full: broken down for ' + o.paid + ' scrap)' : '')); d.style.borderLeftColor = P.RARITY[o.it.rar].col; box.appendChild(d); });
+    if (out.supply) box.appendChild(line('<b>Supply found</b> ' + out.supply.name));
+    persist();
     A.play(game.won ? 'win' : out.ranks.length || out.medals.length ? 'chest' : 'lose'); show('over');
   }
   function menu() {
     var r = rankBar('rankName', 'rankFill', 'rankNote'), nxt = r.idx < P.RANKS.length - 1 ? P.unlocksAt(r.idx + 1) : [];
     if (nxt.length) $('rankNote').textContent += ' · next: ' + nxt[0].replace(/^\w+: /, '');
     $('shopBtn').textContent = 'Quartermaster (' + num(save.coins) + ' scrap)';
+    var tp = P.talentPoints(save); $('talBtn').textContent = 'Talents' + (tp.free > 0 ? ' (' + tp.free + ' to spend)' : '');
+    $('armBtn').textContent = 'Armoury (' + save.inv.length + ' items)';
     var got = Object.keys(save.medals).length;
-    $('recordBtn').textContent = 'Service record (' + got + '/' + P.MEDALS.length + ' medals)';
+    $('recordBtn').textContent = 'Record (' + got + '/' + P.MEDALS.length + ' medals)';
     show('menu');
   }
   function shop() {
@@ -167,6 +172,77 @@
     show('record');
   }
 
+  /* ---- armoury: equipment and supplies */
+  var selItem = 0, selSup = '';
+  function acts(list) {
+    var d = document.createElement('div'); d.className = 'acts';
+    list.forEach(function (a) { var b = document.createElement('button'); b.type = 'button'; b.className = 'ghost'; b.textContent = a[0]; b.disabled = !!a[2]; b.addEventListener('click', a[1]); d.appendChild(b); });
+    return d;
+  }
+  function itemCard(it, tag) {
+    var r = P.RARITY[it.rar];
+    return card({ id: it.id, icon: P.SLOT_ICON[it.slot], col: r.col, name: it.name, text: P.itemText(it), cls: selItem === it.id ? 'sel' : '', tagText: r.name.toUpperCase() + ' · LV ' + it.lvl }, tag);
+  }
+  function armoury() {
+    var eq = $('armEq'), inv = $('armInv'), sup = $('armSup');
+    eq.textContent = inv.textContent = sup.textContent = ''; $('armPurse').textContent = num(save.coins) + ' scrap';
+    function addItem(box, it) {
+      var b = itemCard(it); b.style.borderColor = selItem === it.id ? '' : P.RARITY[it.rar].col;
+      b.addEventListener('click', function () { selItem = selItem === it.id ? 0 : it.id; A.play('click'); armoury(); });
+      box.appendChild(b);
+      if (selItem !== it.id) return;
+      var worn = P.equipped(save, it), cost = P.upgradeCost(it), maxed = it.lvl >= P.MAX_ITEM_LVL;
+      box.appendChild(acts([
+        [worn ? 'Take off' : 'Equip', function () { if (worn) delete save.eq[it.slot]; else save.eq[it.slot] = it.id; persist(); A.play('pick'); armoury(); }],
+        [maxed ? 'Max level' : 'Upgrade ' + cost, function () { if (save.coins < cost) return; save.coins -= cost; it.lvl++; persist(); A.play('level'); armoury(); }, maxed || save.coins < cost],
+        ['Scrap +' + P.scrapValue(it), function () { save.coins += P.scrapValue(it); P.removeItem(save, it); selItem = 0; persist(); A.play('boom'); armoury(); }]
+      ]));
+    }
+    Object.keys(P.SLOTS).forEach(function (slot) {
+      var it = save.eq[slot] && P.item(save, save.eq[slot]);
+      if (it) addItem(eq, it);
+      else eq.appendChild(card({ id: slot, icon: P.SLOT_ICON[slot], col: '#5a5a4a', name: P.SLOTS[slot], text: 'Nothing equipped.', cls: 'locked', tagText: 'EMPTY' }, 'div'));
+    });
+    var rest = save.inv.filter(function (it) { return !P.equipped(save, it); }).sort(function (a, b) { return b.rar - a.rar || b.lvl - a.lvl; });
+    $('armInvHead').textContent = 'Pack ' + save.inv.length + '/' + P.MAX_INV;
+    if (!rest.length) inv.appendChild(line('Nothing spare. Bosses always drop gear, elites sometimes do, and every run past two minutes brings something back.'));
+    rest.forEach(function (it) { addItem(inv, it); });
+    Object.keys(P.SUPPLIES).forEach(function (id) {
+      var su = P.SUPPLIES[id], n = save.sup[id] || 0, on = save.supSel === id && n > 0;
+      var b = card({ id: id, icon: su.icon, col: 'accent', name: su.name, text: su.per, cls: on ? 'got' : selSup === id ? 'sel' : '', tagText: (on ? 'TAKING · ' : '') + 'HAVE ' + n });
+      b.addEventListener('click', function () { selSup = selSup === id ? '' : id; A.play('click'); armoury(); });
+      sup.appendChild(b);
+      if (selSup !== id) return;
+      sup.appendChild(acts([
+        [on ? 'Leave behind' : 'Take on next run', function () { save.supSel = on ? null : id; persist(); A.play('pick'); armoury(); }, n <= 0],
+        ['Buy ' + su.cost, function () { if (save.coins < su.cost) return; save.coins -= su.cost; save.sup[id] = n + 1; persist(); A.play('pick'); armoury(); }, save.coins < su.cost]
+      ]));
+    });
+    show2('armoury');
+  }
+  /* ---- talents */
+  function talents() {
+    var box = $('talList'), tp = P.talentPoints(save); box.textContent = '';
+    $('talPoints').textContent = tp.free + ' point' + (tp.free === 1 ? '' : 's') + ' to spend · ' + tp.spent + ' spent';
+    P.BRANCHES.forEach(function (name, bi) {
+      var h = document.createElement('h3'); h.textContent = name + ' · ' + tp.branch[bi] + ' spent'; box.appendChild(h);
+      P.TALENTS.filter(function (t) { return t.b === bi; }).forEach(function (t) {
+        var n = save.tal[t.id] || 0, gate = tp.branch[bi] < t.req, can = P.canLearn(save, t);
+        var b = card({ id: t.id, icon: ['might', 'armor', 'coin'][bi], col: n ? 'accent' : '#8a8a78', name: t.name, cls: gate ? 'locked' : n >= t.max ? 'got' : '', tagText: n + '/' + t.max,
+          text: t.per + ' per point.' + (gate ? ' Needs ' + t.req + ' points in ' + name + '.' : '') });
+        b.disabled = !can;
+        b.addEventListener('click', function () { if (!P.canLearn(save, t)) return; save.tal[t.id] = n + 1; persist(); A.play('level'); talents(); });
+        box.appendChild(b);
+      });
+    });
+    $('talReset').disabled = tp.spent === 0;
+    show2('talents');
+  }
+  /* re-rendering a list should not jump back to the top */
+  function show2(id) { var el = $(id), y = state === id ? el.scrollTop : 0; show(id); el.scrollTop = y; }
+  $('armBtn').addEventListener('click', function () { A.play('click'); selItem = 0; selSup = ''; armoury(); }); $('armBack').addEventListener('click', menu);
+  $('talBtn').addEventListener('click', function () { A.play('click'); talents(); }); $('talBack').addEventListener('click', menu);
+  $('talReset').addEventListener('click', function () { save.tal = {}; persist(); A.play('click'); talents(); });
   $('playBtn').addEventListener('click', function () { A.unlock(); A.play('click'); classes(); }); $('againBtn').addEventListener('click', function () { start(); });
   $('classBack').addEventListener('click', menu); $('recordBack').addEventListener('click', menu);
   $('shopBtn').addEventListener('click', function () { A.play('click'); shop(); }); $('shopBack').addEventListener('click', menu);

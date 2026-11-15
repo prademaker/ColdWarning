@@ -13,7 +13,7 @@
     this.clsId = D.classes[cls] ? cls : 'rifleman'; this.cls = D.classes[this.clsId];
     var mods = this.cls.mods;
     opt = opt || {}; this.night = opt.night || 1; this.threat = this.night - 1; this.bonus = opt.bonus || {}; this.allow = opt.allow || null;
-    this.bossKills = 0; this.evos = 0; this.chestsOpened = 0; this.eliteKills = 0; this.hitT = -1; this.screen = [];
+    this.bossKills = 0; this.evos = 0; this.chestsOpened = 0; this.eliteKills = 0; this.hitT = -1; this.screen = []; this.gear = [];
     this.t = 0;
     this.p = { x: 0, y: 0, r: 14, face: 1, ang: -Math.PI / 2, look: -Math.PI / 2, chk: 0, bloody: 0, stepT: 0, foot: 1, moving: false, hurt: false, hurtT: 0, hp: 100, inv: 0, lightMul: 1, cls: this.clsId };
     this.en = []; this.shots = []; this.gems = []; this.fx = []; this.zones = []; this.mines = []; this.strikes = []; this.eshots = []; this.picks = [];
@@ -21,14 +21,14 @@
     this.weapons = []; this.passives = [];
     this.xp = 0; this.lvl = 1; this.next = 6; this.kills = 0; this.coins = 0;
     this.pending = 0; this.chests = 0; this.over = false; this.won = false;
-    this.rerolls = 1 + (this.meta.reroll || 0) + (mods.reroll || 0) + (this.bonus.reroll || 0); this.revives = (this.meta.revive || 0) + (mods.revive || 0);
+    this.rerolls = 1 + (this.meta.reroll || 0) + (mods.reroll || 0) + (this.bonus.reroll || 0); this.revives = (this.meta.revive || 0) + (mods.revive || 0) + (this.bonus.revive || 0);
     this.spawnAcc = 0; this.ringT = 40; this.eliteT = 75; this.bossIdx = 0; this.boss = null;
     this.view = { w: 420, h: 800 };
     this.grid = new Map();
     this.stats = {}; this.ev = {};
     this.take({ type: 'w', id: this.cls.start });
     if (this.cls.also) this.take({ type: 'w', id: this.cls.also });
-    if (this.bonus.startLvl > 1) this.take({ type: 'w', id: this.cls.start });
+    for (var sl = 1; sl < (this.bonus.startLvl || 1); sl++) this.take({ type: 'w', id: this.cls.start });
     if (this.bonus.passive) this.take({ type: 'p', id: this.bonus.passive });
     this.pending = this.meta.head || 0;
     this.p.hp = this.stats.maxHp;
@@ -62,8 +62,9 @@
     var m = this.meta, i;
     var s = this.stats = { dmg: 1 + 0.05 * (m.might || 0) + (this.bonus.dmg || 0), cd: 1, speed: 1 + 0.03 * (m.swift || 0), maxHp: 100 + 10 * (m.vigor || 0) + (this.bonus.maxHp || 0),
       magnet: 1 + 0.08 * (m.magnet || 0), area: 1, regen: 0.1 * (m.recover || 0), armor: m.armor || 0, luck: 1 + 0.05 * (m.luck || 0), xp: 1 + 0.04 * (m.xp || 0),
-      coin: (1 + 0.1 * (m.greed || 0)) * (1 + 0.25 * this.threat), crit: 0, healMul: 1 };
+      coin: (1 + 0.1 * (m.greed || 0)) * (1 + 0.25 * this.threat), crit: 0, healMul: 1, overkill: 0, lastStand: 0, salvage: 0 };
     for (var k in this.cls.mods) if (k in s) s[k] += this.cls.mods[k];
+    var bs = this.bonus.stats; if (bs) for (k in bs) if (k in s) s[k] += bs[k];
     for (i = 0; i < this.passives.length; i++) { var q = this.passives[i]; s[q.def.stat] += q.def.add * q.lvl; }
     s.cd = Math.max(0.4, s.cd);
     for (i = 0; i < this.weapons.length; i++) this.weapons[i].s = weaponStats(this.weapons[i]);
@@ -144,11 +145,18 @@
     }
     return best;
   };
+  /* what an aimed weapon shoots at: usually the nearest enemy, but half the time the boss if it is in reach,
+     so a boss does not hide behind its escort */
+  G.target = function (x, y, maxR) {
+    var b = this.boss;
+    if (b && !b.dead && Math.random() < 0.5 && Math.hypot(b.x - x, b.y - y) < maxR + b.r) return b;
+    return this.nearest(x, y, maxR);
+  };
   G.addFx = function (f) { if (this.fx.length < 280) this.fx.push(f); };
   G.hit = function (e, dmg, fromX, fromY, knock) {
     if (e.dead) return;
     var crit = this.stats.crit > 0 && Math.random() < this.stats.crit;
-    dmg = Math.max(1, Math.round(dmg * this.stats.dmg * (crit ? 2 : 1)));
+    dmg = Math.max(1, Math.round(dmg * this.stats.dmg * (crit ? 2 : 1) * (this.stats.lastStand && this.p.hp < this.stats.maxHp * 0.3 ? 1 + this.stats.lastStand : 1)));
     e.hp -= dmg; e.hit = 0.1; this.ev.hit = true;
     if (e.arch === 'soldier' || e.arch === 'dog') { if (this.gore) this.blood(e.x, e.y, e.x - fromX, e.y - fromY, 4, 0.32); }
     else this.sparks(e.x, e.y, 2);
@@ -167,11 +175,12 @@
       for (i = 0; i < 16; i++) this.dropGem(e.x + (Math.random() - 0.5) * 110, e.y + (Math.random() - 0.5) * 110, 2);
       this.picks.push({ kind: 'chest', x: e.x, y: e.y }, { kind: 'coin', x: e.x + 30, y: e.y + 10, v: 40 });
       if (this.boss === e) this.boss = null;
-      this.bossKills++;
+      this.bossKills++; this.gear.push(2);
       this.ev.banner = def.name + ' is destroyed'; this.ev.bossDown = true;
       if (def.final) { this.won = true; this.over = true; }
     } else if (e.elite) {
       this.eliteKills++;
+      if (Math.random() < 0.2 + this.stats.salvage) { this.gear.push(1); this.ev.banner = 'Gear recovered'; }
       for (i = 0; i < 3; i++) this.dropGem(e.x + (Math.random() - 0.5) * 40, e.y + (Math.random() - 0.5) * 40, 2);
       this.picks.push({ kind: 'chest', x: e.x, y: e.y }, { kind: 'coin', x: e.x + 24, y: e.y, v: 10 });
     } else {
@@ -181,6 +190,7 @@
       else if (r < 0.057) this.picks.push({ kind: 'heal', x: e.x, y: e.y });
       else if (r < 0.0595) this.picks.push({ kind: 'magnet', x: e.x, y: e.y });
       else if (r < 0.0615) this.picks.push({ kind: 'bomb', x: e.x, y: e.y });
+      if (this.stats.overkill && this.cause !== 'blast' && Math.random() < this.stats.overkill) this.explode(e.x, e.y, 46, 14, 70);
     }
   };
   /* ---------------------------------------------------------------- the mess: particles in the air and stains on the ground */
@@ -285,7 +295,7 @@
   G.spawn = function (id, x, y, elite) {
     var def = D.enemies[id], scale = 1 + this.t / 110 + Math.pow(this.t / 400, 2), hp = (def.boss ? def.hp : def.hp * scale * (elite ? 9 : 1)) * (1 + 0.35 * this.threat);
     var e = { def: def, arch: def.arch, tint: def.tint, x: x, y: y, r: Math.round(def.r * (elite ? 1.55 : 1)), sp: def.sp * (0.9 + Math.random() * 0.2) * (elite ? 0.85 : 1),
-      hp: hp, maxHp: hp, dmg: def.dmg * (elite ? 1.5 : 1) * (1 + this.t / 400) * (1 + 0.15 * this.threat), seed: Math.random() * 1000, hit: 0, oc: 0, kx: 0, ky: 0, face: 1, ang: 0, dead: false,
+      hp: hp, maxHp: hp, dmg: def.dmg * (elite ? 1.5 : 1) * (def.boss ? 1 : 1 + this.t / 400) * (1 + 0.15 * this.threat), seed: Math.random() * 1000, hit: 0, oc: 0, kx: 0, ky: 0, face: 1, ang: 0, dead: false,
       slow: 0, elite: !!elite, t1: 1 + Math.random() * 2, t2: 2, t3: 3, st: 'walk', cx: 0, cy: 0, rot: 0 };
     this.en.push(e); return e;
   };
@@ -299,19 +309,20 @@
   };
   G.spawner = function (dt) {
     var cap = Math.min(320, 30 + this.t * 0.7), pt, i, id;
-    this.spawnAcc += dt * (0.8 + this.t / 34) * (1 + 0.1 * this.threat);
+    this.spawnAcc += dt * (0.8 + this.t / 34) * (1 + 0.1 * this.threat) * (this.boss && !this.boss.def.final ? 0.6 : 1);
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
       if (this.en.length < cap) { pt = this.edgePoint(40); this.spawn(this.pickEnemy(), pt.x, pt.y); }
     }
-    this.ringT -= dt;
+    var calm = this.boss && !this.boss.def.final;   /* no ambushes or elites while an early boss is up */
+    if (!calm) this.ringT -= dt;
     if (this.ringT <= 0) {   /* the horde closes in from all sides at once */
       this.ringT = 45; var n = Math.min(40, 14 + Math.floor(this.t / 20)), rad = Math.hypot(this.view.w, this.view.h) / 2 + 50;
       do { id = this.pickEnemy(); } while (D.enemies[id].ranged);
       for (i = 0; i < n; i++) this.spawn(id, this.p.x + Math.cos(i * TAU / n) * rad, this.p.y + Math.sin(i * TAU / n) * rad);
       this.ev.banner = 'They are closing in';
     }
-    this.eliteT -= dt;
+    if (!calm) this.eliteT -= dt;
     if (this.eliteT <= 0) {
       this.eliteT = 70; pt = this.edgePoint(60);
       do { id = this.pickEnemy(); } while (D.enemies[id].ranged || D.enemies[id].flies);
@@ -333,13 +344,13 @@
   }
   var FIRE = {
     bolt: function (g, w, s) {
-      var p = g.p, t = g.nearest(p.x, p.y, 430); if (!t) return false;
+      var p = g.p, t = g.target(p.x, p.y, 430); if (!t) return false;
       var a = Math.atan2(t.y - p.y, t.x - p.x); g.muzzle(a);
       for (var i = 0; i < s.count; i++) shot(g, w, 'bolt', a + (i - (s.count - 1) / 2) * 0.14, s);
       return true;
     },
     fan: function (g, w, s) {
-      var p = g.p, t = g.nearest(p.x, p.y, 300), a = t ? Math.atan2(t.y - p.y, t.x - p.x) : p.ang; g.muzzle(a);
+      var p = g.p, t = g.target(p.x, p.y, 300), a = t ? Math.atan2(t.y - p.y, t.x - p.x) : p.ang; g.muzzle(a);
       for (var i = 0; i < s.count; i++) shot(g, w, 'knife', a + (i - (s.count - 1) / 2) * 0.13, s, { life: 0.55 });
       return true;
     },
@@ -353,7 +364,7 @@
       return true;
     },
     bounce: function (g, w, s) {
-      var p = g.p, t = g.nearest(p.x, p.y, 430); if (!t) return false;
+      var p = g.p, t = g.target(p.x, p.y, 430); if (!t) return false;
       var a = Math.atan2(t.y - p.y, t.x - p.x); g.muzzle(a);
       for (var i = 0; i < s.count; i++) shot(g, w, 'orb', a + i * 0.5, s, { pierce: s.bounces + 1, life: 4 });
       return true;
@@ -382,7 +393,7 @@
       return true;
     },
     chain: function (g, w, s) {
-      var p = g.p, t = g.nearest(p.x, p.y, s.range); if (!t) return false;
+      var p = g.p, t = g.target(p.x, p.y, s.range); if (!t) return false;
       var seen = [], x = p.x, y = p.y; g.muzzle(Math.atan2(t.y - p.y, t.x - p.x));
       for (var i = 0; i <= s.jumps && t; i++) {
         g.addFx({ k: 'z', x: x, y: y, x2: t.x, y2: t.y, life: 0.18, max: 0.18, col: w.def.col });
@@ -392,7 +403,7 @@
       return true;
     },
     beam: function (g, w, s) {
-      var p = g.p, len = s.len * g.stats.area, t = g.nearest(p.x, p.y, len), a = t ? Math.atan2(t.y - p.y, t.x - p.x) : p.ang;
+      var p = g.p, len = s.len * g.stats.area, t = g.target(p.x, p.y, len), a = t ? Math.atan2(t.y - p.y, t.x - p.x) : p.ang;
       for (var i = 0; i < s.count; i++) {
         var b = a + (i - (s.count - 1) / 2) * 0.4, ex = Math.cos(b), ey = Math.sin(b); g.muzzle(b);
         for (var j = 0; j < g.en.length; j++) {
@@ -562,9 +573,9 @@
         }
         if (ai.chargeCd) {
           e.t3 -= dt;
-          if (e.st === 'walk' && e.t3 <= 0 && d < 420) { e.st = 'wind'; e.t3 = 0.85; }
-          else if (e.st === 'wind') { spd = 0; e.tele = true; if (e.t3 > 0.25) { e.cx = mx; e.cy = my; } if (e.t3 <= 0) { e.st = 'dash'; e.t3 = 0.65; } }
-          else if (e.st === 'dash') { mx = e.cx; my = e.cy; spd = 460; if (e.t3 <= 0) { e.st = 'walk'; e.t3 = ai.chargeCd; } }
+          if (e.st === 'walk' && e.t3 <= 0 && d < 420) { e.st = 'wind'; e.t3 = 1.15; }
+          else if (e.st === 'wind') { spd = 0; e.tele = true; if (e.t3 > 0.5) { e.cx = mx; e.cy = my; } if (e.t3 <= 0) { e.st = 'dash'; e.t3 = 0.65; } }
+          else if (e.st === 'dash') { mx = e.cx; my = e.cy; spd = 390; if (e.t3 <= 0) { e.st = 'walk'; e.t3 = ai.chargeCd; } }
         }
       }
       e.x += (mx * spd + e.kx) * dt; e.y += (my * spd + e.ky) * dt;

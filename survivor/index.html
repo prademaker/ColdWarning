@@ -33,8 +33,12 @@
     <p class="tag">Hold the line until dawn. They come from every side.</p>
     <div id="rankBox" class="rank"><span id="rankName"></span><div class="bar"><div id="rankFill"></div></div><span id="rankNote" class="dim small"></span></div>
     <button id="playBtn" class="big" type="button">Play</button>
-    <button id="shopBtn" class="ghost" type="button">Quartermaster</button>
-    <button id="recordBtn" class="ghost" type="button">Service record</button>
+    <div class="grid2">
+      <button id="armBtn" class="ghost" type="button">Armoury</button>
+      <button id="talBtn" class="ghost" type="button">Talents</button>
+      <button id="shopBtn" class="ghost" type="button">Quartermaster</button>
+      <button id="recordBtn" class="ghost" type="button">Service record</button>
+    </div>
     <div class="row"><button id="soundBtn" class="link" type="button">Sound: on</button><button id="goreBtn" class="link" type="button">Blood and gore: on</button></div>
     <p class="dim small">Drag anywhere to move. Weapons fire on their own.<br>Hold out for ten minutes and stop what comes last.</p>
   </section>
@@ -53,6 +57,28 @@
     <p id="purse" class="purse"></p>
     <div id="shopList" class="list"></div>
     <button id="shopBack" class="ghost" type="button">Back</button>
+  </section>
+
+  <section id="armoury" class="screen" hidden>
+    <h2>Armoury</h2>
+    <p id="armPurse" class="purse"></p>
+    <h3>Equipped</h3>
+    <div id="armEq" class="list"></div>
+    <h3 id="armInvHead">Pack</h3>
+    <div id="armInv" class="list"></div>
+    <h3>Supplies</h3>
+    <p class="dim small">Take one on your next run. It is used up.</p>
+    <div id="armSup" class="list"></div>
+    <button id="armBack" class="ghost" type="button">Back</button>
+  </section>
+
+  <section id="talents" class="screen" hidden>
+    <h2>Talents</h2>
+    <p id="talPoints" class="purse"></p>
+    <p class="dim small">One point per rank and one for every two medals.</p>
+    <div id="talList" class="list"></div>
+    <button id="talReset" class="ghost" type="button">Reset talents</button>
+    <button id="talBack" class="ghost" type="button">Back</button>
   </section>
 
   <section id="record" class="screen" hidden>

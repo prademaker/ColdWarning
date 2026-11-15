@@ -108,10 +108,10 @@
       grenadier: { arch: 'soldier', tint: 3, r: 13, sp: 40, hp: 22, dmg: 7, xp: 1, ranged: true },
       trooper: { arch: 'soldier', tint: 6, r: 16, sp: 36, hp: 34, dmg: 8, xp: 1 },
       car: { arch: 'tank', tint: 4, r: 24, sp: 30, hp: 130, dmg: 14, xp: 2 },
-      bull: { arch: 'tank', tint: 5, r: 42, sp: 44, hp: 2400, dmg: 22, xp: 2, boss: true, name: 'The Iron Bull', ai: { chargeCd: 4 } },
-      kennel: { arch: 'truck', tint: 3, r: 40, sp: 48, hp: 5000, dmg: 20, xp: 2, boss: true, name: 'The Kennel Wagon',
+      bull: { arch: 'tank', tint: 5, r: 42, sp: 44, hp: 1100, dmg: 12, xp: 2, boss: true, name: 'The Iron Bull', ai: { chargeCd: 5 } },
+      kennel: { arch: 'truck', tint: 3, r: 40, sp: 48, hp: 4400, dmg: 18, xp: 2, boss: true, name: 'The Kennel Wagon',
         ai: { summon: 'dog', summonN: 3, summonCd: 4, ring: 12, ringCd: 5 } },
-      behemoth: { arch: 'tank', tint: 7, r: 52, sp: 46, hp: 20000, dmg: 28, xp: 2, boss: true, final: true, name: 'The Behemoth',
+      behemoth: { arch: 'tank', tint: 7, r: 52, sp: 46, hp: 20000, dmg: 30, xp: 2, boss: true, final: true, name: 'The Behemoth',
         ai: { chargeCd: 6, ring: 18, ringCd: 3.2, summon: 'bike', summonN: 5, summonCd: 6 } }
     },
     /* which enemies may arrive from a given minute onward, with weights */
