@@ -121,6 +121,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
   (first attack wave no earlier than minute 10, slower AI, 50% longer gaps between defense waves); and a skirmish **Ceasefire** (5/10/15 minutes in which
   the computer players don't scout, raid, attack or fire superweapons).
 - Campaign, *Operation Northwind*: five Allies vs Axis missions with briefings, radio chatter, objectives and a mission select screen
+- Second campaign, *Operation Polar Dawn*: five missions played from the Axis side (Soviet Union, Russia, North Korea, China), with commando **Sokol** and Raven as an enemy; pick either campaign at the top of the campaign screen
   (each mission unlocks when you win the one before; add `?unlock` to the URL to open them all, or `?mission=<id>` to jump straight in).
   The Allies take on General Volkov's revived Soviet Union:
   1. **Thin Ice** (Arctic): Raven alone with a few Marines sneaks into a listening post, blows up its radar and runs for extraction.
@@ -168,6 +169,7 @@ If your browser blocks local files, serve the folder: `npx http-server .` and op
 | `js/waves.js` | Defense mode waves |
 | `js/coach.js` | Field guide: step-by-step hints for new players in skirmish and defense |
 | `js/campaign.js` | Campaign missions (data plus a small script each) and the mission runtime: objectives, radio, markers, timers |
+| `js/campaign_axis.js` | The Axis campaign, Operation Polar Dawn, on the same mission runtime |
 | `js/art.js` | 3D prism models for units, structures and scenery; sprite caches; sidebar cameos |
 | `js/render.js` | Isometric draw loop: terrain chunks, depth-sorted sprites, effects, fog, overlays |
 | `js/flags.js` | Faction flags as SVG |

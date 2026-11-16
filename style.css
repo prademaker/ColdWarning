@@ -286,6 +286,13 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 #campaign { margin-top: 14px; padding: 14px 16px 16px; }
 .c-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; }
 .c-head h3 { margin: 0; font-size: 16px; color: var(--gold); }
+.c-head { align-items: center; flex-wrap: wrap; }
+.c-pick { display: flex; gap: 6px; flex-wrap: wrap; }
+.c-tab { padding: 6px 12px 5px; background: var(--panel2); border: 2px solid var(--edge); color: var(--dim); border-radius: 2px;
+  font-family: var(--head); font-size: 16px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; text-align: left; line-height: 1.1; }
+.c-tab small { display: block; font-size: 11px; letter-spacing: 2px; font-weight: 500; color: inherit; opacity: .8; }
+.c-tab:hover { border-color: #5f7fa6; color: var(--text); }
+.c-tab.sel { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 18px -6px var(--gold); }
 .c-sub { color: var(--dim); font-size: 14px; }
 .c-body { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 16px; }
 #c-missions { display: flex; flex-direction: column; gap: 8px; }

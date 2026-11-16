@@ -287,19 +287,32 @@ const Main = {
 
   // mission list on the left, the selected mission's briefing on the right
   buildCampaign() {
-    const s = this.settings, list = CAMPAIGN.missions;
-    if (!s.mission || !list.some((m, i) => m.id === s.mission && CampaignProgress.unlocked(i))) {
+    const s = this.settings;
+    if (!s.campaign) s.campaign = s.mission ? campaignOf(s.mission).id : CAMPAIGN.id;
+    const camp = campaignById(s.campaign), list = camp.missions;
+    // the two campaigns: Allies and Axis
+    const pick = document.getElementById('c-pick');
+    pick.innerHTML = '';
+    for (const c of campaigns()) {
+      const b = document.createElement('button');
+      b.className = 'c-tab' + (c === camp ? ' sel' : '');
+      b.innerHTML = `${c.name}<small>${SIDES[c.side] ? SIDES[c.side].name : c.side}</small>`;
+      b.addEventListener('click', () => { if (c !== camp) { s.campaign = c.id; s.mission = null; this.buildMenu(); } });
+      pick.appendChild(b);
+    }
+    document.getElementById('c-sub').textContent = camp.sub;
+    if (!s.mission || !list.some((m, i) => m.id === s.mission && CampaignProgress.unlocked(i, list))) {
       // default to the first mission not yet won
       // (a veteran who has won a real mission isn't sent back to the tutorial)
-      const vet = list.some(m => !m.tutorial && CampaignProgress.record(m.id));
-      const i = list.findIndex((m, k) => CampaignProgress.unlocked(k) && !CampaignProgress.record(m.id) && !(vet && m.tutorial));
+      const vet = campaigns().some(c => c.missions.some(m => !m.tutorial && CampaignProgress.record(m.id)));
+      const i = list.findIndex((m, k) => CampaignProgress.unlocked(k, list) && !CampaignProgress.record(m.id) && !(vet && m.tutorial));
       s.mission = list[i >= 0 ? i : 0].id;
     }
     const box = document.getElementById('c-missions');
     box.innerHTML = '';
     let n = 0;
     list.forEach((m, i) => {
-      const open = CampaignProgress.unlocked(i), rec = CampaignProgress.record(m.id), num = m.tutorial ? '★' : ++n;
+      const open = CampaignProgress.unlocked(i, list), rec = CampaignProgress.record(m.id), num = m.tutorial ? '★' : ++n;
       const b = document.createElement('button');
       b.className = 'cm' + (s.mission === m.id ? ' sel' : '') + (open ? '' : ' locked');
       b.innerHTML = `<div class="cm-pic" style="background-image:url(assets/terrain/${THEATERS[m.theater].art}.webp)"><span>${num}</span></div>
@@ -324,7 +337,7 @@ const Main = {
   startMission(id) {
     const m = missionDef(id), s = this.settings;
     if (!m) return;
-    s.mode = 'campaign'; s.mission = id;
+    s.mode = 'campaign'; s.mission = id; s.campaign = campaignOf(id).id;
     this.start({ mission: id, faction: m.teams[0].faction, theater: m.theater, mapSize: m.map, seed: m.seed, difficulty: s.difficulty, speed: s.speed });
   },
 
@@ -476,14 +489,15 @@ const Main = {
       G.over.armistice ? this.armisticeText() :
       G.over.win ? 'The enemy has been eliminated. The region is secure.' : 'Our forces have been wiped out. Command has been lost.';
     const goals = M ? `<ul class="end-goals">${M.objectives.map(o => `<li class="${o.state}${o.optional ? ' bonus' : ''}">${o.text}${o.optional ? ' <i>(bonus)</i>' : ''}</li>`).join('')}</ul>` : '';
-    const next = M && G.over.win ? CAMPAIGN.missions[CAMPAIGN.missions.findIndex(m => m.id === M.def.id) + 1] : null;
+    const camp = M ? campaignOf(M.def.id) : null;
+    const next = M && G.over.win ? camp.missions[camp.missions.findIndex(m => m.id === M.def.id) + 1] : null;
     const buttons = !M ? '<button id="again">Play again</button><button id="tomenu">Main menu</button>' :
       (next ? '<button id="next">Next mission</button>' : '') + `<button id="again">${G.over.win ? 'Play again' : 'Retry'}</button><button id="tomenu">Campaign</button>`;
     el.innerHTML = `<div class="endbox ${G.over.win ? 'win' : 'lose'}">
       <h1>${M ? (G.over.win ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED') : G.over.win ? 'VICTORY' : 'DEFEAT'}</h1>
       ${G.over.armistice ? '<div class="end-mission">Armistice</div>' : ''}
       ${M ? `<div class="end-mission">${M.def.title}</div>` : ''}
-      <p>${text}</p>${M && G.over.win && !next ? '<p class="end-fin">Operation Northwind complete. Thank you for playing the campaign.</p>' : ''}${goals}
+      <p>${text}</p>${M && G.over.win && !next ? `<p class="end-fin">${camp.name} complete. ${camp.id === 'axis' || campaigns().every(c => c.missions.every(m => m.tutorial || CampaignProgress.record(m.id))) ? 'Thank you for playing the campaign.' : 'The war looks different from the other side: try ' + campaigns().find(c => c !== camp).name + ' next.'}</p>` : ''}${goals}
       <p class="time">Mission time ${mins}:${String(secs).padStart(2, '0')}</p>
       <table><tr><th></th>${teams.map(t => `<th style="color:${t.color}">${t.name}${t.id !== G.player && G.allied(t.id, G.player) ? ' (ally)' : ''}</th>`).join('')}</tr>
       ${row('Units built', 'built')}
