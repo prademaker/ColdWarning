@@ -737,5 +737,51 @@ for (const o of LOOKS) {
   if (!o.ax) { laser(o); missilenest(o); thaad(o); koksan(o); flametower(o); }
 }
 superSilo(false); superSilo(true);
+// ---------- oil derrick (neutral until an Engineer takes it; 2x2) ----------
+// A lattice drilling tower at the back, two storage tanks with a team band, a pumpjack in front.
+// The pumpjack's walking beam is drawn live (BLD_LIVE.oil: pivot at 48,47,17 game px).
+function oilDerrick() {
+  const m = site(32, 32, { pad: false });
+  m.cb(0.6, 31.4, 0.6, 31.4, 0, 0.3, 'sand', { ground: 1 });
+  m.cb(2.5, 21.5, 2.5, 21.5, 0.3, 0.9, 'concreteDark', { ground: 1 });
+  // the tower: three tapering sections of four legs with girts, a drill floor and a crown block
+  const cx = 11.5, cy = 11.5, secs = [[1.0, 9.5, 4.6], [9.5, 18, 3.4], [18, 26, 2.2]];
+  m.cb(cx - 5.6, cx + 5.6, cy - 5.6, cy + 5.6, 0.9, 2.4, 'steelDark');                  // substructure
+  m.cb(cx - 6.2, cx + 6.2, cy - 6.2, cy + 6.2, 2.4, 2.9, 'steel');                      // drill floor
+  for (const [z0, z1, r] of secs) {
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.cb(cx + sx * r - 0.35, cx + sx * r + 0.35, cy + sy * r - 0.35, cy + sy * r + 0.35, Math.max(z0, 2.9), z1, 'hazard');
+    for (const z of [z0 + (z1 - z0) * 0.5, z1 - 0.3]) {
+      m.cb(cx - r, cx + r, cy + r - 0.2, cy + r + 0.2, z - 0.2, z + 0.2, 'hazard'); m.cb(cx - r, cx + r, cy - r - 0.2, cy - r + 0.2, z - 0.2, z + 0.2, 'hazard');
+      m.cb(cx + r - 0.2, cx + r + 0.2, cy - r, cy + r, z - 0.2, z + 0.2, 'hazard'); m.cb(cx - r - 0.2, cx - r + 0.2, cy - r, cy + r, z - 0.2, z + 0.2, 'hazard');
+    }
+  }
+  m.cb(cx - 2.8, cx + 2.8, cy - 2.8, cy + 2.8, 26, 27.4, 'steelDark');                   // crown block
+  m.cb(cx - 2.85, cx + 2.85, cy - 2.85, cy + 2.85, 26.3, 26.9, 'team');
+  m.cc(cx, cy, 0.25, 3, 26, 'steelDark', { seg: 6 });                                      // drill line
+  m.cb(cx + 6.2, cx + 9.5, cy - 2.2, cy + 2.2, 0.9, 4.2, 'metal'); m.cb(cx + 6.1, cx + 9.6, cy - 2.3, cy + 2.3, 4.2, 4.6, 'roofDark'); // doghouse
+  m.cb(cx + 9.45, cx + 9.55, cy - 1, cy + 0.6, 1.8, 3.6, 'glass');
+  // storage tanks with the holder's band, joined to the wellhead by a pipe run
+  for (const [x, y, r, h, mat] of [[25.5, 7.5, 4.4, 10, 'metal'], [6.5, 26, 3.6, 8, 'rust']]) {
+    m.cc(x, y, r, 0.3, h, mat, { seg: 24 });
+    m.cc(x, y, r + 0.05, h - 2.6, h - 1.4, 'team', { seg: 24 });
+    m.sp(x, y, h, r, mat, { s: [1, 1, 0.18], seg: 24 });
+    m.cc(x, y, r + 0.3, 0.3, 1.0, 'concreteDark', { seg: 24 });
+  }
+  m.cb(15, 25.5, 12.6, 13.4, 0.6, 1.4, 'steelDark'); m.cb(25, 25.8, 12.6, 21, 0.6, 1.4, 'steelDark');
+  m.cb(6.1, 6.9, 17, 22.6, 0.6, 1.4, 'steelDark'); m.cb(6.1, 18, 17, 17.8, 0.6, 1.4, 'steelDark');
+  // pumpjack: skid, samson post, gearbox with crank weights, wellhead (the beam is drawn live)
+  m.cb(17.5, 30, 22, 25, 0.3, 1.2, 'steelDark');
+  m.sides(s => m.cb(23.6, 24.4, 23.5 + s * 1.2 - 0.3, 23.5 + s * 1.2 + 0.3, 1.2, 8.2, 'hazard'));
+  m.cb(23.2, 24.8, 22.6, 24.4, 7.8, 8.6, 'steelDark');
+  m.cb(26.5, 29, 22.6, 24.4, 1.2, 3.6, 'steelDark');
+  m.sides(s => m.cb(27, 28.6, 23.5 + s * 1.3 - 0.25, 23.5 + s * 1.3 + 0.25, 1.6, 5.2, 'red'));
+  m.cc(19, 23.5, 0.7, 0.3, 2.6, 'steelDark', { seg: 10 }); m.cc(19, 23.5, 1.1, 0.3, 0.9, 'steel', { seg: 10 });
+  // a stack of pipe sections and a couple of drums
+  for (let i = 0; i < 3; i++) m.cyl([m.X(21), m.Y(28.2 + i * 0.9), 0.75], 0.42, 8, 'x', 'rust', { seg: 8 });
+  m.cyl([m.X(21), m.Y(28.65), 1.5], 0.42, 8, 'x', 'rust', { seg: 8 });
+  m.cc(29, 28, 0.8, 0.3, 2.4, 'contBlue', { seg: 10 }); m.cc(29.2, 29.9, 0.8, 0.3, 2.4, 'contRed', { seg: 10 });
+  writeModel('b_oil', m);
+}
+
 hub(); gchq(); robotics(); krasukha(); propaganda();
-civHouse(); civFlats(); civOffice();
+civHouse(); civFlats(); civOffice(); oilDerrick();

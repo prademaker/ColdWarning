@@ -3958,5 +3958,19 @@ const SPRITE_META = {
     "style": "voxel",
     "camo": true,
     "ground": true
+  },
+  "b_oil": {
+    "cell": 152,
+    "cols": 1,
+    "facings": 1,
+    "res": 2,
+    "ax": 76,
+    "ay": 108,
+    "parts": {
+      "hull": true
+    },
+    "style": "voxel",
+    "camo": true,
+    "ground": true
   }
 };

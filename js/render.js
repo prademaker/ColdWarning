@@ -167,6 +167,12 @@ const Render = {
         else list.push({ d: e.x + e.y, e, sx, sy });
       }
     }
+    // supply crates where we can see them
+    for (const c of G.crates || []) {
+      if (!G.isVisibleTile(Math.floor(c.x / TILE), Math.floor(c.y / TILE))) continue;
+      const [sx, sy] = this.P(c.x, c.y);
+      if (onScreen(sx, sy)) list.push({ d: c.x + c.y, c, sx, sy });
+    }
     // burnt-out wrecks sort in with everything else on the ground
     for (const f of G.effects) {
       if (f.type !== 'wreck' || f.t < 0) continue;
@@ -181,6 +187,7 @@ const Render = {
     const theme = m.theme;
     for (const it of list) {
       if (it.w) FX.wreck(ctx, it.w, it.sx, it.sy);
+      else if (it.c) this.drawCrate(ctx, it.c);
       else if (it.p) {
         const scan = it.p.name && PropArt.get(it.p.name, it.p.sv);
         if (scan) Art.blit(ctx, scan, it.sx, it.sy);
@@ -349,6 +356,54 @@ const Render = {
       G.effects.push({ type: 'smoke', x, y, z: b.def.height * 0.8, t: 0, life: 1.4, size: 5 });
       if (b.hp < b.maxHp * 0.25) G.effects.push({ type: 'fire', x, y, z: b.def.height * 0.6, t: 0, life: 0.5 });
     }
+  },
+
+  // King of the hill: the circle on the ground in the holder's colour (amber while fought over),
+  // with a ring of marker posts and a slow sweep so it reads as the place to be
+  drawHill(ctx) {
+    const h = G.hill, t = G.time;
+    const holder = h.holder !== null ? G.teams.find(o => o.ally === h.holder) : null;
+    const col = holder ? holder.color : h.contested ? '#ffb347' : '#e8e2c8';
+    ctx.save();
+    ctx.fillStyle = col; ctx.globalAlpha = holder ? 0.13 : 0.07;
+    ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.setLineDash([14, 9]); ctx.lineDashOffset = -t * 8;
+    ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.35; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(h.x, h.y, h.r * 0.55, 0, Math.PI * 2); ctx.stroke();
+    const p = (t * 0.35) % 1;
+    ctx.globalAlpha = 0.5 * (1 - p); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(h.x, h.y, h.r * p, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  },
+
+  // a supply crate: a wooden box with steel bands on a soft glow that pulses
+  drawCrate(ctx, c) {
+    const s = 6, z = 9, x0 = c.x - s, x1 = c.x + s, y0 = c.y - s, y1 = c.y + s, t = G.time;
+    const poly = (pts, fill) => { ctx.fillStyle = fill; ctx.beginPath(); pts.forEach(([x, y, zz], i) => { const [px, py] = this.P(x, y, zz); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); }); ctx.closePath(); ctx.fill(); };
+    const [gx, gy] = this.P(c.x, c.y);
+    const pulse = 0.5 + 0.5 * Math.sin(t * 4 + c.id);
+    ctx.fillStyle = `rgba(255,226,120,${0.12 + 0.14 * pulse})`;
+    ctx.beginPath(); ctx.ellipse(gx, gy, 22, 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(gx + 2, gy + 1, 13, 6.5, 0, 0, Math.PI * 2); ctx.fill();
+    poly([[x0, y1, 0], [x1, y1, 0], [x1, y1, z], [x0, y1, z]], '#7a5a32');       // left-front face
+    poly([[x1, y0, 0], [x1, y1, 0], [x1, y1, z], [x1, y0, z]], '#5e4426');       // right-front face
+    poly([[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]], '#a07c48');       // lid
+    // steel bands and the stencilled lid cross
+    ctx.strokeStyle = '#3a3c3e'; ctx.lineWidth = 1.2;
+    const line = (a, b) => { const [ax, ay] = this.P(...a), [bx, by] = this.P(...b); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); };
+    for (const k of [0.25, 0.75]) {
+      const xx = x0 + (x1 - x0) * k, yy = y0 + (y1 - y0) * k;
+      line([xx, y1, 0], [xx, y1, z]); line([x1, yy, 0], [x1, yy, z]); line([xx, y0, z], [xx, y1, z]);
+    }
+    ctx.strokeStyle = 'rgba(240,220,170,0.75)'; ctx.lineWidth = 1;
+    line([x0 + 2, y0 + 2, z], [x1 - 2, y1 - 2, z]); line([x1 - 2, y0 + 2, z], [x0 + 2, y1 - 2, z]);
+    // a small beacon on top blinks so a crate is easy to spot
+    const [bx, by] = this.P(c.x, c.y, z + 2);
+    ctx.fillStyle = pulse > 0.5 ? '#ffe36a' : '#8a6a20';
+    ctx.beginPath(); ctx.arc(bx, by, 1.8, 0, Math.PI * 2); ctx.fill();
   },
 
   // occupancy pips over a held structure, in the holder's colour
@@ -705,6 +760,7 @@ const Render = {
       const on = m.armT <= G.time && Math.sin(G.time * 4 + m.x) > 0.6;
       ctx.fillStyle = on ? '#ff3b2f' : '#3a1410'; ctx.beginPath(); ctx.arc(m.x, m.y, 1.3, 0, Math.PI * 2); ctx.fill();
     }
+    if (G.hill) this.drawHill(ctx);
     for (const s of G.pendingStrikes) {
       if (s.done) continue;
       const R = s.sw.radius * TILE * (1 - s.t / s.delay * 0.3);

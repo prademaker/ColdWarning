@@ -153,6 +153,18 @@ kbd { background: #16273d; border: 1px solid #2f4a6c; border-bottom-width: 2px; 
 #wave-info button { background: var(--panel2); border: 1px solid var(--edge2); color: var(--text); font-family: var(--head); letter-spacing: 1px; font-size: 12px; padding: 3px 9px; border-radius: 2px; cursor: pointer; }
 #wave-info button:hover { border-color: #ffe08a; color: #ffe08a; }
 #wave-info.urgent { border-color: #f55; color: #ffb0a8; }
+#hill-info { position: absolute; top: 12px; left: 12px; width: 250px; background: rgba(10,22,34,0.85); border: 1px solid var(--edge2); color: var(--text);
+  padding: 5px 10px 7px; font-family: var(--head); letter-spacing: 1px; font-size: 13px; border-radius: 2px; pointer-events: none; }
+#hill-info .hl-head { font-size: 13px; text-transform: uppercase; margin-bottom: 4px; display: flex; justify-content: space-between; gap: 8px; }
+#hill-info .hl-head span { text-transform: none; color: #b9c4cf; font-size: 12.5px; }
+#hill-info .hl-head span.mine { color: #7dff8a; }
+#hill-info .hl-head span.theirs { color: #ff8a7a; }
+#hill-info .hl-row { display: flex; align-items: center; gap: 7px; margin-top: 3px; font-size: 12.5px; }
+#hill-info .hl-name { width: 64px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#hill-info .hl-bar { flex: 1; height: 7px; background: rgba(255,255,255,0.1); border-radius: 1px; overflow: hidden; }
+#hill-info .hl-bar i { display: block; height: 100%; }
+#hill-info .hl-row.on .hl-bar { box-shadow: 0 0 6px rgba(255,236,150,0.6); }
+#hill-info .hl-t { width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
 #sidebar { --team: var(--blue); position: absolute; right: 0; top: 0; bottom: 0; width: var(--sb-w); display: flex; flex-direction: column; padding: 8px; gap: 6px; overflow: hidden;
   background: linear-gradient(180deg, #0c1a2c, #070f1a); border-left: 2px solid color-mix(in srgb, var(--team) 70%, #000); box-shadow: -6px 0 18px rgba(0,0,0,.5); }
 #sb-head { display: flex; justify-content: space-between; align-items: center; padding: 2px 2px 6px;
@@ -414,7 +426,8 @@ body.touch #track { bottom: 72px; }
   .sextra { max-height: 54px; line-height: 1.25; }
   .upbtn { padding: 6px 4px; font-size: 11px; }
   .uptext { display: none; }
-  #objectives, #wave-info, #enemy-super { left: calc(var(--left) + var(--mini) + 32px); }
+  #objectives, #wave-info, #enemy-super, #hill-info { left: calc(var(--left) + var(--mini) + 32px); }
+  #hill-info { width: 210px; font-size: 12px; padding: 4px 8px 6px; }
   #objectives { max-width: min(300px, calc(100vw - var(--sb-w) - var(--mini) - 56px)); font-size: 12.5px; padding: 5px 9px 6px; }
   .ob-clock { font-size: 15px; }
   #messages { top: 8px; font-size: 12px; letter-spacing: 2px; width: max-content; max-width: calc(100vw - var(--sb-w) - 2 * var(--mini) - 80px); }

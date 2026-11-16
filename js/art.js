@@ -840,6 +840,15 @@ const BLD_MODELS = {
       box(3, 29, 28.6, 29.8, 6.5, 8.5, '#151617'), box(28.6, 29.8, 3, 29, 6.5, 8.5, '#151617'),
       box(8, 24, 8, 24, 13, 14, tone(T.color, -0.1))];
   },
+  // oil derrick, until its rendered sheet loads: tower, two tanks with the holder's band, the pumpjack's skid
+  oil(T) {
+    const out = [...foundation(64, 64), box(5, 43, 5, 43, 2, 4, '#5e5e5a'), box(41, 60, 43, 51, 2, 4, '#3d3f3f')];
+    for (const [z0, z1, r] of [[4, 19, 9], [19, 36, 7], [36, 52, 4.5]]) for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) out.push(box(23 + sx * r - 0.8, 23 + sx * r + 0.8, 23 + sy * r - 0.8, 23 + sy * r + 0.8, z0, z1, '#b89a3a'));
+    out.push(box(18, 28, 18, 28, 52, 55, '#3d3f3f'));
+    out.push(cyl(51, 15, 9, 2, 20, '#9a9e9c', 9, 14), cyl(51, 15, 9.1, 15, 17.6, T.color, 9.1, 14), cyl(13, 52, 7, 2, 16, '#78503a', 7, 14), cyl(13, 52, 7.1, 11, 13.4, T.color, 7.1, 14));
+    out.push(box(47, 49, 45, 50, 4, 16, '#b89a3a'));
+    return out;
+  },
   // civilian buildings: plain, weathered, the same for everyone
   civ_house() {
     const out = [...foundation(64, 64), box(8, 56, 10, 54, 2, 22, '#cdbb9a'),
@@ -989,6 +998,28 @@ const BLD_LIVE = {
     const [cx, cy] = P(TILE / 2, TILE / 2, 1), [ex, ey] = P(TILE / 2 + Math.cos(a) * R, TILE / 2 + Math.sin(a) * R, 1);
     ctx.moveTo(cx, cy); ctx.lineTo(ex, ey);
     ctx.stroke();
+  },
+  // Oil derrick: the pumpjack's beam nods while it pumps for someone; shot down, the rig burns
+  oil(ctx, P, b, team, t) {
+    const burning = G.derrickBurning(b), on = b.team !== NEUTRAL && !burning;
+    const k = on ? Math.sin(t * 2.6 + b.id) : -0.15, d = 3.2 * k;
+    const [px, py] = P(48, 47, 17), [hx, hy] = P(37, 47, 17 + d), [tx, ty] = P(57, 47, 17 - d);
+    ctx.strokeStyle = '#2c2d2c'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+    ctx.strokeStyle = '#b89a3a'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+    // the horse head and the polished rod down to the well
+    const [wx, wy] = P(38, 47, 5);
+    ctx.fillStyle = '#2c2d2c'; ctx.beginPath(); ctx.arc(hx, hy + 1, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8a8c8a'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(hx, hy + 2); ctx.lineTo(wx, wy); ctx.stroke();
+    ctx.fillStyle = '#4a4b4a'; ctx.beginPath(); ctx.arc(px, py, 1.4, 0, Math.PI * 2); ctx.fill();
+    if (burning && Math.random() < 0.5) {
+      const spots = [[23, 23, 30], [51, 15, 22], [13, 52, 18]], [x, y, z] = spots[Math.floor(Math.random() * spots.length)];
+      const fx = b.tx * TILE + x + (Math.random() - 0.5) * 8, fy = b.ty * TILE + y + (Math.random() - 0.5) * 8;
+      G.effects.push({ type: 'fire', x: fx, y: fy, z: z * (0.6 + Math.random() * 0.5), t: 0, life: 0.6 });
+      if (Math.random() < 0.5) G.effects.push({ type: 'smoke', dark: true, x: fx, y: fy, z: z + 6, t: 0, life: 2.6, size: 6 });
+    }
+    const [lx, ly] = P(23, 23, 56); blink(ctx, lx, ly, !burning && Math.sin(t * 2) > 0, '#ff4040');
   },
   // the walking beam nods while ore is coming up
   drill(ctx, P, b, team, t, low) {

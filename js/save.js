@@ -149,7 +149,7 @@ const Save = {
   describe() {
     const M = G.mission, pt = G.playerTeam;
     let what = M ? 'Campaign · ' + M.def.title : G.mode === 'defense' ? 'Defense · wave ' + G.waves.wave + ' of ' + G.waves.total :
-      'Skirmish · ' + G.teams.length + ' players';
+      (G.hill ? 'King of the hill · ' : 'Skirmish · ') + G.teams.length + ' players';
     if (G.superweapons === false) what += ' · no superweapons';
     if (G.ultimates === false && G.mode !== 'campaign') what += ' · no ultimates';
     return { what, faction: pt.faction, theater: G.map.theater, time: Math.round(G.time), at: Date.now() };
