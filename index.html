@@ -114,6 +114,9 @@
       <section class="m-box" id="ctext-box" title="Short notes over units in a fight: weak hits, promotions"><h3>Combat text</h3><div id="combattext" class="opts"></div></section>
       <section class="m-box"><h3>Game speed</h3><div id="speed" class="opts"></div></section>
       <section class="m-box" id="daytime-box" title="Dusk and night darken the battlefield: fires, explosions, windows and headlights light it"><h3>Time of day</h3><div id="daytime" class="opts"></div></section>
+      <section class="m-box" id="victory-box" title="Conquest: destroy every enemy base. King of the hill: hold the circle in the middle of the map for five minutes in all (land maps only)"><h3>Victory</h3><div id="victory" class="opts"></div></section>
+      <section class="m-box" id="crates-box" title="Supply crates drop around the map: credits, repairs, promotions, reinforcements, or now and then a booby trap"><h3>Supply crates</h3><div id="crates" class="opts"></div></section>
+      <section class="m-box" id="oil-box" title="Oil derricks pump credits for whoever holds them. Capture one with an Engineer"><h3>Oil derricks</h3><div id="oil" class="opts"></div></section>
       <section class="m-box" id="super-box" title="Orbital Lance and Hypersonic Silo"><h3>Superweapons</h3><div id="superweapons" class="opts"></div></section>
       <section class="m-box" id="ult-box" title="Goliath, Behemoth, Valkyrie and Leviathan: one of each at a time"><h3>Ultimate units</h3><div id="ultimates" class="opts"></div></section>
       <section class="m-box" id="seed-box"><h3>Map seed</h3><div class="opts"><input id="seed" type="number"><button id="reroll" class="opt" title="Random seed">⟳</button></div></section>
@@ -137,6 +140,7 @@
         <li><b>Navy:</b> build a Naval Shipyard out on the water near your base to launch patrol boats, destroyers, submarines and hovercraft (the Allies add a Missile Cruiser, the Axis a Battlecruiser, the UK an aircraft carrier and Japan an Aegis destroyer). Submarines are hidden while submerged and only destroyers and other submarines can hit them. Right-click a hovercraft with troops to board, drive it onto a beach and press <kbd>D</kbd> to unload. Pick <i>Inland sea</i> or <i>Islands</i> under Water for a naval map.</li>
         <li><b>Garrisons:</b> right-click a civilian building or your own Battle Bunker with infantry to move in; they fire out of it. Select the building and press <kbd>D</kbd> to empty it. Flame weapons burn occupants out.</li>
         <li><b>Hills and bridges:</b> hills rise above the plain behind cliffs and can only be climbed by their ramps. Units and defenses up top see two tiles further, reach a tile further and take less damage from fire coming up from below. Bridges carry ground units over narrow water (ships pass underneath): <kbd>Ctrl</kbd>+right-click one to bring it down, taking anything on it into the water, and right-click a broken bridge with an Engineer to rebuild it.</li>
+        <li><b>Skirmish extras:</b> <i>Supply crates</i> drop around the map: drive any ground unit onto one for credits, repairs, promotions, free reinforcements or a look at the whole map, and now and then a booby trap. <i>Oil derricks</i> stand on the map from the start: right-click one with an Engineer to take it (+$500, then 5 credits a second). Shot down, a derrick burns for 45 seconds and then anyone can take it. Under <i>Victory</i>, <i>King of the hill</i> marks a circle in the middle of the map: keep armed ground units in it with no enemy inside, and the first side to hold it for five minutes in all wins (it opens after two and a half minutes; destroying every enemy base still wins too).</li>
         <li><b>Dig in:</b> select riflemen and press <kbd>D</kbd> to dig in behind sandbags (tougher, longer range, can't move). Any move order gets them up again.</li>
         <li><b>Players:</b> fight up to three computer players, alone or with a computer ally. Allies share vision. The opponent you pick leads the enemy side; the others get random factions.</li>
         <li><b>Campaign:</b> Operation Northwind, five missions of Allies against Axis that show off every country, with a story and objectives. Commando <b>Raven</b> joins you: enemies can't spot her from a distance until she opens fire, she drops infantry at long range, and right-clicking an enemy structure with her plants C4. Lose her and the mission fails. <kbd>Space</kbd> jumps to the latest alert or reinforcement.</li>
@@ -158,6 +162,7 @@
   <div id="radio" hidden></div>
   <div id="groups"></div>
   <div id="touchbar"></div>
+  <div id="hill-info" hidden></div>
   <div id="wave-info" hidden><span id="wave-text"></span><button id="wave-call" title="Call the next wave now for bonus credits">Send now</button></div>
   <div id="sidebar">
     <div id="sb-head">
@@ -202,6 +207,7 @@
 <script src="assets/props/props.js"></script>
 <script src="js/map.js"></script>
 <script src="js/game.js"></script>
+<script src="js/extras.js"></script>
 <script src="js/ai.js"></script>
 <script src="js/waves.js"></script>
 <script src="js/campaign.js"></script>

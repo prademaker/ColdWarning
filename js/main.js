@@ -18,7 +18,7 @@ const Main = {
     const params = new URLSearchParams(location.search);
     this.settings = {
       faction: 'usa', enemy: 'random', theater: 'random', difficulty: 'normal',
-      mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true, daytime: 'day',
+      mode: 'skirmish', lineup: '1v1', mapSize: 'medium', water: 'lakes', superweapons: true, ultimates: true, daytime: 'day', crates: true, oil: true, victory: 'conquest',
       seed: Math.floor(Math.random() * 1e6), speed: 1, mission: null, ceasefire: 0, limit: 60, hints: Main.hintsPref(), combatText: Main.combatTextPref(),
     };
     this.buildMenu();
@@ -47,6 +47,9 @@ const Main = {
         speed: params.has('speed') ? +params.get('speed') : 1,
         superweapons: params.get('superweapons') !== '0',
         ultimates: params.get('ultimates') !== '0',
+        crates: params.get('crates') !== '0',
+        oil: params.get('oil') !== '0',
+        victory: params.get('victory') === 'koth' ? 'koth' : 'conquest',
         daytime: params.get('daytime') || this.settings.daytime,
         ceasefire: +params.get('ceasefire') || 0,
         limit: params.has('limit') ? +params.get('limit') || 0 : this.settings.limit,
@@ -122,7 +125,7 @@ const Main = {
     this.settings.mode = 'skirmish';
     this.start(Object.assign({}, this.settings, {
       mode: 'skirmish', faction, enemy: 'random', theater: 'random', lineup: '1v1', mapSize: 'small', water: 'lakes',
-      difficulty: lvl, ceasefire: this.QUICK_LEVELS[lvl], hints: true, superweapons: false, ultimates: true,
+      difficulty: lvl, ceasefire: this.QUICK_LEVELS[lvl], hints: true, superweapons: false, ultimates: true, crates: true, oil: true, victory: 'conquest',
       speed: 1, seed: Math.floor(Math.random() * 1e6), mission: null, quick: true,
     }));
   },
@@ -206,12 +209,19 @@ const Main = {
     };
     opts('mode', [['skirmish', 'Skirmish'], ['defense', 'Defense'], ['campaign', 'Campaign']], 'mode');
     const camp = s.mode === 'campaign';
-    for (const id of ['faction-box', 'mapsize-box', 'water-box', 'skirmish-row', 'seed-box', 'super-box', 'ult-box', 'daytime-box']) document.getElementById(id).hidden = camp;
+    for (const id of ['faction-box', 'mapsize-box', 'water-box', 'skirmish-row', 'seed-box', 'super-box', 'ult-box', 'daytime-box', 'crates-box', 'oil-box']) document.getElementById(id).hidden = camp;
     document.getElementById('campaign').hidden = !camp;
     if (camp) this.buildCampaign();
     opts('lineup', Object.entries(LINEUPS).map(([id, l]) => [id, l.label]), 'lineup');
     opts('mapsize', Object.entries(MAP_SIZES).map(([id, m]) => [id, m.label]), 'mapSize');
-    opts('water', Object.entries(MAP_WATER).map(([id, m]) => [id, m.label]), 'water');
+    // king of the hill is played on land: the sea maps have open water where the hill would be
+    const koth = s.mode === 'skirmish' && s.victory === 'koth';
+    opts('water', Object.entries(MAP_WATER).filter(([id]) => !koth || id === 'lakes').map(([id, m]) => [id, m.label]), 'water');
+    if (koth) document.querySelector('#water .opt').classList.add('sel'); // the game plays it on Lakes whatever was picked
+    opts('victory', VICTORY_OPTIONS, 'victory');
+    document.getElementById('victory-box').hidden = s.mode !== 'skirmish';
+    opts('crates', [[true, 'On'], [false, 'Off']], 'crates');
+    opts('oil', [[true, 'On'], [false, 'Off']], 'oil');
     opts('superweapons', [[true, 'On'], [false, 'Off']], 'superweapons');
     opts('daytime', Object.entries(DAYTIME).map(([id, d]) => [id, d.label]), 'daytime');
     opts('ceasefire', CEASEFIRE_OPTIONS, 'ceasefire');
@@ -474,6 +484,7 @@ const Main = {
     const M = G.mission;
     const text = M ? G.over.text : W ? (G.over.win ? `All ${W.total} waves repelled. The base holds.` : `The base fell during wave ${W.wave} of ${W.total}.`) :
       G.over.armistice ? this.armisticeText() :
+      G.over.hill !== undefined ? (G.over.win ? 'Our forces held the hill to the end. The region is ours.' : 'The enemy held the hill long enough to claim the region.') :
       G.over.win ? 'The enemy has been eliminated. The region is secure.' : 'Our forces have been wiped out. Command has been lost.';
     const goals = M ? `<ul class="end-goals">${M.objectives.map(o => `<li class="${o.state}${o.optional ? ' bonus' : ''}">${o.text}${o.optional ? ' <i>(bonus)</i>' : ''}</li>`).join('')}</ul>` : '';
     const next = M && G.over.win ? CAMPAIGN.missions[CAMPAIGN.missions.findIndex(m => m.id === M.def.id) + 1] : null;
@@ -481,7 +492,7 @@ const Main = {
       (next ? '<button id="next">Next mission</button>' : '') + `<button id="again">${G.over.win ? 'Play again' : 'Retry'}</button><button id="tomenu">Campaign</button>`;
     el.innerHTML = `<div class="endbox ${G.over.win ? 'win' : 'lose'}">
       <h1>${M ? (G.over.win ? 'MISSION ACCOMPLISHED' : 'MISSION FAILED') : G.over.win ? 'VICTORY' : 'DEFEAT'}</h1>
-      ${G.over.armistice ? '<div class="end-mission">Armistice</div>' : ''}
+      ${G.over.armistice ? '<div class="end-mission">Armistice</div>' : G.over.hill !== undefined ? '<div class="end-mission">King of the hill</div>' : ''}
       ${M ? `<div class="end-mission">${M.def.title}</div>` : ''}
       <p>${text}</p>${M && G.over.win && !next ? '<p class="end-fin">Operation Northwind complete. Thank you for playing the campaign.</p>' : ''}${goals}
       <p class="time">Mission time ${mins}:${String(secs).padStart(2, '0')}</p>
@@ -493,6 +504,8 @@ const Main = {
       ${row('Structures destroyed', 'structuresKilled')}
       ${row('Structures lost', 'structuresLost')}
       ${row('Credits harvested', 'harvested')}
+      ${G.entities.some(e => e.def.oil) ? row('Credits from oil', 'oil') : ''}
+      ${G.crateOn ? row('Crates opened', 'crates') : ''}
       ${row('Credits spent', 'spent')}
       <tr><td>Most built</td>${teams.map(t => `<td>${top(t)}</td>`).join('')}</tr>
       </table>${this.armyChart(teams)}

@@ -300,6 +300,7 @@ class GameMap {
     }
     this.placeBridges();
     this.placeCivilians(rng, c);
+    this.placeDerricks(c);
     this.labelWater();
     this.decor = [];
     for (let i = 0; i < N * N * this.theme.density; i++) {
@@ -376,6 +377,39 @@ class GameMap {
         this.civ.push({ key, tx, ty });
         k++;
       }
+    }
+  }
+
+  // Oil derrick sites (Game places derricks only when the option is on): one off to the side of
+  // each base, a fair walk out, and a few more out in the open for the armies to fight over.
+  // Their own random stream, so the rest of a seeded map comes out the same as before.
+  placeDerricks(c) {
+    const N = this.w, rng = makeRng(this.seed ^ 0x6f11d3e7), def = BUILDINGS.oil;
+    this.oil = [];
+    // on the sea maps the middle is open water: there the bases only have to keep reaching each other
+    const goal = this.reachable(this.starts[0], c) ? c : this.starts[0], sea = goal !== c;
+    const tryAt = (x, y) => {
+      const tx = Math.round(x) - 1, ty = Math.round(y) - 1;
+      if (!this.civFits(tx, ty, def.w, def.h)) return false;
+      if (this.oil.some(o => Math.hypot(o.tx - tx, o.ty - ty) < 10)) return false;
+      this.markCiv(tx, ty, def.w, def.h, 1);
+      if (this.starts.some(s => !this.reachable(s, goal, this.civMask))) { this.markCiv(tx, ty, def.w, def.h, 0); return false; }
+      this.oil.push({ tx, ty });
+      return true;
+    };
+    for (const [sx, sy] of this.starts) {
+      const toward = Math.atan2(c[1] - sy, c[0] - sx), side = rng() < 0.5 ? -1 : 1;
+      for (let k = 0; k < 40; k++) {
+        const a = toward + side * (k % 2 ? -1 : 1) * (1.0 + rng() * 0.5), d = 15 + rng() * 5;
+        if (tryAt(sx + Math.cos(a) * d, sy + Math.sin(a) * d)) break;
+      }
+    }
+    const extra = Math.max(1, Math.round(OIL.extra * (N / 88) * (N / 88)));
+    for (let i = 0, tries = 0; i < extra && tries < 200; tries++) {
+      const x = N * (sea ? 0.08 + rng() * 0.84 : 0.2 + rng() * 0.6), y = N * (sea ? 0.08 + rng() * 0.84 : 0.2 + rng() * 0.6);
+      if (Math.hypot(x - c[0], y - c[1]) < KOTH.radius + 4) continue;   // the hill stays clear
+      if (this.starts.some(([sx, sy]) => Math.hypot(sx - x, sy - y) < 20)) continue;
+      if (tryAt(x, y)) i++;
     }
   }
 

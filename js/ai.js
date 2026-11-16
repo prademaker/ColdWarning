@@ -9,7 +9,7 @@ const AI_TARGET_VALUE = {
   super_lance: 14, super_silo: 14, factory: 10, refinery: 9, tech: 8, power: 7, cc: 7,
   airfield: 6, hub: 6, robotics: 7, gchq: 5, krasukha: 5, propaganda: 4, barracks: 5, radar: 5,
   laser: 3, thaad: 4, koksan: 4, railturret: 3, turret: 3, bunker: 3, sam: 2,
-  drill: 6, sensor: 3, mortar: 3, missilenest: 3, flametower: 3, wall: 0,
+  drill: 6, sensor: 3, mortar: 3, missilenest: 3, flametower: 3, wall: 0, oil: 4,
 };
 const AI_RAIDERS = ['heli', 'drone'];
 // warships the AI buys, by preference (pick() skips what this nation can't build)
@@ -145,6 +145,7 @@ class AI {
     this.buildStructures();
     this.manageUpgrades(units, blds);
     this.produceUnits(units);
+    this.manageOil(units);
     this.manageArmy(units);
 
     for (const b of blds) if (b.hp < b.maxHp * 0.6 && t.credits > 400) b.repairing = true;
@@ -448,7 +449,7 @@ class AI {
     if (harvs < want && t.canBuild('harvester') && !Q.vehicle.items.length && t.credits > 1400) Q.vehicle.add('harvester');
 
     // engineers to ride along with attack waves
-    const engs = units.filter(u => u.def.engineer).length + Q.infantry.items.filter(k => k === 'engineer').length;
+    const engs = units.filter(u => u.def.engineer && !(this.oilIds && this.oilIds.has(u.id))).length + Q.infantry.items.filter(k => k === 'engineer').length;
     if (engs < d.engineers && this.waves >= 1 && t.countOf('factory') && t.credits > 500 + reserve && t.canBuild('engineer')) {
       Q.infantry.add('engineer');
     }
@@ -545,14 +546,19 @@ class AI {
     if (this.wave) for (const id of this.wave.ids) busy.add(id);
     if (this.raid) for (const id of this.raid.ids) busy.add(id);
     if (this.scout) busy.add(this.scout.id);
+    if (this.oilIds) for (const id of this.oilIds) busy.add(id);
+    if (this.hillSquad) for (const id of this.hillSquad.ids) busy.add(id);
 
     // warships keep to the sea and answer to manageFleet instead; mine layers and bombers have
     // jobs of their own (manageMines, manageBombers); medics and recovery vehicles tag along
     const home = units.filter(u => (u.def.weapon || u.def.engineer || u.def.mend) && !u.def.harvester && !u.def.naval && !busy.has(u.id));
-    const fighters = home.filter(u => u.def.weapon && !u.def.mines && u.def.prefer !== 'structures');
+    let fighters = home.filter(u => u.def.weapon && !u.def.mines && u.def.prefer !== 'structures');
     const support = home.filter(u => u.def.engineer || u.def.mend);
     const [rx, ry] = this.rallyTile();
     const [hx, hy] = this.home();
+    // king of the hill: a squad from the home army goes to stand on it
+    if (G.hill) { const on = this.manageHill(fighters); fighters = fighters.filter(u => !on.has(u.id)); }
+    this.manageCrates(fighters);
     for (const u of fighters) {
       if (u.order || u.target) continue;
       if (Math.hypot(u.x / TILE - rx, u.y / TILE - ry) > 6) G.commandMove([u], rx, ry, true, true);
@@ -737,6 +743,117 @@ class AI {
       if (this.threatNear(best.x, best.y, 6) < 800) G.commandCapture(eng, best);
       else if (!eng.order) G.commandMove([eng], Math.floor(cx / TILE), Math.floor(cy / TILE), false, true);
     }
+  }
+
+  // ---------- skirmish extras: oil derricks, supply crates, the hill ----------
+  // Engineers go after every oil derrick in reach our side doesn't hold, nearest first, once
+  // nothing much guards it (they wait by a burning one for the fire to go out). More Engineers
+  // are bought while derricks stand free; done, an Engineer goes back to normal duty.
+  manageOil(units) {
+    const t = this.team, me = t.id, [hx, hy] = this.home();
+    const oil = G.entities.filter(b => b.def.oil && !b.dead);
+    if (!oil.length) return;
+    this.oilIds = this.oilIds || new Set();
+    const engs = this.units(this.oilIds);
+    const reach = G.map.w * TILE * 0.8;
+    const wanted = oil.filter(b => !G.allied(b.team, me) && Math.hypot(b.x - hx, b.y - hy) < reach && this.threatNear(b.x, b.y, 7) < 700)
+      .sort((a, b) => Math.hypot(a.x - hx, a.y - hy) - Math.hypot(b.x - hx, b.y - hy));
+    const taken = new Set();
+    for (const u of engs) {
+      const o = u.order;
+      if (o && o.type === 'capture' && o.target.def.oil && !o.target.dead && !G.allied(o.target.team, me) && wanted.includes(o.target)) { taken.add(o.target); continue; }
+    }
+    for (const u of engs) {
+      const o = u.order;
+      if (o && o.type === 'capture' && taken.has(o.target)) continue;
+      const b = wanted.find(b => !taken.has(b));
+      if (b) { G.commandCapture(u, b); taken.add(b); }
+      else { this.oilIds.delete(u.id); if (o && o.type === 'capture') u.order = null; }
+    }
+    const free = wanted.filter(b => !taken.has(b));
+    if (!free.length) return;
+    const idle = units.filter(u => u.def.engineer && !this.oilIds.has(u.id) && !(this.wave && this.wave.ids.has(u.id)) && (!u.order || u.order.type === 'move'));
+    for (const u of idle) {
+      const b = free.shift();
+      if (!b) break;
+      this.oilIds.add(u.id);
+      G.commandCapture(u, b);
+    }
+    const Q = t.queues.infantry;
+    if (free.length && !Q.items.includes('engineer') && this.oilIds.size < 3 && t.canBuild('engineer') && t.credits > 700) Q.add('engineer');
+  }
+
+  // A spare fighter at home runs for a supply crate that lands within reach, if it looks safe.
+  manageCrates(fighters) {
+    if (!G.crates || !G.crates.length) return;
+    const runs = this.crateRuns = this.crateRuns || {};
+    for (const id in runs) if (!G.crates.some(c => c.id === +id)) delete runs[id];
+    for (const c of G.crates) {
+      const r = runs[c.id] && this.unit(runs[c.id]);
+      if (r && r.order) continue;
+      let best = null, bd = 16 * TILE;
+      for (const u of fighters) {
+        if (u.order || u.target || u.air || u.def.naval || u.def.ultimate) continue;
+        const d = Math.hypot(u.x - c.x, u.y - c.y);
+        if (d < bd) { bd = d; best = u; }
+      }
+      if (!best || this.threatNear(c.x, c.y, 6) > 400) continue;
+      G.commandMove([best], Math.floor(c.x / TILE), Math.floor(c.y / TILE), false, true);
+      runs[c.id] = best.id;
+    }
+  }
+
+  // King of the hill: most of the home army forms a squad that gathers short of the hill, then
+  // moves onto it once it is strong enough for what holds it, and stands there. It pulls back to
+  // regroup when it is badly outgunned, unless the enemy is about to win, when everything goes in.
+  // Returns the squad's ids (the rest of the home army carries on as usual).
+  manageHill(fighters) {
+    const h = G.hill, sq = this.hillSquad = this.hillSquad || { ids: new Set(), state: 'gather', t: 0 };
+    const me = this.team.ally;
+    let enemyLeft = 1e9;
+    for (const a in h.score) if (+a !== me) enemyLeft = Math.min(enemyLeft, h.hold - h.score[a]);
+    // the squad forms once the hill is about to open and the army has had time to grow (sooner on
+    // the harder settings), or straight away if someone else starts racking up hill time
+    const start = Math.max(G.hillOpens() - 30, this.d.firstAttack * 0.6);
+    if (G.time < start && enemyLeft > h.hold - 45 && !sq.ids.size) return sq.ids;
+    const urgent = enemyLeft < 100;
+    const live = this.units(sq.ids);
+    const ground = fighters.filter(u => !u.air && !u.def.naval && !(u.order && u.order.type === 'garrison'));
+    const total = live.length + ground.length;
+    const want = urgent ? total : Math.max(5, Math.round(total * (this.d.counter ? 0.65 : 0.5)));
+    for (const u of ground) {
+      if (live.length >= want) break;
+      sq.ids.add(u.id); live.push(u);
+      if (u.dug || u.digging) G.digOut(u);
+    }
+    if (!live.length) return sq.ids;
+    const mine = live.reduce((s, u) => s + aiWorth(u), 0), threat = this.threatNear(h.x, h.y, KOTH.radius + 7, true);
+    // staging point: on the way from home, a fair way short of the circle
+    const [hx, hy] = this.home(), d = Math.hypot(h.x - hx, h.y - hy) || 1, back = Math.min(d * 0.5, (KOTH.radius + 9) * TILE);
+    const gx = Math.round((h.x + (hx - h.x) / d * back) / TILE), gy = Math.round((h.y + (hy - h.y) / d * back) / TILE);
+    if (sq.state === 'gather') {
+      const ready = (live.length >= 4 && mine >= threat * 1.25) || urgent || (G.time - sq.t > 90 && mine >= threat * 0.8);
+      if (ready) { sq.state = 'hold'; sq.t = G.time; }
+      else for (const u of live) if (!u.order && !u.target && Math.hypot(u.x / TILE - gx, u.y / TILE - gy) > 5) G.commandMove([u], gx, gy, true, true);
+    }
+    if (sq.state === 'hold') {
+      if (!urgent && this.d.retreat && mine < threat * 0.45 && G.time - sq.t > 20) {
+        sq.state = 'gather'; sq.t = G.time;
+        G.commandMove(live, gx, gy, false, true);
+        return sq.ids;
+      }
+      const H = KOTH.radius * 0.55;
+      for (const u of live) {
+        if (u.target || (u.order && u.order.type !== 'amove')) continue;
+        const inside = Math.hypot(u.x - h.x, u.y - h.y) < h.r * 0.8;
+        if (inside && !u.order) { if (u.def.dig && !u.dug && !u.digging) G.digIn(u); continue; }
+        if (!u.order) {
+          const a = Math.random() * Math.PI * 2, r = Math.random() * H;
+          G.commandMove([u], Math.floor(h.x / TILE + Math.cos(a) * r), Math.floor(h.y / TILE + Math.sin(a) * r), true, true);
+        }
+      }
+    }
+    return sq.ids;
   }
 
   // ---------- mines and bombers ----------

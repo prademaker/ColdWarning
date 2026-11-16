@@ -73,6 +73,9 @@ const UI = {
     if (Math.abs(z - this.zoom) < 1e-4) return;
     this.cam.x += px / this.zoom - px / z;
     this.cam.y += py / this.zoom - py / z;
+    // the pointer hasn't moved: keep its canvas position in step, or a zoom in with the pointer
+    // over the right or lower half reads as sitting on the edge and scrolls the view away
+    if (this.mouse) { this.mouse.x *= this.zoom / z; this.mouse.y *= this.zoom / z; }
     this.zoom = z;
     this.resize(false);
   },
@@ -402,6 +405,14 @@ const UI = {
         return;
       }
     }
+    // Engineers onto an oil derrick nobody (or the enemy) holds: take it over; the rest escort them
+    if (ent && ent.kind === 'building' && ent.def.oil && !G.allied(ent.team, G.player) && units.some(u => u.def.engineer)) {
+      for (const u of units.filter(u => u.def.engineer)) G.commandCapture(u, ent);
+      const rest = units.filter(u => !u.def.engineer);
+      if (rest.length) G.commandMove(rest, tx, ty, true, true);
+      this.mark(ent.x, ent.y, '#7f7'); Sfx.play('ack');
+      return;
+    }
     if (ent && G.hostile(ent.team, G.player)) {
       G.commandAttack(units, ent);
       this.mark(ent.x, ent.y, '#f44');
@@ -682,7 +693,7 @@ const UI = {
       if (e.dead || e.aboard || !G.isVisibleTo(e, G.player)) continue;
       if (e.kind !== 'building') { units.push(e); continue; }
       if (e.def.bridge && !G.bridgeUp(e)) continue;
-      ctx.fillStyle = e.team === NEUTRAL ? '#8a8f96' : G.teamOf(e.team).color;
+      ctx.fillStyle = e.team === NEUTRAL ? (e.def.oil ? '#c9a04a' : '#8a8f96') : G.teamOf(e.team).color;
       ctx.fillRect(e.tx, e.ty, e.w, e.h);
     }
     ctx.imageSmoothingEnabled = true;
@@ -705,6 +716,19 @@ const UI = {
     const br = this.toWorld(this.canvas.width, this.canvas.height), [vx1, vy1] = this.miniXY(br.x, br.y);
     ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 3; ctx.strokeRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.strokeRect(vx0, vy0, vx1 - vx0, vy1 - vy0);
+    // the hill, in the colour of whoever holds it; supply crates we can see
+    if (G.hill) {
+      const h = G.hill, [x, y] = this.miniXY(h.x, h.y), holder = h.holder !== null ? G.teams.find(t => t.ally === h.holder) : null;
+      const R = h.r / TILE * Math.SQRT2 * W / (m.w + m.h);   // the minimap diamond keeps circles round
+      ctx.strokeStyle = holder ? holder.color : h.contested ? '#ffb347' : '#e8e2c8'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.stroke();
+    }
+    for (const cr of G.crates || []) {
+      if (!G.isVisibleTile(Math.floor(cr.x / TILE), Math.floor(cr.y / TILE))) continue;
+      const [x, y] = this.miniXY(cr.x, cr.y);
+      ctx.fillStyle = '#000'; ctx.fillRect(x - 2.2, y - 2.2, 4.4, 4.4);
+      ctx.fillStyle = '#ffe36a'; ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
+    }
     if (G.mission) {
       ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 2;
       for (const mk of G.mission.markers) { const [x, y] = this.miniXY(mk.x, mk.y); ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.stroke(); }
@@ -952,13 +976,40 @@ const UI = {
       if (el.textContent !== txt) el.textContent = txt;
       document.getElementById('wave-call').hidden = left === null;
     }
-    this.updateMission(ebox.hidden && wbox.hidden ? 12 : 52);
+    // king of the hill: who holds it and how long each side has held it
+    let top = ebox.hidden && wbox.hidden ? 12 : !ebox.hidden && !wbox.hidden ? 92 : 52;
+    const hbox = document.getElementById('hill-info');
+    hbox.hidden = !G.hill;
+    if (G.hill) {
+      hbox.style.top = top + 'px';
+      const html = this.hillHtml();
+      if (html !== this.hillHtmlLast) { hbox.innerHTML = html; this.hillHtmlLast = html; }
+      top += hbox.offsetHeight + 8;
+    }
+    this.updateMission(top);
     document.getElementById('btn-sell').classList.toggle('on', this.mode === 'sell');
     document.getElementById('btn-repair').classList.toggle('on', this.mode === 'repair');
     document.getElementById('btn-upgrade').classList.toggle('on', this.mode === 'upgrade');
     this.updateSelInfo();
     this.updateGroups();
     this.updateTouchBar();
+  },
+
+  // one bar per alliance still in the game: its share of the hold time, in its lead team's colour
+  hillHtml() {
+    const h = G.hill, mine = G.playerTeam.ally, sides = [];
+    for (const t of G.teams) if (!t.defeated && !t.waves && !sides.some(s => s.ally === t.ally)) sides.push(t);
+    sides.sort((a, b) => (b.ally === mine) - (a.ally === mine));
+    const opens = G.hillOpens();
+    const state = G.time < opens ? `Opens in ${Main.clock(opens - G.time)}` : h.holder === null ? (h.contested ? 'Contested' : 'Nobody holds it') :
+      h.holder === mine ? 'We hold it' : (G.teams.find(t => t.ally === h.holder) || {}).name + ' holds it';
+    let html = `<div class="hl-head">King of the hill <span class="${h.holder === mine ? 'mine' : h.holder !== null ? 'theirs' : ''}">${state}</span></div>`;
+    for (const t of sides) {
+      const held = h.score[t.ally] || 0, k = Math.min(1, held / h.hold);
+      html += `<div class="hl-row${h.holder === t.ally ? ' on' : ''}"><span class="hl-name" style="color:${t.light}">${t.ally === mine ? 'Us' : t.name}</span>` +
+        `<span class="hl-bar"><i style="width:${(k * 100).toFixed(1)}%;background:${t.color}"></i></span><span class="hl-t">${Main.clock(Math.max(0, h.hold - held))}</span></div>`;
+    }
+    return html;
   },
 
   // the control group strip along the bottom of the view
@@ -1041,7 +1092,7 @@ const UI = {
         if (G.elevated(e) && !e.def.naval) extra += `<span class="uptag">High ground: +${HIGH_GROUND.range} range, +${HIGH_GROUND.sight} sight</span><br>`;
         if (e.def.harvester) extra += `Cargo: ${Math.round(e.cargo)}/${e.def.capacity}`;
         else if (e.def.mcv) extra += 'Press D or click it again to deploy';
-        else if (e.def.engineer) extra += 'Right-click enemy structure to capture, or a broken bridge to repair';
+        else if (e.def.engineer) extra += 'Right-click an enemy structure or an oil derrick to capture it, or a broken bridge to repair';
         else if (e.def.demo) extra += `${G.stealthRange(e) < 1e9 ? 'Hidden' : 'Spotted'} · Kills: ${e.kills} · Right-click a structure for C4`;
         else if (e.def.mines) extra += `Mines ${e.minesLeft ?? e.def.mines.carry}/${e.def.mines.carry}` + (e.team === G.player ? ' · D to lay a mine' : '');
         else if (e.def.mend) extra += e.def.cat === 'infantry' ? 'Treats wounded infantry nearby' : 'Repairs damaged vehicles nearby';
@@ -1050,6 +1101,10 @@ const UI = {
         else if (e.def.submarine) extra += `${G.submerged(e) ? 'Submerged' : 'Surfaced'} · Kills: ${e.kills}`;
         else extra += `Kills: ${e.kills}`;
         if (e.def.dig && e.team === G.player) extra += e.dug ? ' · Dug in, D to get up' : ' · D to dig in';
+      } else if (e.def.oil) {
+        extra = G.derrickBurning(e) ? `On fire · free to take in ${Math.ceil(e.burnT - G.time)}s` :
+          e.team === NEUTRAL ? `Unclaimed · +${OIL.rate} credits a second · Right-click with an Engineer to capture (+$${OIL.bonus})` :
+          `+${OIL.rate} credits a second` + (e.team === G.player ? ' · Guard it: shot down, it burns and is lost' : ' · Capture with an Engineer, or shoot it down');
       } else if (e.def.bridge) {
         extra = G.bridgeUp(e) ? 'Ctrl + right-click to destroy' + (e.hp < e.maxHp ? ' · Right-click with an Engineer to repair' : '')
           : 'Destroyed · Right-click with an Engineer to rebuild';

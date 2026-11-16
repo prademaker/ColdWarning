@@ -571,6 +571,13 @@ const BUILDINGS = {
     name: 'Office Building', cat: 'civilian', w: 3, h: 2, hp: 1800, cost: 0, time: 0, power: 0, sight: 7, height: 54, buildable: false, garrison: 8,
     desc: 'Civilian building. Infantry can garrison it.',
   },
+  // Oil derricks stand on skirmish maps from the start (Oil derricks option). Nobody holds one
+  // until an Engineer walks in; from then on it pumps OIL.rate credits a second for its owner.
+  // Shot down it doesn't fall: it burns for a while, then stands free for anyone to take.
+  oil: {
+    name: 'Oil Derrick', cat: 'civilian', oil: true, w: 2, h: 2, hp: 1200, cost: 0, time: 0, power: 0, sight: 5, height: 52, buildable: false,
+    desc: 'Pumps 5 credits a second for whoever holds it, plus a 500 credit bonus on capture. Send an Engineer to take it. Shot down, it burns for 45 seconds, then anyone can take it.',
+  },
   // Bridges span narrow water on the map from the start. Nobody owns them: force-fire one
   // (Ctrl + right-click) to bring it down, and an Engineer can put it back up.
   bridge: {
@@ -761,6 +768,30 @@ const CEASEFIRE_OPTIONS = [[0, 'Off'], [5, '5 min'], [10, '10 min'], [15, '15 mi
 // which also starts the offensive): the side holding the most (structures plus army) wins.
 const STALEMATE = { after: 20 * 60, quiet: 6 * 60, late: 40 * 60, warn: 5 * 60 };
 const TIME_LIMIT_OPTIONS = [[0, 'Off'], [45, '45 min'], [60, '60 min'], [90, '90 min']];
+
+// ---- skirmish extras (menu: Crates, Oil derricks, Victory) ----
+// Supply crates drop on open ground every `every` seconds while fewer than `max` (+1 per player)
+// lie about. The first ground unit to reach one opens it: weights pick what is inside.
+const CRATES = {
+  first: 40, every: 45, max: 2, life: 240, reach: 0.9,
+  kinds: {
+    cash:    { note: 'CREDITS', w: 4,   text: 'Supply crate: +{n} credits' },
+    repair:  { note: 'REPAIRED', w: 2,   text: 'Supply crate: units repaired', radius: 6 },
+    promote: { note: 'PROMOTED', w: 2,   text: 'Supply crate: units promoted', radius: 5 },
+    unit:    { note: 'REINFORCEMENTS', w: 1.6, text: 'Supply crate: reinforcements', pool: ['tank', 'ifv', 'mlrs', 'rocket'] },
+    map:     { note: 'MAP REVEALED', w: 0.8, text: 'Supply crate: map revealed' },
+    trap:    { note: 'BOOBY TRAP', w: 0.7, text: 'Supply crate: booby trapped!', damage: 220, radius: 2.2 },
+  },
+};
+// Oil derricks: credits a second for the owner, a one-off bonus when an Engineer takes one, and
+// how long one burns after it is shot down (nobody can take it while it burns).
+const OIL = { rate: 5, bonus: 500, burn: 45, per: 1, extra: 2 };
+// King of the hill: a circle in the middle of the map. An alliance holds it while it has armed
+// ground units inside and nobody it is at war with does; the first to hold it for `hold` seconds
+// in all wins. The hill opens `opens` seconds into the match (after any ceasefire), so everyone
+// has a base going before it counts.
+const KOTH = { radius: 5, hold: 300, opens: 150 };
+const VICTORY_OPTIONS = [['conquest', 'Conquest'], ['koth', 'King of the hill']];
 
 const START_CREDITS = 10000;
 const BUILD_RADIUS = 5; // tiles from an existing structure

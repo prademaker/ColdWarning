@@ -396,10 +396,12 @@ class Game {
     // time of day (light.js): cosmetic; missions bring their own, skirmish and defense choose
     this.daytime = md ? md.daytime || 'day' : opts.daytime === 'dusk' || opts.daytime === 'night' ? opts.daytime : 'day';
     this.mode = md ? 'campaign' : opts.mode === 'defense' ? 'defense' : 'skirmish';
+    // king of the hill is fought on a land map: the hill sits in the middle, where the sea maps have open water
+    const koth = this.mode === 'skirmish' && opts.victory === 'koth';
     // alliance number per team, the human first; defense is the player against the waves
     const lineup = md ? md.teams.map(t => t.ally) : this.mode === 'defense' ? [0, 1] : (LINEUPS[opts.lineup] || LINEUPS['1v1']).teams;
     const size = typeof opts.mapSize === 'number' ? opts.mapSize : (MAP_SIZES[opts.mapSize] || MAP_SIZES.medium).tiles;
-    this.map = new GameMap(size, opts.seed, opts.theater || 'temperate', md ? md.starts || lineup.length : this.mode === 'defense' ? 4 : lineup.length, md ? md.water : opts.water);
+    this.map = new GameMap(size, opts.seed, opts.theater || 'temperate', md ? md.starts || lineup.length : this.mode === 'defense' ? 4 : lineup.length, md ? md.water : koth ? 'lakes' : opts.water);
     this.pf = new PathFinder(this.map);
     this.entities = []; this.byId = new Map();
     this.projectiles = []; this.effects = []; this.decals = [];
@@ -428,6 +430,7 @@ class Game {
 
     for (const c of this.map.civ) this.placeBuilding(c.key, NEUTRAL, c.tx, c.ty).built = 1;
     this.map.bridges.forEach((br, k) => this.addBridge(k));
+    this.initExtras(opts, md);   // crates, oil derricks, the hill (extras.js)
 
     // starting forces
     this.teams.forEach((t, i) => {
@@ -998,7 +1001,11 @@ class Game {
         target.guard = [target.x, target.y];
       }
     }
-    if (target.hp <= 0) { if (target.def.bridge) this.collapseBridge(target, attacker); else this.kill(target, attacker); }
+    if (target.hp <= 0) {
+      if (target.def.bridge) this.collapseBridge(target, attacker);
+      else if (target.def.oil) this.knockOutDerrick(target, attacker);
+      else this.kill(target, attacker);
+    }
   }
 
   // special hit effects: a Reaper's laser designation, a Raijin's EMP
@@ -1273,7 +1280,7 @@ class Game {
 
   commandAttack(units, target) {
     for (const u of units) {
-      if (u.def.engineer && target.kind === 'building') { if (target.def.cat !== 'civilian' && !target.def.bridge) this.commandCapture(u, target); continue; }
+      if (u.def.engineer && target.kind === 'building') { if ((target.def.cat !== 'civilian' || target.def.oil) && !target.def.bridge) this.commandCapture(u, target); continue; }
       if (u.def.demo && target.kind === 'building') { this.commandDemolish(u, target); continue; }
       if (!this.canHit(u, target)) continue;
       u.order = { type: 'attack', target };
@@ -1347,6 +1354,7 @@ class Game {
     }
     this.updateCharges(dt);
     this.updateMines(dt);
+    if (this.updateExtras) this.updateExtras(dt);
     this.auraT = (this.auraT || 0) - dt;
     if (this.auraT <= 0) { this.auraT = 0.25; this.updateAuras(); }
     const ents = this.entities;
@@ -1395,6 +1403,7 @@ class Game {
         // remaining units self-destruct; civilian buildings they held go back to nobody
         for (const e of this.entities) {
           if (e.team !== t.id || e.dead) continue;
+          if (e.def.oil) { e.team = NEUTRAL; e.target = null; continue; }
           if (e.def.cat === 'civilian') { while (e.garrison.length) this.killOccupant(e, null); continue; }
           this.kill(e, null);
         }
@@ -1406,6 +1415,7 @@ class Game {
     if (this.mission) this.mission.check();
     else if (p.defeated) this.over = { win: false, time: this.time };
     else if (this.waves) { if (this.waves.won) this.over = { win: true, time: this.time }; }
+    else if (this.hill && this.hillWinner() !== null) this.over = { win: this.hillWinner() === p.ally, time: this.time, hill: this.hillWinner() };
     else if (this.teams.every(t => !this.hostile(t.id, this.player) || t.defeated)) this.over = { win: true, time: this.time };
     if (this.over) this.eva(this.over.win ? 'Mission accomplished' : 'Mission failed', this.player);
   }
@@ -1658,8 +1668,13 @@ class Game {
     if (o && o.type === 'capture') {
       const b = o.target;
       if (b.dead) { u.order = null; return; }
-      if (b.def.cat === 'civilian' || (this.hostile(b.team, u.team) && b.garrison && b.garrison.length)) { u.order = null; return; }
+      if ((b.def.cat === 'civilian' && !b.def.oil) || (this.hostile(b.team, u.team) && b.garrison && b.garrison.length)) { u.order = null; return; }
       if (distTo(u.x, u.y, b) < TILE * 0.8) { // the path ends on the next tile, half a tile from the wall
+        if (b.def.oil && (b.team === NEUTRAL || this.hostile(b.team, u.team))) {
+          // a burning derrick can't be taken yet: wait by it for the fire to go out
+          if (!this.derrickBurning(b)) this.captureDerrick(b, u);
+          return;
+        }
         if (!this.hostile(b.team, u.team)) { b.hp = b.maxHp; this.eva('Structure repaired', u.team); }
         else {
           const old = b.team;
@@ -2047,6 +2062,7 @@ class Game {
     if (b.built < 1) { b.built = Math.min(1, b.built + dt / 1.2); return; }
     const t = this.teamOf(b.team);
     if (b.def.cat === 'civilian') b.repairing = false;
+    if (b.def.oil) { this.pumpOil(b, dt); return; }
     if (b.repairing) {
       if (b.hp >= b.maxHp) b.repairing = false;
       else {
