@@ -326,8 +326,10 @@ const Sfx = {
     const team = G.teams[u.team], east = FACTIONS[team.faction].side === 'axis';
     const role = u.def.hero ? 'hero' : u.def.harvester ? 'harvester' : u.def.engineer ? 'engineer' : u.def.cat === 'infantry' ? 'infantry' : u.air ? 'air' : u.def.naval ? 'naval' : 'vehicle';
     const lines = UNIT_LINES[role][kind] || UNIT_LINES[role].select;
+    // the Axis commando answers to her own callsign
+    const lines2 = role === 'hero' && east ? lines.map(l => l === 'Raven.' ? 'Sokol.' : l) : lines;
     const extra = east && role !== 'hero' ? (UNIT_LINES_EAST[kind] || []) : [];
-    const pool = lines.concat(extra);
+    const pool = lines2.concat(extra);
     const text = pool[Math.floor(Math.random() * pool.length)];
     const pitch = { infantry: 0.95, engineer: 1.15, vehicle: 0.6, harvester: 0.8, air: 1.0, hero: 1.1, naval: 0.7 }[role];
     this.play('radio');

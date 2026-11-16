@@ -34,7 +34,7 @@ const SaveCodec = {
   // read-only tables a save refers to by path, e.g. "UNITS/tank/weapon"
   roots() {
     const missions = {};
-    for (const m of CAMPAIGN.missions) missions[m.id] = m;
+    for (const c of campaigns()) for (const m of c.missions) missions[m.id] = m;
     return { FACTIONS, THEATERS, WARHEADS, UNITS, ULTIMATE_TIERS, BUILDINGS, UPGRADES, STRUCTURE_UPGRADES, GARRISON, TABS, SIDES, DIFFICULTY, LINEUPS, MAP_SIZES, MAP_WATER, EXTRA_COLORS, DEFENSE, CAST, THEMES, MISSIONS: missions };
   },
 

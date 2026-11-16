@@ -48,7 +48,7 @@ const FACTIONS = {
     color: '#e8413a', dark: '#8c1f1b', light: '#ff9e98',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6e7048', '#4f5134', '#8c8d60'],
-    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', flak: 'Pantsir-SM', tos: 'TOS-2 Tosochka', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf', patrol: 'Raptor Patrol Boat', destroyer: 'Admiral Gorshkov Frigate', sub: 'Yasen-class Submarine', battleship: 'Pyotr Velikiy', bomber: 'Tu-160M Blackjack' },
+    names: { rifle: 'Spetsnaz', tank: 'T-14 Armata', flak: 'Pantsir-SM', tos: 'TOS-2 Tosochka', heli: 'Mi-28 Havoc', jet: 'Su-57 Felon', sam: 'S-400 Triumf', patrol: 'Raptor Patrol Boat', destroyer: 'Admiral Gorshkov Frigate', sub: 'Yasen-class Submarine', battleship: 'Pyotr Velikiy', bomber: 'Tu-160M Blackjack', commando: 'Commando "Sokol"' },
     bonus: { dmg: { vehicle: 1.15 } }, bonusText: 'Armor +15% firepower', signature: 'iskander', edge: 'krasukha',
   },
   china: {
@@ -56,7 +56,7 @@ const FACTIONS = {
     color: '#e5322d', dark: '#86160f', light: '#ff9a92',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#566f48', '#3e5235', '#71895e'],
-    names: { rifle: 'PLA Trooper', tank: 'Type 99A', flak: 'PGZ-09 SPAAG', tos: 'PCH-191 Thermobaric', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM', patrol: 'Type 022 Missile Boat', destroyer: 'Type 055 Destroyer', sub: 'Type 093 Submarine', battleship: 'Type 055B Battlecruiser', bomber: 'H-20 Stealth Bomber' },
+    names: { rifle: 'PLA Trooper', tank: 'Type 99A', flak: 'PGZ-09 SPAAG', tos: 'PCH-191 Thermobaric', heli: 'Z-10 Attack Helicopter', jet: 'J-20 Mighty Dragon', sam: 'HQ-9 SAM', patrol: 'Type 022 Missile Boat', destroyer: 'Type 055 Destroyer', sub: 'Type 093 Submarine', battleship: 'Type 055B Battlecruiser', bomber: 'H-20 Stealth Bomber', commando: 'Commando "Sokol"' },
     bonus: { speed: { structure: 1.25, defense: 1.25 } }, bonusText: 'Structures build 25% faster', signature: 'hacker', edge: 'hub',
   },
   soviet: {
@@ -64,7 +64,7 @@ const FACTIONS = {
     color: '#d92b2b', dark: '#7d1212', light: '#ff9a9a',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#6a6a3e', '#4c4c2c', '#86865a'],
-    names: { rifle: 'Motor Rifle', tank: 'T-90M', flak: '2S6 Tunguska', tos: 'TOS-1A Solntsepyok', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM', patrol: 'Osa Missile Boat', destroyer: 'Sovremenny Destroyer', sub: 'Akula-class Submarine', battleship: 'Orlan Battlecruiser', bomber: 'Tu-22M3 Backfire' },
+    names: { rifle: 'Motor Rifle', tank: 'T-90M', flak: '2S6 Tunguska', tos: 'TOS-1A Solntsepyok', heli: 'Mi-24 Super Hind', jet: 'Su-57', sam: 'S-400 SAM', patrol: 'Osa Missile Boat', destroyer: 'Sovremenny Destroyer', sub: 'Akula-class Submarine', battleship: 'Orlan Battlecruiser', bomber: 'Tu-22M3 Backfire', commando: 'Commando "Sokol"' },
     bonus: { cost: { infantry: 0.75 } }, bonusText: 'Infantry 25% cheaper', signature: 'kirov', edge: 'propaganda',
   },
   northkorea: {
@@ -72,7 +72,7 @@ const FACTIONS = {
     color: '#c8302f', dark: '#701616', light: '#f59a95',
     alt: { color: '#ef9a2a', dark: '#93590f', light: '#ffd59a' },
     camo: ['#5f6640', '#444a2c', '#7b8358'],
-    names: { rifle: 'KPA Rifleman', tank: 'Chonma-20', flak: 'M1992 SPAAG', tos: 'KN-25 Launcher', heli: 'Mi-24 Hind', jet: 'MiG-29 Fulcrum', sam: 'Pongae-5 SAM', patrol: 'Nampo Patrol Boat', destroyer: 'Choe Hyon Destroyer', sub: 'Sinpo Submarine', battleship: 'Juche Battlecruiser', bomber: 'Il-28 Beagle' },
+    names: { rifle: 'KPA Rifleman', tank: 'Chonma-20', flak: 'M1992 SPAAG', tos: 'KN-25 Launcher', heli: 'Mi-24 Hind', jet: 'MiG-29 Fulcrum', sam: 'Pongae-5 SAM', patrol: 'Nampo Patrol Boat', destroyer: 'Choe Hyon Destroyer', sub: 'Sinpo Submarine', battleship: 'Juche Battlecruiser', bomber: 'Il-28 Beagle', commando: 'Commando "Sokol"' },
     bonus: { cost: { defense: 0.75 } }, bonusText: 'Defenses 25% cheaper', signature: 'demotruck', edge: 'koksan',
   },
 };

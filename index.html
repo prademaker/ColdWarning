@@ -64,7 +64,7 @@
           <button class="fd-card fd-small" id="fd-custom">
             <div class="fd-kicker">Your rules</div>
             <h2>Custom battle</h2>
-            <p>Pick your country, the map, up to three opponents and allies, Defense mode or the five-mission campaign.</p>
+            <p>Pick your country, the map, up to three opponents and allies, Defense mode or one of two campaigns.</p>
           </button>
         </div>
       </div>
@@ -93,7 +93,7 @@
       <section class="m-box" id="water-box"><h3>Water</h3><div id="water" class="opts"></div></section>
     </div>
     <section id="campaign" class="m-box" hidden>
-      <div class="c-head"><h3>Operation Northwind</h3><span class="c-sub">Campaign · Allies vs a revived Soviet Union · 2030</span></div>
+      <div class="c-head"><div id="c-pick" class="c-pick"></div><span class="c-sub" id="c-sub"></span></div>
       <div class="c-body"><div id="c-missions"></div><div id="c-brief"></div></div>
     </section>
     <div class="m-row" id="skirmish-row">
@@ -139,7 +139,7 @@
         <li><b>Hills and bridges:</b> hills rise above the plain behind cliffs and can only be climbed by their ramps. Units and defenses up top see two tiles further, reach a tile further and take less damage from fire coming up from below. Bridges carry ground units over narrow water (ships pass underneath): <kbd>Ctrl</kbd>+right-click one to bring it down, taking anything on it into the water, and right-click a broken bridge with an Engineer to rebuild it.</li>
         <li><b>Dig in:</b> select riflemen and press <kbd>D</kbd> to dig in behind sandbags (tougher, longer range, can't move). Any move order gets them up again.</li>
         <li><b>Players:</b> fight up to three computer players, alone or with a computer ally. Allies share vision. The opponent you pick leads the enemy side; the others get random factions.</li>
-        <li><b>Campaign:</b> Operation Northwind, five missions of Allies against Axis that show off every country, with a story and objectives. Commando <b>Raven</b> joins you: enemies can't spot her from a distance until she opens fire, she drops infantry at long range, and right-clicking an enemy structure with her plants C4. Lose her and the mission fails. <kbd>Space</kbd> jumps to the latest alert or reinforcement.</li>
+        <li><b>Campaigns:</b> Operation Northwind, five missions of Allies against Axis, and Operation Polar Dawn, five more fought from the Axis side. Together they show off every country, with a story and objectives. A commando joins you (<b>Raven</b> for the Allies, <b>Sokol</b> for the Axis): enemies can't spot her from a distance until she opens fire, she drops infantry at long range, and right-clicking an enemy structure with her plants C4. When her survival is an objective, losing her fails the mission. <kbd>Space</kbd> jumps to the latest alert or reinforcement.</li>
         <li><b>Defense mode:</b> no enemy base. Waves march on you from the other corners of the map, with super tanks every fifth wave. Survive them all to win. Clearing a wave pays a bounty, and <i>Send now</i> calls the next wave early for extra credits.</li>
       </ul>
     </details>
@@ -205,6 +205,7 @@
 <script src="js/ai.js"></script>
 <script src="js/waves.js"></script>
 <script src="js/campaign.js"></script>
+<script src="js/campaign_axis.js"></script>
 <script src="js/coach.js"></script>
 <script src="js/save.js"></script>
 <script src="js/art.js"></script>

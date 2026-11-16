@@ -1,4 +1,4 @@
-// Cold War 2: 2030 — campaign: Operation Northwind.
+// Cold War 2: 2030 — campaigns: Operation Northwind (the Allies) and Operation Polar Dawn (the Axis).
 // Each mission is data (map, teams, briefing) plus a small script: setup() places the forces,
 // tick() runs triggers, and objectives decide victory and defeat. Objective checks and timed
 // events live in the mission's objectives and events tables, looked up by id when they run, so
@@ -17,6 +17,8 @@ const CAST = {
   volkov: { name: 'Gen. Arkady Volkov', role: 'Soviet Union', color: '#ff8a80' },
   pak: { name: 'Gen. Pak Chol-su', role: "Korean People's Army", color: '#f59a95' },
   zhao: { name: 'Gen. Zhao Lin', role: 'PLA Northern Theatre', color: '#ffb199' },
+  sokol: { name: 'Sokol', role: 'Spetsnaz commando', color: '#ffc46b' },
+  orlov: { name: 'Gen. Yuri Orlov', role: 'Russian Expeditionary Force', color: '#ffa08a' },
 };
 
 // minutes on the silo clock in Countdown, by difficulty
@@ -26,7 +28,8 @@ const SILO_MINUTES = { recruit: 24, easy: 20, normal: 16, hard: 13 };
 // (Soviet Union, Russia, North Korea, China), and each mission shows off a few countries'
 // signature units and edge structures.
 const CAMPAIGN = {
-  name: 'Operation Northwind',
+  id: 'allies', name: 'Operation Northwind', side: 'allies', hero: 'Raven',
+  sub: 'Campaign · Allies vs a revived Soviet Union · 2030',
   missions: [
     // ------------------------------------------------------------------ tutorial
     {
@@ -527,7 +530,14 @@ const CAMPAIGN = {
   ],
 };
 
-function missionDef(id) { return CAMPAIGN.missions.find(m => m.id === id) || null; }
+// AXIS_CAMPAIGN (campaign_axis.js) is loaded after this file, so these look it up when called
+function campaigns() { return typeof AXIS_CAMPAIGN === 'undefined' ? [CAMPAIGN] : [CAMPAIGN, AXIS_CAMPAIGN]; }
+function campaignOf(id) { return campaigns().find(c => c.missions.some(m => m.id === id)) || CAMPAIGN; }
+function campaignById(id) { return campaigns().find(c => c.id === id) || CAMPAIGN; }
+function missionDef(id) {
+  for (const c of campaigns()) { const m = c.missions.find(m => m.id === id); if (m) return m; }
+  return null;
+}
 
 // Which missions are done, kept in this browser. Storage can be missing or blocked, so every
 // access is guarded and the campaign still plays (just without remembering) when it fails.
@@ -539,8 +549,8 @@ const CampaignProgress = {
   // a mission opens once the one before it is won ('?unlock' in the URL opens them all); one
   // already won stays open even if a mission is added before it
   // a tutorial is always open and never stands in the way of the next mission
-  unlocked(i) {
-    const m = CAMPAIGN.missions[i], prev = CAMPAIGN.missions.slice(0, i).filter(p => !p.tutorial).pop();
+  unlocked(i, list = CAMPAIGN.missions) {
+    const m = list[i], prev = list.slice(0, i).filter(p => !p.tutorial).pop();
     if (!prev || m.tutorial || /[?&]unlock\b/.test(location.search)) return true;
     return !!this.record(prev.id) || !!this.record(m.id);
   },
@@ -567,6 +577,9 @@ class Mission {
     this.focus = null;
     this.doomed = false;
   }
+
+  // the campaign's commando, by name (Raven for the Allies, Sokol for the Axis)
+  get heroName() { return campaignOf(this.def.id).hero || 'Raven'; }
 
   // ---------- setup helpers ----------
   start(i) { return G.map.starts[i]; }
@@ -740,7 +753,8 @@ class Mission {
 
   survive() {
     if (this.objectives.some(o => o.id === 'raven')) return;
-    this.objective('raven', 'Raven must survive', { survive: true });
+    // (the id stays 'raven' on both sides, so saved games keep their objective)
+    this.objective('raven', this.heroName + ' must survive', { survive: true });
   }
 
   win() { if (!G.over) this.end(true, this.def.win); }
@@ -765,7 +779,7 @@ class Mission {
     const vip = this.objectives.find(o => o.id === 'raven');
     if (vip && !this.heroAlive()) {
       vip.state = 'failed';
-      this.lose('Raven is down. ' + (this.def.heroLost || 'Without her, the operation falls apart.'));
+      this.lose(this.heroName + ' is down. ' + (this.def.heroLost || 'Without her, the operation falls apart.'));
       return;
     }
     for (const o of [...this.objectives]) {
